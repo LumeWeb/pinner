@@ -37,10 +37,15 @@ import (
 //   - Otherwise the stream uploads as a single file via
 //     contentfs.NewSingleFileFS, honoring wait and wrap.
 //
-// maxBytes is the operator-set upload cap applied to an extracted archive's
-// total size (core/config Config.GetMaxMCPUploadSize, converted to int64 by
-// the caller); <= 0 disables the tree-size check. The raw single-file path is
-// NOT capped here — that cap is enforced upstream at the transport/body level.
+// maxBytes is the operator-set upload cap (core/config
+// Config.GetMaxMCPUploadSize, converted to int64 by the caller); <= 0
+// disables the tree-size check and the buffer cap. The tree-size check only
+// runs for extracted archives, so the buffer itself is additionally wrapped
+// in a hard size-limited writer mirroring the download path: without it, a
+// single-file (or archive_mode=preserve) stream larger than maxBytes would
+// be buffered to temp in full before any check — the HTTP body cap does not
+// bound transport-scoped source reads, and the buffer must never be the
+// unbounded stage.
 func StreamUpload(uploadSvc uploads.Service, maxBytes int64) transfer.UploadHandler {
 	return func(ctx context.Context, reader io.Reader, size int64, name string, wait bool, archiveMode string, wrap bool) (any, error) {
 		if name == "" {
@@ -51,6 +56,10 @@ func StreamUpload(uploadSvc uploads.Service, maxBytes int64) transfer.UploadHand
 			return nil, err
 		}
 		path := file.Name()
+		// Hard buffer cap: fails the stream the moment a write would exceed
+		// maxBytes instead of buffering an unbounded body to temp. A
+		// non-positive cap is a documented passthrough.
+		sink := transfer.NewSizeLimitedWriter(file, maxBytes)
 		defer os.Remove(path)
 		defer file.Close()
 		// A wrapped (website) single-file upload with no explicit name sniffs the
@@ -64,12 +73,12 @@ func StreamUpload(uploadSvc uploads.Service, maxBytes int64) transfer.UploadHand
 				name = resolved
 			}
 			if n > 0 {
-				if _, err := file.Write(head[:n]); err != nil {
+				if _, err := sink.Write(head[:n]); err != nil {
 					return nil, err
 				}
 			}
 		}
-		if _, err := io.Copy(file, reader); err != nil {
+		if _, err := io.Copy(sink, reader); err != nil {
 			return nil, err
 		}
 		if _, err := file.Seek(0, io.SeekStart); err != nil {

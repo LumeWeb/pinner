@@ -135,11 +135,14 @@ func ResolveLocalOutputPath(downloadRoot, outputPath, sourceName string) (string
 		return "", fmt.Errorf("download root is not configured")
 	}
 	rel := outputPath
-	if rel == "" || rel == "." || rel == string(filepath.Separator) {
-		// Absent path, or an explicit "this directory": the destination is the
-		// root directory itself, so the source-derived filename is appended
-		// (mirroring vault cp's directory-expansion).
-		rel = name
+	if rel == "" || rel == "." || rel == string(filepath.Separator) ||
+		strings.HasSuffix(rel, "/") || strings.HasSuffix(rel, string(filepath.Separator)) {
+		// Absent path, or an explicit "this directory": either the root itself
+		// or a path ending in a separator ("reports/") is a DIRECTORY — the
+		// source-derived filename is appended inside it (mirroring vault cp's
+		// directory-expansion). Without the trailing-separator case a "sub/"
+		// input would collapse to a bare file destination and clobber it.
+		rel = filepath.Join(rel, name)
 	}
 	// Reject any caller-supplied ABSOLUTE path outright. filepath.Join does not
 	// reset on a leading separator (Join("a", "/b") = "a/b"), so an absolute
