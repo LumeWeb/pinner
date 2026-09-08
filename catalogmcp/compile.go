@@ -3,6 +3,8 @@ package catalogmcp
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/catalogmeta"
@@ -27,13 +29,23 @@ func NewCompiler() Compiler { return NewCompilerForProfile(nil) }
 // resolves FallbackFunc targets (DescFunc resolvers) against profile when
 // building the static descriptor. profile is opaque; the description DSL's
 // resolvers adapt it via forgeProfileOf (see profile.go). Passing an unadapted
-// non-nil profile is a reported adapter gap (ProfileAdapterGap), never a
-// silently featureless description. A nil profile skips DescFunc resolution
-// and falls back to the operation's own Description, matching the
-// pre-migration pinner compiler semantics.
+// non-nil profile is a reported adapter gap (readable via the concrete
+// compiler's AdapterGap), never a silently featureless description. A nil
+// profile skips DescFunc resolution and falls back to the operation's own
+// Description, matching the pre-migration pinner compiler semantics.
 func NewCompilerForProfile(profile any) Compiler {
 	return &mcpCompiler{profile: profile}
 }
+
+// activeCompiler holds the mcpCompiler whose Compile is currently running,
+// installed by Compile for the duration of the call. DescFunc resolvers have
+// a fixed signature (func(any) string) and cannot carry a compiler reference,
+// so forgeProfileOf records adapter-gap diagnostics through this pointer.
+// Compile resolves DescFunc synchronously in the same goroutine, so the
+// active compiler is correctly scoped for the real use; the atomic pointer
+// keeps concurrent compiles race-free rather than pollution-free in the
+// diagnostic sense (each compiler's gap slot remains per-instance).
+var activeCompiler atomic.Pointer[mcpCompiler]
 
 // mcpCompiler maps a catalog's model-visible operations into MCP tool
 // descriptors. It mirrors the pre-migration root-pinner MCP compiler's
@@ -41,8 +53,26 @@ func NewCompilerForProfile(profile any) Compiler {
 // fallback target (static Description, or DescFunc resolved against profile),
 // op.Description() as the safety net, and the registry's authoritative shape
 // (opmesh.ToolDescriptor) for everything else.
+//
+// The adapter-gap diagnostic is per-instance (gap, guarded by gapMu): a gap
+// raised while compiling with one profile/compiler cannot pollute or be
+// cleared by another compiler instance (the old package-global slot could
+// produce stale false alarms and false negatives across compiles).
 type mcpCompiler struct {
 	profile any
+	gapMu   sync.Mutex
+	gap     error
+}
+
+// AdapterGap returns and clears the adapter-gap diagnostic raised during
+// this compiler's most recent Compile. Nil means no non-nil, non-carrier
+// profile was adapted.
+func (m *mcpCompiler) AdapterGap() error {
+	m.gapMu.Lock()
+	defer m.gapMu.Unlock()
+	err := m.gap
+	m.gap = nil
+	return err
 }
 
 // Compile converts the catalog's model-visible operations into
@@ -54,6 +84,16 @@ func (m *mcpCompiler) Compile(cat opmesh.Catalog) ([]opmesh.ToolDescriptor, erro
 	if cat == nil {
 		return nil, fmt.Errorf("catalogmcp: cannot compile a nil catalog")
 	}
+	// Scope this compiler as the adapter-gap recorder for the duration of the
+	// synchronous DescFunc resolution below: reset this instance's gap, then
+	// install it as the active compiler. Any gap forgeProfileOf records while
+	// this Compile is running lands on THIS instance, never on another
+	// compiler's slot.
+	m.gapMu.Lock()
+	m.gap = nil
+	m.gapMu.Unlock()
+	activeCompiler.Store(m)
+	defer activeCompiler.Store(nil)
 	ops := cat.Search("", "", opmesh.VisibilityModel)
 	tools := make([]opmesh.ToolDescriptor, 0, len(ops))
 	for _, op := range ops {

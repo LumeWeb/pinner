@@ -2,7 +2,6 @@ package catalogmcp
 
 import (
 	"fmt"
-	"sync"
 
 	"go.lumeweb.com/mcpforge"
 )
@@ -115,40 +114,23 @@ func AdaptProfile(p any) (mcpforge.FeatureCarrier, error) {
 	return nil, &ProfileAdapterError{ProfileType: fmt.Sprintf("%T", p)}
 }
 
-// profileGap records the most recent adapter-gap diagnostic raised while a
-// description resolver adapted an any-typed profile. DescFunc resolvers can
-// only return a string and must never panic, so the error path above cannot
-// propagate through them; this slot keeps the gap observable instead of
-// silent. profileGapMu guards both fields (resolvers may run concurrently,
-// e.g. per-request description resolution in the MCP bridge).
-var (
-	profileGapMu sync.Mutex
-	profileGap   error
-)
-
-// ProfileAdapterGap returns and clears the most recent adapter-gap diagnostic
-// raised while a description resolver adapted an any-typed profile. A nil
-// result means no non-nil, non-carrier profile has been seen. Consumer
-// integration code (e.g. a CLI compiling its startup surface) can call this
-// after catalogmcp.NewCompilerForProfile(...).Compile to assert its profile
-// adaptation is wired: behind this function sits the only path where an
-// unknown profile shape degrades to a featureless description.
-func ProfileAdapterGap() error {
-	profileGapMu.Lock()
-	defer profileGapMu.Unlock()
-	err := profileGap
-	profileGap = nil
-	return err
-}
-
 // forgeProfileOf adapts the opaque p (`any` profile in a DescFunc resolver)
 // into a mcpforge.FeatureCarrier. It is total and never panics:
 //
 //   - nil → MCPProfile{}: the documented profile-less case.
 //   - a ForgeFeatureCarrier → adopted as-is.
 //   - anything else → an adapter gap. A resolver cannot error, so the gap is
-//     REPORTED (readable via ProfileAdapterGap) and the base description
-//     resolves; it is never conveyed as a silently featureless profile.
+//     REPORTED (readable via (*mcpCompiler).AdapterGap on the compiler whose
+//     Compile triggered the resolution) and the base description resolves; it
+//     is never conveyed as a silently featureless profile.
+//
+// DescFunc has a fixed signature (func(any) string, defined in a lower layer)
+// and cannot accept a recorder, so the adapter-gap diagnostic is recorded on
+// the compiler currently compiling: mcpCompiler.Compile installs itself as
+// the package-level activeCompiler for the duration of its call, and because
+// Compile resolves DescFunc synchronously in the same goroutine, the active
+// compiler is correctly scoped. The atomic pointer + per-compiler mutex keep
+// the recording race-free without a package-global mutable gap slot.
 func forgeProfileOf(p any) mcpforge.FeatureCarrier {
 	// A nil profile is the documented intentional no-profile case resolved by
 	// AdaptProfile; handle it here so the description resolver's hot path
@@ -158,9 +140,11 @@ func forgeProfileOf(p any) mcpforge.FeatureCarrier {
 	}
 	c, err := AdaptProfile(p)
 	if err != nil {
-		profileGapMu.Lock()
-		profileGap = err
-		profileGapMu.Unlock()
+		if m := activeCompiler.Load(); m != nil {
+			m.gapMu.Lock()
+			m.gap = err
+			m.gapMu.Unlock()
+		}
 		return MCPProfile{}
 	}
 	return c

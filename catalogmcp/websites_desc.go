@@ -15,8 +15,8 @@ import (
 // adapter contract: consumers with a richer host profile (e.g. a
 // Has/IsHost-style pinner-cli hostenv.PlatformProfile) adapt it via
 // ProfileFromHas, or implement ForgeFeatureCarrier directly. An unadapted
-// non-carrier profile is a reported adapter gap (ProfileAdapterGap), never a
-// silently empty feature set.
+// non-carrier profile is a reported adapter gap (per-compiler
+// (*mcpCompiler).AdapterGap), never a silently empty feature set.
 type MCPProfile struct {
 	Features mcpforge.FeatureSet
 }
