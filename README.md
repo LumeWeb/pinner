@@ -14,6 +14,14 @@ It contains:
 - **`catalogops`** — the Pinner domain operation set (account, admin billing /
   domains / quota / social providers / websites, apikeys, auth, dns, ens,
   ipns, operations, pins, vault, websites) declared as catalog operations.
+- **`pinnerops`** — the operation ASSEMBLY layer: `AssembleCatalogOps` takes a
+  `CatalogDepsBundle` (the lazy per-invocation dependency graph wired by the
+  product's construction layer), a `Surface` (which operation domains the
+  deployment registers — the zero value is the full surface; `HostedSurface`
+  excludes the Sia vault and portal admin), and an explicit `hosted` flag that
+  drops `EnvCLIOnly`/`EnvLocalOnly` operations from a Portal-embedded assembly —
+  and produces one runnable `pinner.Catalog`. Also carries the frontend-free
+  `CredentialResolver` seam (with the config-backed `ConfigCredentialResolver`).
 - **`core/`** — the service layer the operations run against (auth, config,
   dns, ipns, pinning, vault, websites, ...), built on
   [portal-sdk](https://pkg.go.dev/go.lumeweb.com/portal-sdk) and
@@ -104,6 +112,31 @@ if err := svc.Install(ctx); err != nil {
 	return err // registers and enables the service
 }
 return svc.Start(ctx)
+```
+
+Assemble the whole catalogops surface into one runnable catalog for a chosen
+product surface (hosted assemblies drop `EnvCLIOnly`/`EnvLocalOnly` operations
+explicitly — never inferred from the surface or the credential seam):
+
+```go
+import "go.lumeweb.com/pinner/pinnerops"
+
+bundle := &pinnerops.CatalogDepsBundle{
+    CfgMgr:             func() config.Manager { return cfgMgr },
+    CredentialResolver: pinnerops.ConfigCredentialResolver{
+        AuthToken: func() (string, error) { return cfgAuthToken(), nil },
+    },
+    Auth:    catalogops.AuthDeps{CfgMgr: func() config.Manager { return cfgMgr }},
+    Account: catalogops.AccountDeps{CfgMgr: func() config.Manager { return cfgMgr }},
+    // ... remaining domains: leave nil to degrade to "service unavailable" ops
+}
+
+// Local/CLI assembly over the FULL surface; hosted (Portal-embedded) would use
+// pinnerops.HostedSurface and hosted=true:
+cat, err := pinnerops.AssembleCatalogOps(bundle, pinnerops.FullSurface, false)
+if err != nil {
+    panic(err)
+}
 ```
 
 ## License
