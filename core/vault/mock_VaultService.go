@@ -39,6 +39,80 @@ func (_m *MockVaultService) EXPECT() *MockVaultService_Expecter {
 	return &MockVaultService_Expecter{mock: &_m.Mock}
 }
 
+// AddTags provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) AddTags(ctx context.Context, vaultPath string, tags []string) (*File, error) {
+	ret := _mock.Called(ctx, vaultPath, tags)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddTags")
+	}
+
+	var r0 *File
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []string) (*File, error)); ok {
+		return returnFunc(ctx, vaultPath, tags)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []string) *File); ok {
+		r0 = returnFunc(ctx, vaultPath, tags)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*File)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, []string) error); ok {
+		r1 = returnFunc(ctx, vaultPath, tags)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_AddTags_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddTags'
+type MockVaultService_AddTags_Call struct {
+	*mock.Call
+}
+
+// AddTags is a helper method to define mock.On call
+//   - ctx context.Context
+//   - vaultPath string
+//   - tags []string
+func (_e *MockVaultService_Expecter) AddTags(ctx any, vaultPath any, tags any) *MockVaultService_AddTags_Call {
+	return &MockVaultService_AddTags_Call{Call: _e.mock.On("AddTags", ctx, vaultPath, tags)}
+}
+
+func (_c *MockVaultService_AddTags_Call) Run(run func(ctx context.Context, vaultPath string, tags []string)) *MockVaultService_AddTags_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 []string
+		if args[2] != nil {
+			arg2 = args[2].([]string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_AddTags_Call) Return(file *File, err error) *MockVaultService_AddTags_Call {
+	_c.Call.Return(file, err)
+	return _c
+}
+
+func (_c *MockVaultService_AddTags_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, tags []string) (*File, error)) *MockVaultService_AddTags_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Cat provides a mock function for the type MockVaultService
 func (_mock *MockVaultService) Cat(ctx context.Context, vaultPath string, w io.Writer) error {
 	ret := _mock.Called(ctx, vaultPath, w)
@@ -153,49 +227,6 @@ func (_c *MockVaultService_CheckReady_Call) RunAndReturn(run func(ctx context.Co
 	return _c
 }
 
-// Flush provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) Flush(ctx context.Context) (int, error) {
-	ret := _mock.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Flush")
-	}
-
-	var r0 int
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
-		return returnFunc(ctx)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) int); ok {
-		r0 = returnFunc(ctx)
-	} else {
-		r0 = ret.Get(0).(int)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = returnFunc(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// FlushPath provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) FlushPath(ctx context.Context, vaultPath string) error {
-	ret := _mock.Called(ctx, vaultPath)
-
-	if len(ret) == 0 {
-		panic("no return value specified for FlushPath")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = returnFunc(ctx, vaultPath)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
 // Close provides a mock function for the type MockVaultService
 func (_mock *MockVaultService) Close() error {
 	ret := _mock.Called()
@@ -236,6 +267,123 @@ func (_c *MockVaultService_Close_Call) Return(err error) *MockVaultService_Close
 }
 
 func (_c *MockVaultService_Close_Call) RunAndReturn(run func() error) *MockVaultService_Close_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Flush provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) Flush(ctx context.Context) (int, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Flush")
+	}
+
+	var r0 int
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) int); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_Flush_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Flush'
+type MockVaultService_Flush_Call struct {
+	*mock.Call
+}
+
+// Flush is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockVaultService_Expecter) Flush(ctx any) *MockVaultService_Flush_Call {
+	return &MockVaultService_Flush_Call{Call: _e.mock.On("Flush", ctx)}
+}
+
+func (_c *MockVaultService_Flush_Call) Run(run func(ctx context.Context)) *MockVaultService_Flush_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_Flush_Call) Return(n int, err error) *MockVaultService_Flush_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *MockVaultService_Flush_Call) RunAndReturn(run func(ctx context.Context) (int, error)) *MockVaultService_Flush_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FlushPath provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) FlushPath(ctx context.Context, vaultPath string) error {
+	ret := _mock.Called(ctx, vaultPath)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FlushPath")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = returnFunc(ctx, vaultPath)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockVaultService_FlushPath_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FlushPath'
+type MockVaultService_FlushPath_Call struct {
+	*mock.Call
+}
+
+// FlushPath is a helper method to define mock.On call
+//   - ctx context.Context
+//   - vaultPath string
+func (_e *MockVaultService_Expecter) FlushPath(ctx any, vaultPath any) *MockVaultService_FlushPath_Call {
+	return &MockVaultService_FlushPath_Call{Call: _e.mock.On("FlushPath", ctx, vaultPath)}
+}
+
+func (_c *MockVaultService_FlushPath_Call) Run(run func(ctx context.Context, vaultPath string)) *MockVaultService_FlushPath_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_FlushPath_Call) Return(err error) *MockVaultService_FlushPath_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockVaultService_FlushPath_Call) RunAndReturn(run func(ctx context.Context, vaultPath string) error) *MockVaultService_FlushPath_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -371,74 +519,6 @@ func (_c *MockVaultService_List_Call) RunAndReturn(run func(ctx context.Context,
 	return _c
 }
 
-// Search provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) Search(ctx context.Context, filter SearchRequest) ([]SearchItem, error) {
-	ret := _mock.Called(ctx, filter)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Search")
-	}
-
-	var r0 []SearchItem
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, SearchRequest) ([]SearchItem, error)); ok {
-		return returnFunc(ctx, filter)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, SearchRequest) []SearchItem); ok {
-		r0 = returnFunc(ctx, filter)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]SearchItem)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, SearchRequest) error); ok {
-		r1 = returnFunc(ctx, filter)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockVaultService_Search_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Search'
-type MockVaultService_Search_Call struct {
-	*mock.Call
-}
-
-// Search is a helper method to define mock.On call
-//   - ctx context.Context
-//   - filter SearchRequest
-func (_e *MockVaultService_Expecter) Search(ctx any, filter any) *MockVaultService_Search_Call {
-	return &MockVaultService_Search_Call{Call: _e.mock.On("Search", ctx, filter)}
-}
-
-func (_c *MockVaultService_Search_Call) Run(run func(ctx context.Context, filter SearchRequest)) *MockVaultService_Search_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 SearchRequest
-		if args[1] != nil {
-			arg1 = args[1].(SearchRequest)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_Search_Call) Return(searchItems []SearchItem, err error) *MockVaultService_Search_Call {
-	_c.Call.Return(searchItems, err)
-	return _c
-}
-
-func (_c *MockVaultService_Search_Call) RunAndReturn(run func(ctx context.Context, filter SearchRequest) ([]SearchItem, error)) *MockVaultService_Search_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Put provides a mock function for the type MockVaultService
 func (_mock *MockVaultService) Put(ctx context.Context, r io.Reader, size int64, vaultPath string, metadata map[string]any) (*File, error) {
 	ret := _mock.Called(ctx, r, size, vaultPath, metadata)
@@ -525,173 +605,36 @@ func (_c *MockVaultService_Put_Call) RunAndReturn(run func(ctx context.Context, 
 	return _c
 }
 
-// VersionList provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) VersionList(ctx context.Context, vaultPath string) ([]*File, error) {
+// Remove provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) Remove(ctx context.Context, vaultPath string) error {
 	ret := _mock.Called(ctx, vaultPath)
 
 	if len(ret) == 0 {
-		panic("no return value specified for VersionList")
-	}
-
-	var r0 []*File
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]*File, error)); ok {
-		return returnFunc(ctx, vaultPath)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []*File); ok {
-		r0 = returnFunc(ctx, vaultPath)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*File)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, vaultPath)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockVaultService_VersionList_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionList'
-type MockVaultService_VersionList_Call struct {
-	*mock.Call
-}
-
-// VersionList is a helper method to define mock.On call
-//   - ctx context.Context
-//   - vaultPath string
-func (_e *MockVaultService_Expecter) VersionList(ctx any, vaultPath any) *MockVaultService_VersionList_Call {
-	return &MockVaultService_VersionList_Call{Call: _e.mock.On("VersionList", ctx, vaultPath)}
-}
-
-func (_c *MockVaultService_VersionList_Call) Run(run func(ctx context.Context, vaultPath string)) *MockVaultService_VersionList_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(arg0, arg1)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_VersionList_Call) Return(file []*File, err error) *MockVaultService_VersionList_Call {
-	_c.Call.Return(file, err)
-	return _c
-}
-
-func (_c *MockVaultService_VersionList_Call) RunAndReturn(run func(ctx context.Context, vaultPath string) ([]*File, error)) *MockVaultService_VersionList_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// VersionGet provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) VersionGet(ctx context.Context, vaultPath string, versionID string) (*File, error) {
-	ret := _mock.Called(ctx, vaultPath, versionID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for VersionGet")
-	}
-
-	var r0 *File
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (*File, error)); ok {
-		return returnFunc(ctx, vaultPath, versionID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) *File); ok {
-		r0 = returnFunc(ctx, vaultPath, versionID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*File)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = returnFunc(ctx, vaultPath, versionID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockVaultService_VersionGet_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionGet'
-type MockVaultService_VersionGet_Call struct {
-	*mock.Call
-}
-
-// VersionGet is a helper method to define mock.On call
-//   - ctx context.Context
-//   - vaultPath string
-//   - versionID string
-func (_e *MockVaultService_Expecter) VersionGet(ctx any, vaultPath any, versionID any) *MockVaultService_VersionGet_Call {
-	return &MockVaultService_VersionGet_Call{Call: _e.mock.On("VersionGet", ctx, vaultPath, versionID)}
-}
-
-func (_c *MockVaultService_VersionGet_Call) Run(run func(ctx context.Context, vaultPath string, versionID string)) *MockVaultService_VersionGet_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		run(arg0, arg1, arg2)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_VersionGet_Call) Return(file *File, err error) *MockVaultService_VersionGet_Call {
-	_c.Call.Return(file, err)
-	return _c
-}
-
-func (_c *MockVaultService_VersionGet_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, versionID string) (*File, error)) *MockVaultService_VersionGet_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// VersionDownload provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) VersionDownload(ctx context.Context, vaultPath string, versionID string, w io.Writer) error {
-	ret := _mock.Called(ctx, vaultPath, versionID, w)
-
-	if len(ret) == 0 {
-		panic("no return value specified for VersionDownload")
+		panic("no return value specified for Remove")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, io.Writer) error); ok {
-		r0 = returnFunc(ctx, vaultPath, versionID, w)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = returnFunc(ctx, vaultPath)
 	} else {
 		r0 = ret.Error(0)
 	}
 	return r0
 }
 
-// MockVaultService_VersionDownload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionDownload'
-type MockVaultService_VersionDownload_Call struct {
+// MockVaultService_Remove_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Remove'
+type MockVaultService_Remove_Call struct {
 	*mock.Call
 }
 
-// VersionDownload is a helper method to define mock.On call
+// Remove is a helper method to define mock.On call
 //   - ctx context.Context
 //   - vaultPath string
-//   - versionID string
-//   - w io.Writer
-func (_e *MockVaultService_Expecter) VersionDownload(ctx any, vaultPath any, versionID any, w any) *MockVaultService_VersionDownload_Call {
-	return &MockVaultService_VersionDownload_Call{Call: _e.mock.On("VersionDownload", ctx, vaultPath, versionID, w)}
+func (_e *MockVaultService_Expecter) Remove(ctx any, vaultPath any) *MockVaultService_Remove_Call {
+	return &MockVaultService_Remove_Call{Call: _e.mock.On("Remove", ctx, vaultPath)}
 }
 
-func (_c *MockVaultService_VersionDownload_Call) Run(run func(ctx context.Context, vaultPath string, versionID string, w io.Writer)) *MockVaultService_VersionDownload_Call {
+func (_c *MockVaultService_Remove_Call) Run(run func(ctx context.Context, vaultPath string)) *MockVaultService_Remove_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -701,165 +644,20 @@ func (_c *MockVaultService_VersionDownload_Call) Run(run func(ctx context.Contex
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		var arg3 io.Writer
-		if args[3] != nil {
-			arg3 = args[3].(io.Writer)
-		}
-		run(arg0, arg1, arg2, arg3)
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
 
-func (_c *MockVaultService_VersionDownload_Call) Return(err error) *MockVaultService_VersionDownload_Call {
+func (_c *MockVaultService_Remove_Call) Return(err error) *MockVaultService_Remove_Call {
 	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *MockVaultService_VersionDownload_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, versionID string, w io.Writer) error) *MockVaultService_VersionDownload_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// VersionRestore provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) VersionRestore(ctx context.Context, vaultPath string, versionID string) (*File, error) {
-	ret := _mock.Called(ctx, vaultPath, versionID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for VersionRestore")
-	}
-
-	var r0 *File
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (*File, error)); ok {
-		return returnFunc(ctx, vaultPath, versionID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) *File); ok {
-		r0 = returnFunc(ctx, vaultPath, versionID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*File)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = returnFunc(ctx, vaultPath, versionID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockVaultService_VersionRestore_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionRestore'
-type MockVaultService_VersionRestore_Call struct {
-	*mock.Call
-}
-
-// VersionRestore is a helper method to define mock.On call
-//   - ctx context.Context
-//   - vaultPath string
-//   - versionID string
-func (_e *MockVaultService_Expecter) VersionRestore(ctx any, vaultPath any, versionID any) *MockVaultService_VersionRestore_Call {
-	return &MockVaultService_VersionRestore_Call{Call: _e.mock.On("VersionRestore", ctx, vaultPath, versionID)}
-}
-
-func (_c *MockVaultService_VersionRestore_Call) Run(run func(ctx context.Context, vaultPath string, versionID string)) *MockVaultService_VersionRestore_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		run(arg0, arg1, arg2)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_VersionRestore_Call) Return(file *File, err error) *MockVaultService_VersionRestore_Call {
-	_c.Call.Return(file, err)
-	return _c
-}
-
-func (_c *MockVaultService_VersionRestore_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, versionID string) (*File, error)) *MockVaultService_VersionRestore_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// AddTags provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) AddTags(ctx context.Context, vaultPath string, tags []string) (*File, error) {
-	ret := _mock.Called(ctx, vaultPath, tags)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AddTags")
-	}
-
-	var r0 *File
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []string) (*File, error)); ok {
-		return returnFunc(ctx, vaultPath, tags)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []string) *File); ok {
-		r0 = returnFunc(ctx, vaultPath, tags)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*File)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, []string) error); ok {
-		r1 = returnFunc(ctx, vaultPath, tags)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockVaultService_AddTags_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddTags'
-type MockVaultService_AddTags_Call struct {
-	*mock.Call
-}
-
-// AddTags is a helper method to define mock.On call
-//   - ctx context.Context
-//   - vaultPath string
-//   - tags []string
-func (_e *MockVaultService_Expecter) AddTags(ctx any, vaultPath any, tags any) *MockVaultService_AddTags_Call {
-	return &MockVaultService_AddTags_Call{Call: _e.mock.On("AddTags", ctx, vaultPath, tags)}
-}
-
-func (_c *MockVaultService_AddTags_Call) Run(run func(ctx context.Context, vaultPath string, tags []string)) *MockVaultService_AddTags_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 []string
-		if args[2] != nil {
-			arg2 = args[2].([]string)
-		}
-		run(arg0, arg1, arg2)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_AddTags_Call) Return(file *File, err error) *MockVaultService_AddTags_Call {
-	_c.Call.Return(file, err)
-	return _c
-}
-
-func (_c *MockVaultService_AddTags_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, tags []string) (*File, error)) *MockVaultService_AddTags_Call {
+func (_c *MockVaultService_Remove_Call) RunAndReturn(run func(ctx context.Context, vaultPath string) error) *MockVaultService_Remove_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -919,7 +717,11 @@ func (_c *MockVaultService_RemoveTags_Call) Run(run func(ctx context.Context, va
 		if args[2] != nil {
 			arg2 = args[2].([]string)
 		}
-		run(arg0, arg1, arg2)
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
 	})
 	return _c
 }
@@ -930,6 +732,74 @@ func (_c *MockVaultService_RemoveTags_Call) Return(file *File, err error) *MockV
 }
 
 func (_c *MockVaultService_RemoveTags_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, tags []string) (*File, error)) *MockVaultService_RemoveTags_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Search provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) Search(ctx context.Context, req SearchRequest) ([]SearchItem, error) {
+	ret := _mock.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Search")
+	}
+
+	var r0 []SearchItem
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, SearchRequest) ([]SearchItem, error)); ok {
+		return returnFunc(ctx, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, SearchRequest) []SearchItem); ok {
+		r0 = returnFunc(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]SearchItem)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, SearchRequest) error); ok {
+		r1 = returnFunc(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_Search_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Search'
+type MockVaultService_Search_Call struct {
+	*mock.Call
+}
+
+// Search is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req SearchRequest
+func (_e *MockVaultService_Expecter) Search(ctx any, req any) *MockVaultService_Search_Call {
+	return &MockVaultService_Search_Call{Call: _e.mock.On("Search", ctx, req)}
+}
+
+func (_c *MockVaultService_Search_Call) Run(run func(ctx context.Context, req SearchRequest)) *MockVaultService_Search_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 SearchRequest
+		if args[1] != nil {
+			arg1 = args[1].(SearchRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_Search_Call) Return(searchItems []SearchItem, err error) *MockVaultService_Search_Call {
+	_c.Call.Return(searchItems, err)
+	return _c
+}
+
+func (_c *MockVaultService_Search_Call) RunAndReturn(run func(ctx context.Context, req SearchRequest) ([]SearchItem, error)) *MockVaultService_Search_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -989,7 +859,11 @@ func (_c *MockVaultService_SetTags_Call) Run(run func(ctx context.Context, vault
 		if args[2] != nil {
 			arg2 = args[2].([]string)
 		}
-		run(arg0, arg1, arg2)
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
 	})
 	return _c
 }
@@ -1000,123 +874,6 @@ func (_c *MockVaultService_SetTags_Call) Return(file *File, err error) *MockVaul
 }
 
 func (_c *MockVaultService_SetTags_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, tags []string) (*File, error)) *MockVaultService_SetTags_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// TagList provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) TagList(ctx context.Context) ([]string, error) {
-	ret := _mock.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for TagList")
-	}
-
-	var r0 []string
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]string, error)); ok {
-		return returnFunc(ctx)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) []string); ok {
-		r0 = returnFunc(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]string)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = returnFunc(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockVaultService_TagList_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TagList'
-type MockVaultService_TagList_Call struct {
-	*mock.Call
-}
-
-// TagList is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *MockVaultService_Expecter) TagList(ctx any) *MockVaultService_TagList_Call {
-	return &MockVaultService_TagList_Call{Call: _e.mock.On("TagList", ctx)}
-}
-
-func (_c *MockVaultService_TagList_Call) Run(run func(ctx context.Context)) *MockVaultService_TagList_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		run(arg0)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_TagList_Call) Return(tags []string, err error) *MockVaultService_TagList_Call {
-	_c.Call.Return(tags, err)
-	return _c
-}
-
-func (_c *MockVaultService_TagList_Call) RunAndReturn(run func(ctx context.Context) ([]string, error)) *MockVaultService_TagList_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// Remove provides a mock function for the type MockVaultService
-func (_mock *MockVaultService) Remove(ctx context.Context, vaultPath string) error {
-	ret := _mock.Called(ctx, vaultPath)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Remove")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = returnFunc(ctx, vaultPath)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockVaultService_Remove_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Remove'
-type MockVaultService_Remove_Call struct {
-	*mock.Call
-}
-
-// Remove is a helper method to define mock.On call
-//   - ctx context.Context
-//   - vaultPath string
-func (_e *MockVaultService_Expecter) Remove(ctx any, vaultPath any) *MockVaultService_Remove_Call {
-	return &MockVaultService_Remove_Call{Call: _e.mock.On("Remove", ctx, vaultPath)}
-}
-
-func (_c *MockVaultService_Remove_Call) Run(run func(ctx context.Context, vaultPath string)) *MockVaultService_Remove_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockVaultService_Remove_Call) Return(err error) *MockVaultService_Remove_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockVaultService_Remove_Call) RunAndReturn(run func(ctx context.Context, vaultPath string) error) *MockVaultService_Remove_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1258,7 +1015,13 @@ func (_c *MockVaultService_ShareAccept_Call) Run(run func(ctx context.Context, v
 		if args[4] != nil {
 			arg4 = args[4].(map[string]any)
 		}
-		run(arg0, arg1, arg2, arg3, arg4)
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
 	})
 	return _c
 }
@@ -1469,6 +1232,68 @@ func (_c *MockVaultService_Sync_Call) RunAndReturn(run func(ctx context.Context)
 	return _c
 }
 
+// TagList provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) TagList(ctx context.Context) ([]string, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for TagList")
+	}
+
+	var r0 []string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]string, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) []string); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_TagList_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TagList'
+type MockVaultService_TagList_Call struct {
+	*mock.Call
+}
+
+// TagList is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockVaultService_Expecter) TagList(ctx any) *MockVaultService_TagList_Call {
+	return &MockVaultService_TagList_Call{Call: _e.mock.On("TagList", ctx)}
+}
+
+func (_c *MockVaultService_TagList_Call) Run(run func(ctx context.Context)) *MockVaultService_TagList_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_TagList_Call) Return(strings []string, err error) *MockVaultService_TagList_Call {
+	_c.Call.Return(strings, err)
+	return _c
+}
+
+func (_c *MockVaultService_TagList_Call) RunAndReturn(run func(ctx context.Context) ([]string, error)) *MockVaultService_TagList_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Verify provides a mock function for the type MockVaultService
 func (_mock *MockVaultService) Verify(ctx context.Context, vaultPath string) (*VerifyResult, error) {
 	ret := _mock.Called(ctx, vaultPath)
@@ -1601,6 +1426,291 @@ func (_c *MockVaultService_VerifyDeep_Call) Return(verifyResult *VerifyResult, e
 }
 
 func (_c *MockVaultService_VerifyDeep_Call) RunAndReturn(run func(ctx context.Context, vaultPath string) (*VerifyResult, error)) *MockVaultService_VerifyDeep_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// VersionDownload provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) VersionDownload(ctx context.Context, vaultPath string, versionID string, w io.Writer) error {
+	ret := _mock.Called(ctx, vaultPath, versionID, w)
+
+	if len(ret) == 0 {
+		panic("no return value specified for VersionDownload")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, io.Writer) error); ok {
+		r0 = returnFunc(ctx, vaultPath, versionID, w)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockVaultService_VersionDownload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionDownload'
+type MockVaultService_VersionDownload_Call struct {
+	*mock.Call
+}
+
+// VersionDownload is a helper method to define mock.On call
+//   - ctx context.Context
+//   - vaultPath string
+//   - versionID string
+//   - w io.Writer
+func (_e *MockVaultService_Expecter) VersionDownload(ctx any, vaultPath any, versionID any, w any) *MockVaultService_VersionDownload_Call {
+	return &MockVaultService_VersionDownload_Call{Call: _e.mock.On("VersionDownload", ctx, vaultPath, versionID, w)}
+}
+
+func (_c *MockVaultService_VersionDownload_Call) Run(run func(ctx context.Context, vaultPath string, versionID string, w io.Writer)) *MockVaultService_VersionDownload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 io.Writer
+		if args[3] != nil {
+			arg3 = args[3].(io.Writer)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_VersionDownload_Call) Return(err error) *MockVaultService_VersionDownload_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockVaultService_VersionDownload_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, versionID string, w io.Writer) error) *MockVaultService_VersionDownload_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// VersionGet provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) VersionGet(ctx context.Context, vaultPath string, versionID string) (*File, error) {
+	ret := _mock.Called(ctx, vaultPath, versionID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for VersionGet")
+	}
+
+	var r0 *File
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (*File, error)); ok {
+		return returnFunc(ctx, vaultPath, versionID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) *File); ok {
+		r0 = returnFunc(ctx, vaultPath, versionID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*File)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = returnFunc(ctx, vaultPath, versionID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_VersionGet_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionGet'
+type MockVaultService_VersionGet_Call struct {
+	*mock.Call
+}
+
+// VersionGet is a helper method to define mock.On call
+//   - ctx context.Context
+//   - vaultPath string
+//   - versionID string
+func (_e *MockVaultService_Expecter) VersionGet(ctx any, vaultPath any, versionID any) *MockVaultService_VersionGet_Call {
+	return &MockVaultService_VersionGet_Call{Call: _e.mock.On("VersionGet", ctx, vaultPath, versionID)}
+}
+
+func (_c *MockVaultService_VersionGet_Call) Run(run func(ctx context.Context, vaultPath string, versionID string)) *MockVaultService_VersionGet_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_VersionGet_Call) Return(file *File, err error) *MockVaultService_VersionGet_Call {
+	_c.Call.Return(file, err)
+	return _c
+}
+
+func (_c *MockVaultService_VersionGet_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, versionID string) (*File, error)) *MockVaultService_VersionGet_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// VersionList provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) VersionList(ctx context.Context, vaultPath string) ([]*File, error) {
+	ret := _mock.Called(ctx, vaultPath)
+
+	if len(ret) == 0 {
+		panic("no return value specified for VersionList")
+	}
+
+	var r0 []*File
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]*File, error)); ok {
+		return returnFunc(ctx, vaultPath)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []*File); ok {
+		r0 = returnFunc(ctx, vaultPath)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*File)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(ctx, vaultPath)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_VersionList_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionList'
+type MockVaultService_VersionList_Call struct {
+	*mock.Call
+}
+
+// VersionList is a helper method to define mock.On call
+//   - ctx context.Context
+//   - vaultPath string
+func (_e *MockVaultService_Expecter) VersionList(ctx any, vaultPath any) *MockVaultService_VersionList_Call {
+	return &MockVaultService_VersionList_Call{Call: _e.mock.On("VersionList", ctx, vaultPath)}
+}
+
+func (_c *MockVaultService_VersionList_Call) Run(run func(ctx context.Context, vaultPath string)) *MockVaultService_VersionList_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_VersionList_Call) Return(files []*File, err error) *MockVaultService_VersionList_Call {
+	_c.Call.Return(files, err)
+	return _c
+}
+
+func (_c *MockVaultService_VersionList_Call) RunAndReturn(run func(ctx context.Context, vaultPath string) ([]*File, error)) *MockVaultService_VersionList_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// VersionRestore provides a mock function for the type MockVaultService
+func (_mock *MockVaultService) VersionRestore(ctx context.Context, vaultPath string, versionID string) (*File, error) {
+	ret := _mock.Called(ctx, vaultPath, versionID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for VersionRestore")
+	}
+
+	var r0 *File
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (*File, error)); ok {
+		return returnFunc(ctx, vaultPath, versionID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) *File); ok {
+		r0 = returnFunc(ctx, vaultPath, versionID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*File)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = returnFunc(ctx, vaultPath, versionID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockVaultService_VersionRestore_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VersionRestore'
+type MockVaultService_VersionRestore_Call struct {
+	*mock.Call
+}
+
+// VersionRestore is a helper method to define mock.On call
+//   - ctx context.Context
+//   - vaultPath string
+//   - versionID string
+func (_e *MockVaultService_Expecter) VersionRestore(ctx any, vaultPath any, versionID any) *MockVaultService_VersionRestore_Call {
+	return &MockVaultService_VersionRestore_Call{Call: _e.mock.On("VersionRestore", ctx, vaultPath, versionID)}
+}
+
+func (_c *MockVaultService_VersionRestore_Call) Run(run func(ctx context.Context, vaultPath string, versionID string)) *MockVaultService_VersionRestore_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockVaultService_VersionRestore_Call) Return(file *File, err error) *MockVaultService_VersionRestore_Call {
+	_c.Call.Return(file, err)
+	return _c
+}
+
+func (_c *MockVaultService_VersionRestore_Call) RunAndReturn(run func(ctx context.Context, vaultPath string, versionID string) (*File, error)) *MockVaultService_VersionRestore_Call {
 	_c.Call.Return(run)
 	return _c
 }

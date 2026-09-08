@@ -29,10 +29,15 @@ surfaces.
 
 ```go
 import (
+    "context"
+
     "go.lumeweb.com/pinner"
     "go.lumeweb.com/pinner/catalogops"
-    account "go.lumeweb.com/portal-sdk"
+    "go.lumeweb.com/pinner/core/auth"
+    "go.lumeweb.com/pinner/core/config"
 )
+
+var cfgMgr config.Manager // your configmanager-backed Manager
 
 cat := pinner.NewCatalog()
 
@@ -41,8 +46,8 @@ cat := pinner.NewCatalog()
 // (including auth-token edits) are honored without restart:
 ops := catalogops.AccountOperations(catalogops.AccountDeps{
     CfgMgr: func() config.Manager { return cfgMgr },
-    AuthService: func(cfgMgr config.Manager, token string) auth.AuthService {
-        return auth.NewService(cfgMgr, token)
+    AuthService: func(m config.Manager, token string) auth.AuthService {
+        return auth.NewAuthService(m, "https://api.example.com", nil)
     },
 })
 for _, op := range ops {
@@ -52,13 +57,22 @@ for _, op := range ops {
 }
 
 // Normalize raw input exactly the way every frontend surface does:
-input, err := pinner.NormalizeOperationInput(ops[0], map[string]any{"limit": 10})
+input, err := pinner.NormalizeOperationInput(ops[0], map[string]any{})
+if err != nil {
+    panic(err)
+}
 
 // Invoke with policy enforcement against the acting actor:
-result, err := cat.Invoke(ctx, ops[0].Name(), input, pinner.ActorModel)
+if _, err := cat.Invoke(context.Background(), ops[0].Name(), input, pinner.ActorModel); err != nil {
+    panic(err)
+}
 
 // Project to a frontend-neutral tool surface:
 tools, err := pinner.NewMCPCompiler().Compile(cat)
+if err != nil {
+    panic(err)
+}
+_ = tools // hand []pinner.ToolDescriptor to your MCP server
 ```
 
 ## License

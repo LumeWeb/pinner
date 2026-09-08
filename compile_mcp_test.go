@@ -459,8 +459,9 @@ func TestAgentRequiredMcpOnly(t *testing.T) {
 	}
 
 	// CLI-side flag requirement (the CLI compiler must not mark cids required,
-	// positionally-friendly) is pinned in pinner-cli's compile_cli tests; the
-	// CLI compiler itself stays in pinner-cli, so only the shared surface is
+	// positionally-friendly) is pinned in pinner-cli's compile_mcp_test.go
+	// ("AgentRequired arg cids must NOT be a required CLI flag"); the CLI
+	// compiler itself stays in pinner-cli, so only the shared surface is
 	// asserted here.
 }
 

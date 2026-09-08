@@ -14,10 +14,12 @@ import (
 const FeatFileHostInput = mcpforge.Feature("file-host-input")
 
 // MCPProfile is the feature-carrier pinner hands to DescFunc resolvers via
-// pinner.NewMCPCompilerForProfile. Consumers that already own a richer
-// profile type can adapt by wrapping/re-reporting their FeatureSet (or by
-// satisfying ForgeFeatureCarrier themselves — toForgeProfile accepts any
-// value that implements it).
+// pinner.NewMCPCompilerForProfile. See profile_adapter.go for the explicit
+// adapter contract: consumers with a richer host profile (e.g. a
+// Has/IsHost-style pinner-cli hostenv.PlatformProfile) adapt it via
+// ProfileFromHas, or implement ForgeFeatureCarrier directly. An unadapted
+// non-carrier profile is a reported adapter gap (ProfileAdapterGap), never a
+// silently empty feature set.
 type MCPProfile struct {
 	Features mcpforge.FeatureSet
 }
@@ -32,20 +34,10 @@ func (p MCPProfile) FeatureSet() mcpforge.FeatureSet {
 
 // ForgeFeatureCarrier is anything that exposes a mcpforge.FeatureSet. Remote
 // consumers' own profile types may implement this directly so their existing
-// profiles resolve MCP descriptions here without conversion.
+// profiles resolve MCP descriptions here without conversion (the alternative
+// Has-style migration path is ProfileFromHas in profile_adapter.go).
 type ForgeFeatureCarrier interface {
 	FeatureSet() mcpforge.FeatureSet
-}
-
-// forgeProfileOf adapts an opaque profile (the pinner MCP bridge's `any`
-// profile) into a mcpforge.FeatureCarrier for the description DSL. Unknown
-// shapes resolve to an empty feature set (all feature-gated segments omitted),
-// never a panic.
-func forgeProfileOf(p any) mcpforge.FeatureCarrier {
-	if c, ok := p.(ForgeFeatureCarrier); ok {
-		return c
-	}
-	return MCPProfile{}
 }
 
 // websitesCreateDesc is the per-profile MCP description for websites_create,

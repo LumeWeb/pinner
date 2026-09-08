@@ -4,8 +4,18 @@ template-data:
   unroll-variadic: true
 filename: "{{.InterfaceName}}.go"
 packages:
-  go.lumeweb.com/pinner:
+  go.lumeweb.com/pinner/core/config:
     config:
-      dir: ./mocks
+      dir: ./core/config/mocks
       pkgname: mocks
-    interfaces: {}
+    interfaces:
+      Manager:
+        config:
+          filename: Manager.go
+  go.lumeweb.com/pinner/core/vault:
+    config:
+      pkgname: vault
+    interfaces:
+      VaultService:
+        config:
+          filename: mock_VaultService.go
