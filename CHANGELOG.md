@@ -22,6 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- new `pinnertransfer` subpackage: the Pinner/IPFS upload & download
+  EXECUTORS over [go.lumeweb.com/mcpplane/transfer](https://pkg.go.dev/go.lumeweb.com/mcpplane/transfer)
+  (per the package-boundaries doc §4) — the stream→upload executor
+  (`StreamUpload` over a new `core/uploads.Service`: temp-file buffering,
+  HTML wrap-name sniffing, archive-convert extraction with an aggregate
+  tree-size cap via the ipfs-content archive toolkit), the IPFS download
+  executor (`StreamDownload` over `core/download.Service`), and the
+  download-sink execution layer (`ExecuteLocalSink`/`ExecuteDropSink`,
+  root-confined atomic local writes via `ResolveLocalOutputPath`/
+  `WriteLocalDownload`, one-time GET filedrops with real-size pre-buffering,
+  `DownloadResult`, `DownloadSinksAllowed`, `SinkDefaultName`,
+  `ResolveDownloadRoot`), plus the archive port (`ArchiveMode`,
+  `ParseArchiveMode`, `SniffArchive`, `OpenArchiveFS`, `CheckTreeSize`). The
+  package imports only stdlib + mcpplane/transfer + ipfs-content + the
+  module's own `core/{uploads,download,config}` — no pterm/urfave/MCP-SDK or
+  pinner-cli imports. Tool descriptors (`upload_file`/`download_file`/
+  `upload_data`) and the vault transfer stay in pinner-cli for future
+  pinnermcp/CLI homes.
 - new `catalogmeta` subpackage (stdlib-only): the frontend-metadata boundary
   keyed by stable operation ID — `EnvironmentOf` for the surface carve-outs
   (`EnvBoth`/`EnvCLIOnly`/`EnvLocalOnly`/`EnvHostedOnly`, relocated verbatim

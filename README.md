@@ -47,8 +47,23 @@ It contains:
   `opmesh.Catalog` to `[]opmesh.ToolDescriptor` with target-resolved
   descriptions. This is the only in-module home of the
   [mcpforge](https://pkg.go.dev/go.lumeweb.com/mcpforge) dependency.
+- **`pinnertransfer`** — the Pinner/IPFS upload & download EXECUTORS over the
+  transport-neutral coordination layer of
+  [go.lumeweb.com/mcpplane/transfer](https://pkg.go.dev/go.lumeweb.com/mcpplane/transfer)
+  (`transfer.UploadHandler` / `IPFSDownloadHandler` contracts): the
+  stream→upload executor (`StreamUpload` — temp-file buffering, HTML wrap-name
+  sniffing, archive-convert extraction with an aggregate size cap over
+  `core/uploads.Service`), the IPFS download executor (`StreamDownload` over
+  `core/download.Service`), and the download-sink layer (`ExecuteLocalSink`
+  with root-confined atomic local writes, `ExecuteDropSink` with pre-buffered
+  one-time GET filedrops, `ResolveLocalOutputPath` containment), plus the
+  archive toolkit (`ArchiveMode`/`SniffArchive`/`OpenArchiveFS`/`CheckTreeSize`)
+  over [go.lumeweb.com/ipfs-content](https://pkg.go.dev/go.lumeweb.com/ipfs-content).
+  It imports no CLI formatter, command framework, or MCP SDK package — tool
+  descriptors and vault handling stay in pinner-cli per the package-boundaries
+  doc.
 - **`core/`** — the service layer the operations run against (auth, config,
-  dns, ipns, pinning, vault, websites, ...), built on
+  dns, ipns, uploads, download, pinning, vault, websites, ...), built on
   [portal-sdk](https://pkg.go.dev/go.lumeweb.com/portal-sdk) and
   [ipfs-sdk](https://pkg.go.dev/go.lumeweb.com/ipfs-sdk).
 - **`dnsutil`** — shared, dependency-free DNS validators.
@@ -186,6 +201,30 @@ if err := converge.RegisterAll(opCat, ops...); err != nil {
 if desc, ok := opCat.Describe("operations_list", opmesh.ActorModel); ok {
     _ = desc // opmesh.ToolDescriptor with input schema
 }
+```
+
+Wire the Pinner/IPFS transfer executors into an mcpplane/transfer server (or
+any consumer that programs against the `transfer.UploadHandler` /
+`IPFSDownloadHandler` contracts). A concrete, compiling sketch:
+
+```go
+import (
+    "context"
+    "strings"
+
+    "go.lumeweb.com/pinner/core/uploads"
+    "go.lumeweb.com/pinner/pinnertransfer"
+)
+
+var uploadSvc uploads.Service // your concrete SDK-backed implementation
+
+// An archive/website upload through the executor:
+upload := pinnertransfer.StreamUpload(uploadSvc, 1<<30) // 1 GiB cap
+result, err := upload(context.Background(), strings.NewReader("<h1>hi</h1>"), 13, "", true, string(pinnertransfer.ArchiveConvert), true)
+if err != nil {
+    return err
+}
+_ = result.(*uploads.UploadResult) // the uploaded CID / size / duration
 ```
 
 ## License
