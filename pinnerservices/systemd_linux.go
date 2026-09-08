@@ -107,18 +107,19 @@ func (s *systemdService) Install(ctx context.Context) error {
 
 func (s *systemdService) Uninstall(ctx context.Context) error {
 	unitPath := s.unitPath()
-	// Always attempt to disable and stop: a unit may still be loaded and
-	// enabled even when our computed unitPath is absent (manually removed
-	// file, or systemd resolving the unit from another source). On failure,
-	// treat an already-uninstalled state as a no-op keyed on the filesystem
-	// (the unit file is gone) rather than on systemctl's locale-translatable
-	// stderr.
+	// Always ask systemd to disable and stop so a loaded/enabled unit is
+	// never left behind, even when our computed unitPath is absent (manually
+	// removed file, or systemd resolving the unit from another source). If
+	// the disable fails, treat it as an idempotent no-op ONLY when systemd
+	// itself confirms the unit is gone — keyed on the probe's exit status
+	// (4 = unit not found), never its stderr, so a real backend failure
+	// (masked unit, D-Bus down, permissions) is surfaced rather than swallowed.
 	if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil {
-		if _, statErr := os.Stat(unitPath); statErr != nil && errors.Is(statErr, os.ErrNotExist) {
-			// unit absent -> idempotent no-op; fall through to cleanup
-		} else {
+		absent, probed := systemdUnitAbsent(ctx, s)
+		if !probed || !absent {
 			return fmt.Errorf("disable systemd user service: %w", err)
 		}
+		// systemd no longer knows the unit -> idempotent no-op; fall through.
 	}
 	if unitPath != "" {
 		if err := s.cfg.RemoveFile(unitPath); err != nil && !os.IsNotExist(err) {
@@ -129,6 +130,32 @@ func (s *systemdService) Uninstall(ctx context.Context) error {
 		return fmt.Errorf("reload systemd user manager: %w", err)
 	}
 	return nil
+}
+
+// exitCoder is implemented by process-exit errors (notably *exec.ExitError)
+// and lets tests fabricate systemctl exit statuses without spawning processes.
+type exitCoder interface {
+	ExitCode() int
+}
+
+// systemdUnitAbsent reports whether the named unit is unknown to the user
+// systemd manager. It runs `systemctl --user status <unit>` and maps exit
+// code 4 ("unit not found", per systemctl's documented return codes:
+// 0=active, 3=inactive, 4=not found) to absent=true. The second return is
+// false when the probe could not be run or its status classified, in which
+// case the caller must surface the original failure rather than guess.
+// Exit-code based only — stderr is never parsed, so this is
+// localization-independent.
+func systemdUnitAbsent(ctx context.Context, s *systemdService) (absent, probed bool) {
+	err := s.run(ctx, "status", s.unitName())
+	if err == nil {
+		return false, true // unit is known to systemd (active/inactive)
+	}
+	var ec exitCoder
+	if errors.As(err, &ec) && ec.ExitCode() == 4 {
+		return true, true // 4 = unit not found
+	}
+	return false, false // unclassifiable (bus down, wrapped error, other code)
 }
 
 func (s *systemdService) Start(ctx context.Context) error {
