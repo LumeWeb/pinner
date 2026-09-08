@@ -185,6 +185,39 @@ func TestCapabilitiesHandlerPerRequest(t *testing.T) {
 	require.Equal(t, []UploadToolCapability{UploadToolFile, UploadToolData}, r3.UploadTools)
 }
 
+// TestCapabilitiesBakeFollowsRegistrationRelayFeatures pins the baked
+// tools/list description to the registration-time RelayFeatures: a host that
+// registers an explicit trimmed feature set (e.g. an OpenAI tunnel with the
+// host-file features narrowed) must get capability prose matching what the
+// registered upload tools actually accept, not the untrimmed
+// transportStartupFeatures derivation those tools would otherwise have used.
+func TestCapabilitiesBakeFollowsRegistrationRelayFeatures(t *testing.T) {
+	const hostFileSentence = "A host-provided file (a temporary download_url + file_id object) is always preferred when available"
+	const noFileSentence = "This client has no `file` parameter it can fill"
+
+	// Baseline (RelayFeatures nil): the fallback transport derivation merges
+	// the tunnel host's features, so the host-file clause is advertised.
+	fallback := NewCapabilitiesDescriptor(CapabilityWiring{
+		CoLocated: false, TunnelOpenAI: true,
+		UploadFile: true, RelayURLWired: true,
+	})
+	require.Contains(t, fallback.Description, hostFileSentence)
+
+	// Trimmed registration set: FeatFileHostInput explicitly off. The bake
+	// must honor it — no host-file clause, transport-source guidance instead.
+	trimmed := transportStartupFeatures(canimcp.TransportOpenAI).Clone()
+	trimmed[FeatFileHostInput] = false
+	descriptor := NewCapabilitiesDescriptor(CapabilityWiring{
+		CoLocated: false, TunnelOpenAI: true,
+		UploadFile: true, RelayURLWired: true,
+		RelayFeatures: trimmed,
+	})
+	require.NotContains(t, descriptor.Description, hostFileSentence,
+		"baked prose must follow the trimmed RelayFeatures, not the transport derivation")
+	require.Contains(t, descriptor.Description, noFileSentence,
+		"trimmed set must fall back to the transport-source guidance")
+}
+
 // modelProfileWith builds an mcpplane model.Profile fixture with a single
 // capability feature over the given transport — the per-request wire shape
 // handlers read.

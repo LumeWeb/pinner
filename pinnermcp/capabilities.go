@@ -359,15 +359,20 @@ func (w CapabilityWiring) reportFor() CapabilityReport {
 // never the per-request wire profile.
 func NewCapabilitiesDescriptor(wiring CapabilityWiring) model.ToolDescriptor {
 	transport := UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI)
-	// The baked description resolves against the transport's startup-effective
-	// profile — the mechanism set with the embedded OpenAI tunnel's ChatGPT
-	// host capabilities merged in, via the SAME transportStartupFeatures
-	// derivation the upload-file fallback used — so a tunnel's tools/list
-	// description keeps the host-file-first routing copy a mechanism-only
-	// profile would drop, and the capability prose can never drift from the
-	// schema/description/metadata derivation.
+	// The baked description resolves against the registration-time effective
+	// feature set — the host-supplied RelayFeatures when one was provided,
+	// which is the same set that shaped the registered upload tools — falling
+	// back to the transport's startup-effective profile (the mechanism set
+	// with the embedded OpenAI tunnel's ChatGPT host capabilities merged in)
+	// when it was not. This keeps a tunnel's tools/list description carrying
+	// the host-file-first routing copy a mechanism-only profile would drop,
+	// while never advertising a mode the registered tools lack.
 	startupProfile := profileForTransport(transport)
-	startupProfile.Features = transportStartupFeatures(transport)
+	if wiring.RelayFeatures != nil {
+		startupProfile.Features = wiring.RelayFeatures.Clone()
+	} else {
+		startupProfile.Features = transportStartupFeatures(transport)
+	}
 	return model.ToolDescriptor{
 		Name:          "capabilities",
 		Title:         "Pinner file-input/output capabilities",
