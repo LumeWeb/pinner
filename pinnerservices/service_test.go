@@ -14,17 +14,17 @@ func TestMergedEnvVarsMergesCallerEnvVarsWithEnvFile(t *testing.T) {
 	// with the env file's values, not replace the caller's variables with the
 	// file's contents. The env file wins on a key collision.
 	envPath := filepath.Join(t.TempDir(), "mcp.env")
-	require.NoError(t, os.WriteFile(envPath, []byte("MCP_AUTH_TOKEN=from-file\nFILE_ONLY=1\n"), 0600))
+	require.NoError(t, os.WriteFile(envPath, []byte("ENV_ONE=from-file\nFILE_ONLY=1\n"), 0600))
 
 	merged, err := mergedEnvVars(Config{
-		EnvVars: map[string]string{"MCP_AUTH_TOKEN": "from-caller", "CALLER_ONLY": "2"},
+		EnvVars: map[string]string{"ENV_ONE": "from-caller", "CALLER_ONLY": "2"},
 		EnvFile: envPath,
 	})
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
-		"MCP_AUTH_TOKEN": "from-file", // env file wins on collision
-		"CALLER_ONLY":    "2",         // caller-provided vars are kept
-		"FILE_ONLY":      "1",         // env-file-only vars are added
+		"ENV_ONE":     "from-file", // env file wins on collision
+		"CALLER_ONLY": "2",         // caller-provided vars are kept
+		"FILE_ONLY":   "1",         // env-file-only vars are added
 	}, merged)
 }
 

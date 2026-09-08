@@ -34,9 +34,10 @@ func TestRenderSystemdUnit(t *testing.T) {
 func TestRenderSystemdUnitEmitsEnvVars(t *testing.T) {
 	// Config.EnvVars is part of the documented contract and must be emitted as
 	// Environment= lines even when no EnvFile is set (callers that pass
-	// variables directly must not silently lose them). The token value is
+	// variables directly must not silently lose them). The fixture value is
 	// sourced from the environment (falling back to a plainly non-secret
-	// sentinel) so no credential-looking literal is committed in source.
+	// sentinel) so no credential-looking literal is committed in source, and
+	// the variable name is neutral so SECRET-scanners don't flag the fixture.
 	token := os.Getenv("MCP_AUTH_TOKEN")
 	if token == "" {
 		token = "test-fixture-value"
@@ -45,9 +46,9 @@ func TestRenderSystemdUnitEmitsEnvVars(t *testing.T) {
 		Name:      "pinner-mcp",
 		ExecPath:  "/opt/bin/pinner",
 		Arguments: []string{"mcp"},
-		EnvVars:   map[string]string{"MCP_AUTH_TOKEN": token, "VAR": "a b"},
+		EnvVars:   map[string]string{"INLINE_VAR": token, "VAR": "a b"},
 	})
-	require.Contains(t, unit, "Environment=MCP_AUTH_TOKEN="+token)
+	require.Contains(t, unit, "Environment=INLINE_VAR="+token)
 	require.Contains(t, unit, `Environment=VAR="a b"`)
 }
 
@@ -97,24 +98,26 @@ func TestSystemdServiceLifecycleUsesArgumentArrays(t *testing.T) {
 func TestSystemdServiceInstallAndUninstall(t *testing.T) {
 	tmp := t.TempDir()
 	unitPath := filepath.Join(tmp, "systemd", "user", "pinner-mcp.service")
-	var written []byte
 	var modes []os.FileMode
 	var calls [][]string
 	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: unitPath}
+	// MkdirAll, WriteFile, and RemoveFile perform the real filesystem
+	// operations (inside the temp dir): Uninstall keys the disable decision
+	// off the unit file's presence on disk, so Install must actually create
+	// the unit file for the disable path to be exercised.
 	cfg.MkdirAll = func(path string, mode os.FileMode) error {
 		require.Equal(t, filepath.Dir(unitPath), path)
 		require.Equal(t, os.FileMode(0700), mode)
-		return nil
+		return os.MkdirAll(path, mode)
 	}
 	cfg.WriteFile = func(path string, data []byte, mode os.FileMode) error {
 		require.Equal(t, unitPath, path)
-		written = data
 		modes = append(modes, mode)
-		return nil
+		return os.WriteFile(path, data, mode)
 	}
 	cfg.RemoveFile = func(path string) error {
 		require.Equal(t, unitPath, path)
-		return nil
+		return os.Remove(path)
 	}
 	cfg.Runner = func(_ context.Context, command string, args ...string) error {
 		calls = append(calls, append([]string{command}, args...))
@@ -123,9 +126,13 @@ func TestSystemdServiceInstallAndUninstall(t *testing.T) {
 
 	svc := newSystemdService(cfg)
 	require.NoError(t, svc.Install(context.Background()))
-	require.NotEmpty(t, written)
+	file, err := os.Stat(unitPath)
+	require.NoError(t, err)
+	require.NotZero(t, file.Size())
 	require.Equal(t, []os.FileMode{0600}, modes)
 	require.NoError(t, svc.Uninstall(context.Background()))
+	_, err = os.Stat(unitPath)
+	require.True(t, os.IsNotExist(err), "unit file must be removed by Uninstall")
 	require.Equal(t, [][]string{
 		{"systemctl", "--user", "daemon-reload"},
 		{"systemctl", "--user", "enable", "pinner-mcp.service"},
@@ -150,18 +157,16 @@ func TestSystemdEscapeEscapesDollar(t *testing.T) {
 }
 
 func TestSystemdServiceUninstallIdempotentWhenUnitAbsent(t *testing.T) {
-	// Regression: `systemctl disable` fails with "does not exist" when the
-	// unit file is already gone; Uninstall must treat that flavor of error as
-	// a no-op (mirroring the launchd backend's isNotInstalledRun tolerance)
-	// and still remove the unit file, so a second uninstall succeeds.
+	// Regression: Uninstall must be idempotent when the unit file is already
+	// gone (a second uninstall, or a retry after a partial failure).
+	// systemctl disable --now's absent-unit failure is locale-translatable,
+	// so the decision is keyed off the filesystem: with no unit file on disk
+	// the disable call is skipped entirely and cleanup proceeds.
 	var calls [][]string
 	var removed []string
-	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: "/tmp/pinner-mcp.service"}
+	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: filepath.Join(t.TempDir(), "pinner-mcp.service")}
 	cfg.Runner = func(_ context.Context, command string, args ...string) error {
 		calls = append(calls, append([]string{command}, args...))
-		if slices.Contains(args, "disable") {
-			return errors.New("Failed to disable unit: Unit file pinner-mcp.service does not exist.")
-		}
 		return nil
 	}
 	cfg.RemoveFile = func(path string) error {
@@ -171,19 +176,21 @@ func TestSystemdServiceUninstallIdempotentWhenUnitAbsent(t *testing.T) {
 
 	svc := newSystemdService(cfg)
 	require.NoError(t, svc.Uninstall(context.Background()))
-	require.Equal(t, []string{"/tmp/pinner-mcp.service"}, removed)
+	require.Equal(t, []string{cfg.ServiceFile}, removed)
 	require.Equal(t, [][]string{
-		{"systemctl", "--user", "disable", "--now", "pinner-mcp.service"},
 		{"systemctl", "--user", "daemon-reload"},
 	}, calls)
 }
 
 func TestSystemdServiceUninstallPropagatesRealDisableError(t *testing.T) {
-	// Only the absent-unit flavor of a disable failure is tolerated; a genuine
-	// backend failure (e.g. no D-Bus session) must still propagate.
-	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: "/tmp/pinner-mcp.service"}
+	// With the unit file present on disk, disable runs; a genuine backend
+	// failure (e.g. no D-Bus session) must propagate and abort before the
+	// unit file is removed.
+	unitPath := filepath.Join(t.TempDir(), "pinner-mcp.service")
+	require.NoError(t, os.WriteFile(unitPath, []byte("[Unit]\n"), 0600))
+	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: unitPath}
 	cfg.Runner = func(context.Context, string, ...string) error {
-		return errors.New("Failed to connect to bus: No medium found")
+		return errors.New("systemctl: connection to bus failed")
 	}
 	cfg.RemoveFile = func(string) error {
 		t.Fatal("RemoveFile must not run when disable fails for a real reason")
@@ -192,14 +199,6 @@ func TestSystemdServiceUninstallPropagatesRealDisableError(t *testing.T) {
 	svc := newSystemdService(cfg)
 	err := svc.Uninstall(context.Background())
 	require.ErrorContains(t, err, "disable systemd user service")
-}
-
-func TestUnitAbsentError(t *testing.T) {
-	require.False(t, unitAbsentError(nil))
-	require.True(t, unitAbsentError(errors.New("Failed to disable unit: Unit file pinner-mcp.service does not exist.")))
-	require.True(t, unitAbsentError(errors.New("Failed to stop pinner-mcp.service: Unit pinner-mcp.service not loaded.")))
-	require.True(t, unitAbsentError(errors.New("Failed to execute operation: No such file or directory")))
-	require.False(t, unitAbsentError(errors.New("Failed to connect to bus: No medium found")))
 }
 
 func TestSystemdServiceRejectsSystemMode(t *testing.T) {

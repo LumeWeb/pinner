@@ -106,16 +106,19 @@ func (s *systemdService) Install(ctx context.Context) error {
 }
 
 func (s *systemdService) Uninstall(ctx context.Context) error {
-	// The unit file may already be gone (a second uninstall, or a retry after
-	// a partial failure elsewhere); `systemctl disable` then fails with a
-	// "does not exist"/"not loaded" flavor of error. Tolerate that as a no-op
-	// so Uninstall stays idempotent, mirroring the launchd backend's
-	// isNotInstalledRun tolerance. RemoveFile below remains the actual
-	// cleanup, and any other disable failure still propagates.
-	if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil && !unitAbsentError(err) {
-		return fmt.Errorf("disable systemd user service: %w", err)
-	}
+	// Idempotent uninstall: a second Uninstall (or a retry after a partial
+	// failure) finds the unit file already gone. systemctl disable --now then
+	// fails with a locale-translatable "unit file does not exist" message, so
+	// do not parse its stderr — key the decision off the unit file's presence
+	// on disk. If the file is absent there is nothing to disable or stop.
 	unitPath := s.unitPath()
+	if _, err := os.Stat(unitPath); err == nil {
+		if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil {
+			return fmt.Errorf("disable systemd user service: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat systemd unit file %q: %w", unitPath, err)
+	}
 	if unitPath != "" {
 		if err := s.cfg.RemoveFile(unitPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove systemd user unit: %w", err)
@@ -314,19 +317,4 @@ func systemdEscape(value string) string {
 		return value
 	}
 	return `"` + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`), `$`, `$$`) + `"`
-}
-
-// unitAbsentError reports whether a systemctl run error reflects a unit that
-// does not exist, so it can be treated as a successful no-op (keeping
-// Uninstall idempotent when the unit file is already gone). systemd reports
-// "Failed to disable unit: Unit file <unit> does not exist." and, for the
-// --now stop of an already-gone unit, "Unit <unit> not loaded.".
-func unitAbsentError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "does not exist") ||
-		strings.Contains(msg, "no such file") ||
-		strings.Contains(msg, "not loaded")
 }

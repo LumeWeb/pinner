@@ -18,7 +18,7 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		Description: "Pinner MCP service",
 		ExecPath:    "/usr/local/bin/pinner",
 		Arguments:   []string{"mcp", "--http"},
-		EnvVars:     map[string]string{"MCP_AUTH_TOKEN": "secret"},
+		EnvVars:     map[string]string{"INLINE_VAR": "fixture-value"},
 	}
 	plist := renderLaunchdPlist(cfg, "/Users/alice/Library/LaunchAgents/pinner-mcp.plist")
 
@@ -28,8 +28,8 @@ func TestRenderLaunchdPlist(t *testing.T) {
 	require.Contains(t, plist, "<string>mcp</string>")
 	require.Contains(t, plist, "<string>--http</string>")
 	require.Contains(t, plist, "<key>EnvironmentVariables</key>")
-	require.Contains(t, plist, "<key>MCP_AUTH_TOKEN</key>")
-	require.Contains(t, plist, "<string>secret</string>")
+	require.Contains(t, plist, "<key>INLINE_VAR</key>")
+	require.Contains(t, plist, "<string>fixture-value</string>")
 	require.Contains(t, plist, "<key>KeepAlive</key>")
 	require.Contains(t, plist, "<true/>")
 	require.Contains(t, plist, "<key>RunAtLoad</key>")
@@ -55,7 +55,7 @@ func TestRenderLaunchdPlistUsesEnvironmentVariables(t *testing.T) {
 		Name:      "pinner-mcp",
 		ExecPath:  "/usr/local/bin/pinner",
 		Arguments: []string{"mcp", "--http"},
-		EnvVars:   map[string]string{"MCP_TUNNEL_TOKEN": "$2a$10$super;secret", "PLAIN": "value"},
+		EnvVars:   map[string]string{"SPECIAL_VAR": "$1$abc;def", "PLAIN": "value"},
 	}
 	plist := renderLaunchdPlist(cfg, "/Users/alice/Library/LaunchAgents/pinner-mcp.plist")
 	// Direct exec, no shell.
@@ -65,8 +65,8 @@ func TestRenderLaunchdPlistUsesEnvironmentVariables(t *testing.T) {
 	require.Contains(t, plist, "<string>mcp</string>")
 	// Values inlined literally (launchd parses them, no shell eval).
 	require.Contains(t, plist, "<key>EnvironmentVariables</key>")
-	require.Contains(t, plist, "<key>MCP_TUNNEL_TOKEN</key>")
-	require.Contains(t, plist, "<string>$2a$10$super;secret</string>")
+	require.Contains(t, plist, "<key>SPECIAL_VAR</key>")
+	require.Contains(t, plist, "<string>$1$abc;def</string>")
 	require.Contains(t, plist, "<key>PLAIN</key>")
 }
 
@@ -144,7 +144,7 @@ func TestLaunchdStartRefreshesEnvFileAndLoads(t *testing.T) {
 	// credential rotations are picked up (systemd re-reads EnvironmentFile=).
 	tmp := t.TempDir()
 	envFile := filepath.Join(tmp, "mcp.env")
-	require.NoError(t, os.WriteFile(envFile, []byte("TOKEN=first\n"), 0600))
+	require.NoError(t, os.WriteFile(envFile, []byte("ENV_ONE=first\n"), 0600))
 
 	var written []byte
 	cfg := Config{Name: "pinner-mcp", UserMode: true, EnvFile: envFile}
@@ -153,9 +153,9 @@ func TestLaunchdStartRefreshesEnvFileAndLoads(t *testing.T) {
 	cfg.RemoveFile = func(string) error { return nil }
 	cfg.Runner = func(_ context.Context, command string, args ...string) error {
 		// Rotate the env file in the "window" before load so a stale plist
-		// would silently carry the old token.
+		// would silently carry the old value.
 		if command == "load" {
-			require.NoError(t, os.WriteFile(envFile, []byte("TOKEN=rotated\n"), 0600))
+			require.NoError(t, os.WriteFile(envFile, []byte("ENV_ONE=rotated\n"), 0600))
 		}
 		return nil
 	}
@@ -165,7 +165,7 @@ func TestLaunchdStartRefreshesEnvFileAndLoads(t *testing.T) {
 	// The plist rewritten by Start must carry the CURRENT value ("first" —
 	// loaded before the rotation in Runner), not a stale snapshot.
 	require.Contains(t, string(written), "<string>first</string>")
-	require.Contains(t, string(written), "<key>TOKEN</key>")
+	require.Contains(t, string(written), "<key>ENV_ONE</key>")
 }
 
 func TestLaunchdServiceInstallAndUninstall(t *testing.T) {
