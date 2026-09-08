@@ -11,7 +11,7 @@ import (
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	"go.lumeweb.com/pinner/core/download"
 	"go.lumeweb.com/pinner/core/websites"
@@ -98,8 +98,8 @@ func (d WebsitesDeps) service(input map[string]any) (websites.Service, error) {
 // WebsitesOperations returns the catalog operations for the websites domain
 // (the existing `websites` subcommand group), each driving the core
 // websites.Service.
-func WebsitesOperations(d WebsitesDeps) []pinner.Operation {
-	return []pinner.Operation{
+func WebsitesOperations(d WebsitesDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		websitesList(d),
 		websitesGet(d),
 		websitesCreate(d),
@@ -126,7 +126,7 @@ func WebsitesOperations(d WebsitesDeps) []pinner.Operation {
 // resolves it to a numeric website ID via the core resolver, erroring when the
 // argument is empty.
 func resolveRequiredWebsiteID(ctx context.Context, svc websites.Service, input map[string]any) (string, error) {
-	arg := pinner.StrArg(input, "website", "")
+	arg := opmesh.StrArg(input, "website", "")
 	if arg == "" {
 		return "", fmt.Errorf("website ID or domain is required")
 	}
@@ -134,28 +134,28 @@ func resolveRequiredWebsiteID(ctx context.Context, svc websites.Service, input m
 }
 
 // websitesList is the `websites list` operation. Returns []ipfs.WebsiteItem.
-func websitesList(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesList(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_list",
 		Title:       "List websites",
 		Summary:     "List all websites",
 		Description: "List all websites for the authenticated user, returning each website's ID, domain, target CID, resolved CID, status, DNS-hosting flag and gateway.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{
-				Name: "domain", Type: pinner.ArgTypeString,
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{
+				Name: "domain", Type: opmesh.ArgTypeString,
 				Help: "Filter websites whose domain contains this value",
 			},
-			pinner.OperationArg{
-				Name: "status", Type: pinner.ArgTypeString,
+			opmesh.OperationArg{
+				Name: "status", Type: opmesh.ArgTypeString,
 				Help: "Filter websites by status",
 			},
-			pinner.OperationArg{
-				Name: "target-type", Type: pinner.ArgTypeString,
+			opmesh.OperationArg{
+				Name: "target-type", Type: opmesh.ArgTypeString,
 				Help: "Filter websites by target type (ipfs or ipns)",
 			},
 		),
@@ -168,14 +168,14 @@ func websitesList(d WebsitesDeps) pinner.Operation {
 				return nil, err
 			}
 
-			page := pinner.ParseListPage(input, 10)
+			page := opmesh.ParseListPage(input, 10)
 			opts := websites.ListOptions{
 				Start: page.Start,
 				Limit: page.Limit,
 				Filter: websites.ListFilter{
-					Domain:     pinner.StrArg(input, "domain", ""),
-					Status:     pinner.StrArg(input, "status", ""),
-					TargetType: pinner.StrArg(input, "target-type", ""),
+					Domain:     opmesh.StrArg(input, "domain", ""),
+					Status:     opmesh.StrArg(input, "status", ""),
+					TargetType: opmesh.StrArg(input, "target-type", ""),
 				},
 			}
 			sites, err := svc.List(ctx, opts)
@@ -225,19 +225,19 @@ func websitesList(d WebsitesDeps) pinner.Operation {
 // When ErrGone and the item is non-nil, this handler returns the item as data
 // with a nil error so the broken record is still presented. DNS-hosting
 // instruction enrichment is presentation and lives in the wiring layer.
-func websitesGet(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesGet(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_get",
 		Title:       "Get website details",
 		Summary:     "Get full details of one website",
 		Description: "Get full details of one website, selected by domain name or numeric ID (either works): ID, domain, CID, resolved CID, target type, status, DNS-hosting flag, validation token, gateway, and associated IPNS key / DNS zone IDs.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Help: "Website ID or domain to get"},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Help: "Website ID or domain to get"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -381,29 +381,28 @@ func WebsiteStructureWarning(ctx context.Context, d WebsitesDeps, input map[stri
 // subdomain (generate). --target-type defaults to "ipfs". The agent-only args
 // (platform, platform-domain, platform-namespace, generate, label) are omitted
 // from the CLI surface, which derives platform claims by parsing instead.
-func websitesCreate(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesCreate(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_create",
 		Title:       "Create a website",
 		Summary:     "Create a new website",
 		Description: "Create a website that serves an IPFS CID. With only --cid, a platform (free) subdomain is minted automatically. Provide a custom domain as the positional for a user-owned domain; a subdomain of a platform root (e.g. myapp.pinned.site) is auto-detected and claimed as a platform subdomain. Custom domains are ICANN by default; pass namespace=\"hns\" for a Handshake (alt-root) name. Returns the created website with validation token and DNS records.",
-		MCPTargets:  websitesCreateTargets,
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Required: false, Help: "Custom domain for the new website (optional: a platform subdomain is minted when omitted)", AgentHelp: "The destination domain. A subdomain of a platform root (e.g. myapp.pinned.site) is treated as a platform claim (label/root parsed); any other domain is a custom domain. Omit to default to a minted platform subdomain."},
-			{Name: "cid", Type: pinner.ArgTypeString, Required: true, Help: "IPFS CID to serve", AgentHelp: "The IPFS CID to serve. A CID returned by a Pinner upload tool is already pinned and can be used directly. A CID external to Pinner requires pinning first via pins_add."},
-			{Name: "target-type", Type: pinner.ArgTypeString, Default: "ipfs", Help: "Target type (ipfs|ipns)"},
-			{Name: "dns-hosting", Type: pinner.ArgTypeNullableBool, Help: "Let Pinner manage DNS for this website (true = managed, false = self-managed, omit = managed default; ignored for platform subdomains, which are always managed)", AgentHelp: "true lets Pinner manage DNS; false leaves DNS self-managed. Omit to use the default. Ignored for platform subdomains (always managed)."},
-			{Name: "namespace", Type: pinner.ArgTypeString, Default: "icann", Help: "Domain namespace for a custom domain: icann (default) or hns (Handshake alt-root)", AgentHelp: "The namespace of the custom domain: \"icann\" (traditional, default) or \"hns\" for a Handshake (alt-root) name like acme/. Only applies to the custom-domain path; platform subdomains derive their namespace from the platform root."},
-			{Name: "platform", Type: pinner.ArgTypeBool, Required: false, AgentOnly: true, Help: "Claim a platform (free) subdomain", AgentHelp: "Set true to force a platform (free) subdomain claim. Pair with label or generate; omit the domain positional. The type is otherwise derived automatically."},
-			{Name: "platform-domain", Type: pinner.ArgTypeString, Required: false, AgentOnly: true, Help: "Platform root to claim under (default: platform default)", AgentHelp: "The platform root to claim a free subdomain under (e.g. pinned.site). Optional; when set, restricts the claim to this root. Use with platform plus label or generate."},
-			{Name: "platform-namespace", Type: pinner.ArgTypeString, Required: false, AgentOnly: true, Help: "Namespace within the platform domain to claim under (default icann)"},
-			{Name: "generate", Type: pinner.ArgTypeBool, Required: false, AgentOnly: true, Help: "Auto-generate a subdomain label (mutually exclusive with label)", AgentHelp: "Set true to let the platform auto-generate the subdomain label. Mutually exclusive with label."},
-			{Name: "label", Type: pinner.ArgTypeString, Required: false, AgentOnly: true, Help: "Explicit subdomain label to claim (mutually exclusive with generate)", AgentHelp: "Explicit subdomain label to claim under a platform domain. Mutually exclusive with generate."},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Required: false, Help: "Custom domain for the new website (optional: a platform subdomain is minted when omitted)"},
+			{Name: "cid", Type: opmesh.ArgTypeString, Required: true, Help: "IPFS CID to serve"},
+			{Name: "target-type", Type: opmesh.ArgTypeString, Default: "ipfs", Help: "Target type (ipfs|ipns)"},
+			{Name: "dns-hosting", Type: opmesh.ArgTypeNullableBool, Help: "Let Pinner manage DNS for this website (true = managed, false = self-managed, omit = managed default; ignored for platform subdomains, which are always managed)"},
+			{Name: "namespace", Type: opmesh.ArgTypeString, Default: "icann", Help: "Domain namespace for a custom domain: icann (default) or hns (Handshake alt-root)"},
+			{Name: "platform", Type: opmesh.ArgTypeBool, Required: false, Help: "Claim a platform (free) subdomain"},
+			{Name: "platform-domain", Type: opmesh.ArgTypeString, Required: false, Help: "Platform root to claim under (default: platform default)"},
+			{Name: "platform-namespace", Type: opmesh.ArgTypeString, Required: false, Help: "Namespace within the platform domain to claim under (default icann)"},
+			{Name: "generate", Type: opmesh.ArgTypeBool, Required: false, Help: "Auto-generate a subdomain label (mutually exclusive with label)"},
+			{Name: "label", Type: opmesh.ArgTypeString, Required: false, Help: "Explicit subdomain label to claim (mutually exclusive with generate)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -413,20 +412,20 @@ func websitesCreate(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domain := pinner.StrArg(input, "website", "")
-			cid := pinner.StrArg(input, "cid", "")
+			domain := opmesh.StrArg(input, "website", "")
+			cid := opmesh.StrArg(input, "cid", "")
 			if cid == "" {
 				return nil, fmt.Errorf("websites_create: --cid is required")
 			}
-			targetType := pinner.StrArg(input, "target-type", TargetTypeIPFS)
+			targetType := opmesh.StrArg(input, "target-type", TargetTypeIPFS)
 
-			platformFlag := pinner.BoolArg(input, "platform", false)
-			pd := pinner.StrArg(input, "platform-domain", "")
-			pns := pinner.StrArg(input, "platform-namespace", "")
-			generate := pinner.BoolArg(input, "generate", false)
-			label := pinner.StrArg(input, "label", "")
+			platformFlag := opmesh.BoolArg(input, "platform", false)
+			pd := opmesh.StrArg(input, "platform-domain", "")
+			pns := opmesh.StrArg(input, "platform-namespace", "")
+			generate := opmesh.BoolArg(input, "generate", false)
+			label := opmesh.StrArg(input, "label", "")
 
-			namespace := pinner.StrArg(input, "namespace", "icann")
+			namespace := opmesh.StrArg(input, "namespace", "icann")
 			if namespace != "icann" && namespace != "hns" {
 				return nil, fmt.Errorf("websites_create: invalid namespace %q: must be 'icann' or 'hns'", namespace)
 			}
@@ -497,7 +496,7 @@ func websitesCreate(d WebsitesDeps) pinner.Operation {
 				req.Namespace = &namespace
 				// nil (omitted) lets the backend apply its default (managed DNS);
 				// true/false map onto Pinner-managed / self-managed explicitly.
-				req.DnsHostingEnabled = pinner.BoolArgPtr(input, "dns-hosting")
+				req.DnsHostingEnabled = opmesh.BoolArgPtr(input, "dns-hosting")
 			}
 			if err := validateWebsiteStructure(ctx, d, input, cid, targetType); err != nil {
 				return nil, err
@@ -563,27 +562,24 @@ func subdomainLabel(domain, root string) string {
 // When cid is set without target-type, the site's current target type is
 // preserved (fetched via Get) so a bare cid update is unambiguous and cannot
 // accidentally flip IPFS<->IPNS targeting.
-func websitesUpdate(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesUpdate(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_update",
 		Title:       "Update a website",
 		Summary:     "Update a website",
 		Description: "Update an existing website: change its cid, target-type (ipfs|ipns), rename its domain (rename-to), set the domain namespace (namespace: icann or hns for Handshake/alt-root names), or set dns-hosting (true = Pinner-managed, false = self-managed, omit = unchanged). Select the site by website; set at least one optional field. With only cid set (no target-type), the site's current target type is preserved automatically.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Update an existing website: change its cid, target-type (ipfs|ipns), rename its domain (rename-to), set the domain namespace (namespace: icann or hns for a Handshake/alt-root name), or set dns-hosting (true = Pinner-managed, false = self-managed, omit = unchanged). Select the site by website; set at least one optional field. A CID produced by an upload tool is already pinned and usable directly. A CID that is an EXTERNAL IPFS CID needs pins_add first; a bare update with an unpinned CID fails with CID_NOT_PINNED. With only cid set (no target-type), the site's current target type is preserved automatically. For the guided flow, the website-update prompt (prompts/get website-update) provides the decision tree."),
-		),
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Help: "Website ID or domain to update"},
-			{Name: "rename-to", Type: pinner.ArgTypeString, Help: "New domain for the website"},
-			{Name: "cid", Type: pinner.ArgTypeString, Help: "New target CID", AgentHelp: "The IPFS CID to serve. A CID produced by a Pinner upload tool is already pinned and used directly. A CID that is an external IPFS CID requires pins_add(cids=[\"<cid>\"], wait=true) first; an unpinned CID fails with CID_NOT_PINNED. With a bare cid (no target-type), the site's current targeting is preserved automatically."},
-			{Name: "target-type", Type: pinner.ArgTypeString, Help: "New target type (ipfs|ipns); when omitted with cid, the site's current target type is preserved"},
-			{Name: "dns-hosting", Type: pinner.ArgTypeNullableBool, Help: "Set Pinner-managed DNS (true = managed, false = self-managed, omit = leave unchanged)", AgentHelp: "true enables Pinner-managed DNS; false disables it (self-managed). Omit to leave the current DNS hosting state unchanged."},
-			{Name: "namespace", Type: pinner.ArgTypeString, Help: "DNS namespace of the domain (icann or hns); omit = leave unchanged. Use with rename-to when switching to a Handshake (alt-root) name.", AgentHelp: "The DNS namespace of the custom domain: \"icann\" (traditional) or \"hns\" for a Handshake (alt-root) name. Omit to leave the current namespace unchanged. When renaming to an HNS name with rename-to, set namespace to \"hns\"."},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Help: "Website ID or domain to update"},
+			{Name: "rename-to", Type: opmesh.ArgTypeString, Help: "New domain for the website"},
+			{Name: "cid", Type: opmesh.ArgTypeString, Help: "New target CID"},
+			{Name: "target-type", Type: opmesh.ArgTypeString, Help: "New target type (ipfs|ipns); when omitted with cid, the site's current target type is preserved"},
+			{Name: "dns-hosting", Type: opmesh.ArgTypeNullableBool, Help: "Set Pinner-managed DNS (true = managed, false = self-managed, omit = leave unchanged)"},
+			{Name: "namespace", Type: opmesh.ArgTypeString, Help: "DNS namespace of the domain (icann or hns); omit = leave unchanged. Use with rename-to when switching to a Handshake (alt-root) name."},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -598,11 +594,11 @@ func websitesUpdate(d WebsitesDeps) pinner.Operation {
 				return nil, err
 			}
 			req := ipfs.WebsiteUpdateRequest{}
-			if v := pinner.StrArg(input, "rename-to", ""); v != "" {
+			if v := opmesh.StrArg(input, "rename-to", ""); v != "" {
 				req.Domain = &v
 			}
-			cid := pinner.StrArg(input, "cid", "")
-			targetType := pinner.StrArg(input, "target-type", "")
+			cid := opmesh.StrArg(input, "cid", "")
+			targetType := opmesh.StrArg(input, "target-type", "")
 			if cid != "" {
 				req.TargetHash = &cid
 			}
@@ -625,11 +621,11 @@ func websitesUpdate(d WebsitesDeps) pinner.Operation {
 			}
 			// nil (omitted) means "leave DNS hosting unchanged"; true/false
 			// toggle it on/off explicitly.
-			req.DnsHostingEnabled = pinner.BoolArgPtr(input, "dns-hosting")
+			req.DnsHostingEnabled = opmesh.BoolArgPtr(input, "dns-hosting")
 			// namespace is omitted by default so an update never silently
 			// rewrites the domain's namespace; only set it when explicitly given
 			// (use it with rename-to to switch a domain to the hns namespace).
-			if ns := pinner.StrArg(input, "namespace", ""); ns != "" {
+			if ns := opmesh.StrArg(input, "namespace", ""); ns != "" {
 				if ns != "icann" && ns != "hns" {
 					return nil, fmt.Errorf("websites_update: invalid namespace %q: must be 'icann' or 'hns'", ns)
 				}
@@ -652,20 +648,20 @@ func websitesUpdate(d WebsitesDeps) pinner.Operation {
 //
 // It is equivalent to `websites update <domain> --target-type ipns` (optionally
 // with --cid): it auto-creates an IPNS key and publishes the current CID to it.
-func websitesEnableIPNS(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesEnableIPNS(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_enable_ipns",
 		Title:       "Enable IPNS targeting",
 		Summary:     "Enable IPNS targeting for a website",
 		Description: "Convert a website from IPFS to IPNS targeting (alias 'ipns'). Auto-creates an IPNS key for the site and publishes the current CID to it, or, with the cid field, publishes that CID instead. Returns the updated website including its new IPNS key ID.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Help: "Website ID or domain to convert"},
-			{Name: "cid", Type: pinner.ArgTypeString, Help: "Optional CID to publish to the new IPNS key"},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Help: "Website ID or domain to convert"},
+			{Name: "cid", Type: opmesh.ArgTypeString, Help: "Optional CID to publish to the new IPNS key"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -681,7 +677,7 @@ func websitesEnableIPNS(d WebsitesDeps) pinner.Operation {
 			}
 			ipnsType := "ipns"
 			req := ipfs.WebsiteUpdateRequest{TargetType: &ipnsType}
-			cid := pinner.StrArg(input, "cid", "")
+			cid := opmesh.StrArg(input, "cid", "")
 			if cid != "" {
 				req.TargetHash = &cid
 			}
@@ -701,23 +697,23 @@ type WebsiteDeleteResult struct {
 // websitesDelete is the `websites delete` operation. DESTRUCTIVE. The core
 // Delete returns no data; the handler returns a WebsiteDeleteResult carrying
 // the resolved ID so the frontend can render a confirmation.
-func websitesDelete(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDelete(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_delete",
 		Title:       "Delete a website",
 		Summary:     "Delete a website",
 		Description: "Delete a website, selected by domain name or numeric ID. DESTRUCTIVE and irreversible: there is no undo. Requires confirm=true. Does NOT delete the website's DNS zone or its IPNS keys.",
 		Category:    "core",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Required: true, Help: "Website ID or domain to delete"},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive delete", AgentHelp: "Must be true to delete the website; this is destructive and cannot be undone."},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Required: true, Help: "Website ID or domain to delete"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("websites_delete: confirmation is required to delete the website")
 			}
 			svc, svcErr := d.service(input)
@@ -745,22 +741,19 @@ func websitesDelete(d WebsitesDeps) pinner.Operation {
 // The validate command's "required DNS records" hints re-fetch the website
 // and config to render instructions. That enrichment is presentation and is
 // left to the wiring layer, not part of the core validate data contract.
-func websitesValidate(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesValidate(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_validate",
 		Title:       "Validate a website",
 		Summary:     "Validate a website's DNS records",
 		Description: "Validate that a website's DNS records are correctly configured (TXT validation token + _dnslink). Selects the site by domain name or numeric ID. Returns a valid/message/reason result.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Validates that a website's DNS records are correctly configured (TXT validation token + _dnslink). Call this after websites_create to confirm DNS propagation. For managed-DNS platform subdomains, validation typically passes within 30-60s of creation; if it fails, wait and retry rather than treating it as a creation failure. For self-managed DNS, ensure the _dnslink TXT and validation TXT are published before calling."),
-		),
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Help: "Website ID or domain to validate"},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Help: "Website ID or domain to validate"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -788,19 +781,19 @@ func websitesValidate(d WebsitesDeps) pinner.Operation {
 // The SSL-status command previously wrapped this operation in a presentational
 // polling loop driven by a --watch flag. That watch rendering is not part of
 // the data contract and is left to the CLI wiring layer.
-func websitesSSLStatus(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesSSLStatus(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_ssl_status",
 		Title:       "SSL certificate status",
 		Summary:     "Get SSL certificate status for a website",
 		Description: "Get SSL certificate status for a website domain: certificate status (active, pending, error, etc.), issuance date, last-update timestamp, and any error messages.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Help: "Website domain to check SSL status for"},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Help: "Website domain to check SSL status for"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -810,7 +803,7 @@ func websitesSSLStatus(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domain := pinner.StrArg(input, "website", "")
+			domain := opmesh.StrArg(input, "website", "")
 			if domain == "" {
 				return nil, fmt.Errorf("websites_ssl_status: domain is required")
 			}
@@ -822,16 +815,16 @@ func websitesSSLStatus(d WebsitesDeps) pinner.Operation {
 
 // websitesConfig is the `websites config` operation. Returns
 // *ipfs.WebsiteConfigResponse (gateway domain + nameservers).
-func websitesConfig(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesConfig(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_config",
 		Title:       "Website hosting configuration",
 		Summary:     "Show website hosting configuration",
 		Description: "Show the account-wide website hosting configuration: the Pinner gateway domain and the nameservers used for DNS hosting.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -851,19 +844,16 @@ func websitesConfig(d WebsitesDeps) pinner.Operation {
 // `websites_platform_domains_list` MCP tool. Lists the platform (free-subdomain)
 // root domains that are enabled and available for users to claim subdomains
 // under. Returns *ipfs.PlatformDomainListResponse (data plus total).
-func websitesPlatformDomainsList(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesPlatformDomainsList(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_platform_domains_list",
 		Title:       "List platform domains",
 		Summary:     "List available platform subdomain roots",
 		Description: "List the platform-owned root domains that are enabled and available for users to claim free subdomains under. Each entry carries the root domain, its DNS namespace, zone id, and whether it is enabled.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("List the platform-owned root domains that are enabled and available for users to claim free subdomains under. Relevant when the user explicitly requests a specific subdomain label — discover roots here before checking availability with websites_platform_domain_availability. When the user has no label preference, websites_create with no domain auto-generates a platform subdomain."),
-		),
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
 			if svcErr != nil {
@@ -884,22 +874,19 @@ func websitesPlatformDomainsList(d WebsitesDeps) pinner.Operation {
 // platform (free-subdomain) root. label is required.
 // Returns *ipfs.PlatformAvailabilityResponse (label plus one
 // PlatformAvailabilityResult per root).
-func websitesPlatformDomainAvailability(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesPlatformDomainAvailability(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_platform_domain_availability",
 		Title:       "Check platform domain availability",
 		Summary:     "Check if a label is available as a platform subdomain",
 		Description: "Check whether a candidate subdomain label is claimable on each enabled platform (free-subdomain) root. label is required. Returns one availability result per platform-owned root.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Check whether a candidate subdomain label is claimable on each enabled platform (free-subdomain) root. label is required. Returns one availability result per platform-owned root. The check applies when a concrete subdomain label has already been supplied by the user or is required by an explicit user request for custom naming. A label is not generated solely for this check; when no label preference exists, websites_create with no domain auto-generates a platform subdomain."),
-		),
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<label>",
-		Args: []pinner.OperationArg{
-			{Name: "label", Type: pinner.ArgTypeString, Required: true, Help: "Candidate subdomain label to check availability for. Required."},
+		Args: []opmesh.OperationArg{
+			{Name: "label", Type: opmesh.ArgTypeString, Required: true, Help: "Candidate subdomain label to check availability for. Required."},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -909,7 +896,7 @@ func websitesPlatformDomainAvailability(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			label := pinner.StrArg(input, "label", "")
+			label := opmesh.StrArg(input, "label", "")
 			if label == "" {
 				return nil, errors.New("label is required: pass a candidate subdomain label to check availability")
 			}

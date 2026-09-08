@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/vault"
 )
 
@@ -35,7 +35,7 @@ func TestVaultCreateOpReturnsProfileHandoff(t *testing.T) {
 		Provisioner: func() *vault.Provisioner { return vault.NewProvisioner() },
 	}
 	ops := VaultSetupOperations(deps)
-	var createOp pinner.Operation
+	var createOp opmesh.Operation
 	for _, op := range ops {
 		if op.Name() == "vault_create" {
 			createOp = op
@@ -43,7 +43,7 @@ func TestVaultCreateOpReturnsProfileHandoff(t *testing.T) {
 	}
 	require.NotNil(t, createOp, "vault.create op must be present")
 
-	assert.Equal(t, pinner.InteractionAgentSafe, createOp.Interaction())
+	assert.Equal(t, opmesh.InteractionAgentSafe, createOp.Interaction())
 
 	res, err := createOp.Handler().Execute(context.Background(), map[string]any{"profile": "testvault"})
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestVaultCreateOpRequiresProfile(t *testing.T) {
 	// The schema must declare profile required so the shared required-arg gate
 	// and MCP JSON schema mark it mandatory, not merely the handler's manual
 	// empty check. A missing profile must be rejected at the gate.
-	var profileArg *pinner.OperationArg
+	var profileArg *opmesh.OperationArg
 	for i := range createOp.Args() {
 		if createOp.Args()[i].Name == "profile" {
 			profileArg = &createOp.Args()[i]
@@ -151,7 +151,7 @@ func TestResolveRestoreProfileRejectsActiveProfile(t *testing.T) {
 	assert.Equal(t, "fresh", got)
 }
 
-func setupOpNamed(t *testing.T, deps VaultDeps, name string) pinner.Operation {
+func setupOpNamed(t *testing.T, deps VaultDeps, name string) opmesh.Operation {
 	t.Helper()
 	for _, op := range VaultSetupOperations(deps) {
 		if op.Name() == name {
@@ -170,7 +170,7 @@ func setupOpNamed(t *testing.T, deps VaultDeps, name string) pinner.Operation {
 func TestVaultSearchNormalizesStatusGuard(t *testing.T) {
 	isolateVaultHome(t)
 
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range VaultOperations(VaultDeps{}) {
 		if o.Name() == "vault_search" {
 			op = o

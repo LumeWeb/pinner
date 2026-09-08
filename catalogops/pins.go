@@ -1,4 +1,4 @@
-// Package catalogops builds pinner.Operations whose handlers drive the core
+// Package catalogops builds opmesh.Operations whose handlers drive the core
 // service domains directly and return typed data. Rendering happens in the
 // CLI/MCP frontend.
 package catalogops
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	"go.lumeweb.com/pinner/core/pinning"
 )
@@ -109,8 +109,8 @@ func dryRun(operation string, cids []string, options map[string]string) *DryRunR
 
 // PinsOperations returns the catalog operations for the pins domain (the
 // existing `pins` subcommand group), each driving the core PinningService.
-func PinsOperations(d PinsDeps) []pinner.Operation {
-	return []pinner.Operation{
+func PinsOperations(d PinsDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		pinsList(d),
 		pinsAdd(d),
 		pinsRemove(d),
@@ -122,21 +122,21 @@ func PinsOperations(d PinsDeps) []pinner.Operation {
 // pinsList is the `pins ls` operation. Watch polling and stdin name reads
 // are CLI presentation concerns handled in the wiring layer; this handler
 // only takes the resolved name filter.
-func pinsList(d PinsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func pinsList(d PinsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "pins_list",
 		Title:       "List pins",
 		Summary:     "List pinned content",
 		Description: "List your pinned content with optional filtering by name, status, and a result limit.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "name", Type: pinner.ArgTypeString, Help: "Filter pins by exact name"},
-			pinner.OperationArg{Name: "status", Type: pinner.ArgTypeString, Help: "Filter pins by status (e.g. pinned, unpinned, failed)"},
-			pinner.OperationArg{Name: "search", Type: pinner.ArgTypeString, Help: "Full-text search evaluated server-side against pin name (substring)"},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "name", Type: opmesh.ArgTypeString, Help: "Filter pins by exact name"},
+			opmesh.OperationArg{Name: "status", Type: opmesh.ArgTypeString, Help: "Filter pins by status (e.g. pinned, unpinned, failed)"},
+			opmesh.OperationArg{Name: "search", Type: opmesh.ArgTypeString, Help: "Full-text search evaluated server-side against pin name (substring)"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -146,13 +146,13 @@ func pinsList(d PinsDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			page := pinner.ParseListPage(input, 10)
+			page := opmesh.ParseListPage(input, 10)
 			pins, err := svc.List(ctx, pinning.ListOptions{
 				Start:  page.Start,
 				Limit:  page.Limit,
-				Name:   pinner.StrArg(input, "name", ""),
-				Status: pinner.StrArg(input, "status", ""),
-				Search: pinner.SearchArg(input),
+				Name:   opmesh.StrArg(input, "name", ""),
+				Status: opmesh.StrArg(input, "status", ""),
+				Search: opmesh.SearchArg(input),
 			})
 			if err != nil {
 				return nil, err
@@ -177,27 +177,27 @@ func pinsList(d PinsDeps) pinner.Operation {
 // resolved in the CLI wiring layer and injected as the "cids" arg; this
 // handler is IO-free. --dry-run returns a DryRunResult instead of mutating
 // state.
-func pinsAdd(d PinsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func pinsAdd(d PinsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "pins_add",
 		Title:       "Add a pin",
 		Summary:     "Pin existing content by CID",
 		Description: "Import and pin content that already exists on IPFS by its CID. This is for existing EXTERNAL IPFS CIDs; a Pinner upload operation already creates and pins its uploaded content, so that content is already pinned. Supply concrete CIDs in the cids field. wait defaults to true (blocks until confirmed, can time out on large/queued batches); pass wait=false to submit and return immediately, then poll pins_status with the returned name/pin id.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<cid...>",
-		Args: []pinner.OperationArg{
+		Args: []opmesh.OperationArg{
 			// cids is populated by the CLI wiring layer from positional args,
 			// --file, or stdin; agents pass concrete CID values.
-			{Name: "cids", Type: pinner.ArgTypeStringSlice, AgentRequired: true, Help: "Content identifiers (CIDs) to pin", AgentHelp: "One or more concrete CIDs to pin. This field is required; supply the values here."},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "Custom name for the pin"},
-			{Name: "wait", Type: pinner.ArgTypeBool, Default: "true", Help: "Whether to wait for the pin to be confirmed (default true)"},
-			{Name: "parallel", Type: pinner.ArgTypeInt, Default: "0", Help: "Maximum number of parallel pin operations for a batch"},
-			{Name: "continue", Type: pinner.ArgTypeBool, Default: "false", Help: "Continue pinning remaining CIDs when one fails"},
-			{Name: "meta", Type: pinner.ArgTypeStringSlice, Help: "Metadata as key=value pairs to set on the pin (repeatable)"},
-			{Name: "dry-run", Type: pinner.ArgTypeBool, Default: "false", Help: "Show what would be pinned without changing state"},
+			{Name: "cids", Type: opmesh.ArgTypeStringSlice, AgentRequired: true, Help: "Content identifiers (CIDs) to pin"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "Custom name for the pin"},
+			{Name: "wait", Type: opmesh.ArgTypeBool, Default: "true", Help: "Whether to wait for the pin to be confirmed (default true)"},
+			{Name: "parallel", Type: opmesh.ArgTypeInt, Default: "0", Help: "Maximum number of parallel pin operations for a batch"},
+			{Name: "continue", Type: opmesh.ArgTypeBool, Default: "false", Help: "Continue pinning remaining CIDs when one fails"},
+			{Name: "meta", Type: opmesh.ArgTypeStringSlice, Help: "Metadata as key=value pairs to set on the pin (repeatable)"},
+			{Name: "dry-run", Type: opmesh.ArgTypeBool, Default: "false", Help: "Show what would be pinned without changing state"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -208,19 +208,19 @@ func pinsAdd(d PinsDeps) pinner.Operation {
 				return nil, err
 			}
 
-			cids := pinner.StrSliceArg(input, "cids")
+			cids := opmesh.StrSliceArg(input, "cids")
 			if len(cids) == 0 {
 				return nil, fmt.Errorf("pins_add: no CIDs provided (pass <cid...>, --file, or pipe from stdin)")
 			}
 
-			name := pinner.StrArg(input, "name", "")
-			wait := pinner.BoolArg(input, "wait", true)
-			parallel := pinner.IntArg(input, "parallel", 0)
-			continueOn := pinner.BoolArg(input, "continue", false)
-			metaPairs := pinner.StrSliceArg(input, "meta")
+			name := opmesh.StrArg(input, "name", "")
+			wait := opmesh.BoolArg(input, "wait", true)
+			parallel := opmesh.IntArg(input, "parallel", 0)
+			continueOn := opmesh.BoolArg(input, "continue", false)
+			metaPairs := opmesh.StrSliceArg(input, "meta")
 
 			// Dry-run: report the plan, never mutate.
-			if pinner.BoolArg(input, "dry-run", false) {
+			if opmesh.BoolArg(input, "dry-run", false) {
 				options := map[string]string{}
 				options["Wait"] = strconv.FormatBool(wait)
 				if name != "" {
@@ -306,25 +306,25 @@ func pinWaitHint(err error, wait bool) error {
 // count-typing prompt is enforced in the wiring layer, not here. CID input is
 // resolved in the wiring layer and injected as the "cids" arg. --dry-run
 // returns a DryRunResult instead of mutating state.
-func pinsRemove(d PinsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func pinsRemove(d PinsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "pins_rm",
 		Title:       "Remove a pin",
 		Summary:     "Unpin existing CIDs (or all pins)",
 		Description: "Remove pins from the network. Provide cids to unpin specific CIDs, OR set all=true to remove every pin (optionally filtered by status) — not both. DESTRUCTIVE and irreversible: confirm=true is required.",
 		Category:    "core",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<cid...>",
-		Args: []pinner.OperationArg{
-			{Name: "cids", Type: pinner.ArgTypeStringSlice, SelectionGroup: "remove", Help: "Content identifiers to unpin", AgentHelp: "Concrete CIDs to unpin. Omitted only when removing all pins (all=true). The field takes concrete values; CLI positional/file/stdin syntax is not used here."},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive unpin", AgentHelp: "Must be true to remove pins; this is destructive and cannot be undone."},
-			{Name: "all", Type: pinner.ArgTypeBool, SelectionGroup: "remove", Default: "false", Help: "Remove all pins"},
-			{Name: "status", Type: pinner.ArgTypeString, Help: "When all=true, only unpin pins with this status (e.g. failed)"},
-			{Name: "parallel", Type: pinner.ArgTypeInt, Default: "0", Help: "Maximum number of parallel unpin operations for a batch"},
-			{Name: "continue", Type: pinner.ArgTypeBool, Default: "false", Help: "Continue unpinning remaining CIDs when one fails"},
-			{Name: "dry-run", Type: pinner.ArgTypeBool, Default: "false", Help: "Show what would be unpinned without changing state"},
+		Args: []opmesh.OperationArg{
+			{Name: "cids", Type: opmesh.ArgTypeStringSlice, SelectionGroup: "remove", Help: "Content identifiers to unpin"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive unpin"},
+			{Name: "all", Type: opmesh.ArgTypeBool, SelectionGroup: "remove", Default: "false", Help: "Remove all pins"},
+			{Name: "status", Type: opmesh.ArgTypeString, Help: "When all=true, only unpin pins with this status (e.g. failed)"},
+			{Name: "parallel", Type: opmesh.ArgTypeInt, Default: "0", Help: "Maximum number of parallel unpin operations for a batch"},
+			{Name: "continue", Type: opmesh.ArgTypeBool, Default: "false", Help: "Continue unpinning remaining CIDs when one fails"},
+			{Name: "dry-run", Type: opmesh.ArgTypeBool, Default: "false", Help: "Show what would be unpinned without changing state"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -335,14 +335,14 @@ func pinsRemove(d PinsDeps) pinner.Operation {
 				return nil, err
 			}
 
-			confirm := pinner.BoolArg(input, "force", false) || pinner.BoolArg(input, "confirm", false)
-			parallel := pinner.IntArg(input, "parallel", 0)
-			continueOn := pinner.BoolArg(input, "continue", false)
+			confirm := opmesh.BoolArg(input, "force", false) || opmesh.BoolArg(input, "confirm", false)
+			parallel := opmesh.IntArg(input, "parallel", 0)
+			continueOn := opmesh.BoolArg(input, "continue", false)
 
 			// --all unpins every pin (optionally filtered by status).
-			if pinner.BoolArg(input, "all", false) {
-				statusFilter := pinner.StrArg(input, "status", "")
-				if pinner.BoolArg(input, "dry-run", false) {
+			if opmesh.BoolArg(input, "all", false) {
+				statusFilter := opmesh.StrArg(input, "status", "")
+				if opmesh.BoolArg(input, "dry-run", false) {
 					// Report the request IDs that would be unpinned without
 					// mutating state. Naming them requires a read-only List.
 					pins, err := svc.List(ctx, pinning.ListOptions{Status: statusFilter})
@@ -372,12 +372,12 @@ func pinsRemove(d PinsDeps) pinner.Operation {
 				})
 			}
 
-			cids := pinner.StrSliceArg(input, "cids")
+			cids := opmesh.StrSliceArg(input, "cids")
 			if len(cids) == 0 {
 				return nil, fmt.Errorf("pins_rm: no CIDs provided (pass <cid...>, --file, pipe from stdin, or --all)")
 			}
 
-			if pinner.BoolArg(input, "dry-run", false) {
+			if opmesh.BoolArg(input, "dry-run", false) {
 				options := map[string]string{"Confirm": "yes"}
 				if confirm {
 					options["Confirm"] = "no (using --force)"
@@ -405,20 +405,20 @@ func pinsRemove(d PinsDeps) pinner.Operation {
 
 // pinsStatus is the `pins status` operation. Status polls until the pin
 // settles internally when --watch is set, so watch is threaded through.
-func pinsStatus(d PinsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func pinsStatus(d PinsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "pins_status",
 		Title:       "Pin status",
 		Summary:     "Get the status of a pin",
 		Description: "Get the current status of a pinned CID, optionally watching until it settles.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<cid>",
-		Args: []pinner.OperationArg{
-			{Name: "cid", Type: pinner.ArgTypeString, Required: true, Help: "Content identifier to check", AgentHelp: "The concrete CID whose pin status to return."},
-			{Name: "watch", Type: pinner.ArgTypeBool, Default: "false", Help: "Poll until the pin settles"},
+		Args: []opmesh.OperationArg{
+			{Name: "cid", Type: opmesh.ArgTypeString, Required: true, Help: "Content identifier to check"},
+			{Name: "watch", Type: opmesh.ArgTypeBool, Default: "false", Help: "Poll until the pin settles"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -428,11 +428,11 @@ func pinsStatus(d PinsDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			cid := pinner.StrArg(input, "cid", "")
+			cid := opmesh.StrArg(input, "cid", "")
 			if cid == "" {
 				return nil, fmt.Errorf("pins_status: missing required argument cid")
 			}
-			return svc.Status(ctx, cid, pinner.BoolArg(input, "watch", false))
+			return svc.Status(ctx, cid, opmesh.BoolArg(input, "watch", false))
 		}),
 	})
 }
@@ -442,23 +442,23 @@ func pinsStatus(d PinsDeps) pinner.Operation {
 // the handler delegates the update to PinningService.UpdatePin. --dry-run
 // returns a DryRunResult instead of mutating state. CID input is a single
 // positional (or --cid), resolved in the wiring layer.
-func pinsUpdate(d PinsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func pinsUpdate(d PinsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "pins_update",
 		Title:       "Update a pin",
 		Summary:     "Update a pin's name or metadata",
 		Description: "Update the name and/or metadata of an existing pin by CID. Metadata is a set of key=value pairs (meta, repeatable); clear-meta wipes existing metadata before applying the new pairs.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<cid>",
-		Args: []pinner.OperationArg{
-			{Name: "cid", Type: pinner.ArgTypeString, Required: true, Help: "Content identifier to update (or via cid)", AgentHelp: "The concrete CID of the pin to update."},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "New name for the pin"},
-			{Name: "meta", Type: pinner.ArgTypeStringSlice, Help: "Metadata key=value pairs to set (repeatable)"},
-			{Name: "clear-meta", Type: pinner.ArgTypeBool, Default: "false", Help: "Clear existing metadata before applying the new pairs"},
-			{Name: "dry-run", Type: pinner.ArgTypeBool, Default: "false", Help: "Show what would be updated without changing state"},
+		Args: []opmesh.OperationArg{
+			{Name: "cid", Type: opmesh.ArgTypeString, Required: true, Help: "Content identifier to update (or via cid)"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "New name for the pin"},
+			{Name: "meta", Type: opmesh.ArgTypeStringSlice, Help: "Metadata key=value pairs to set (repeatable)"},
+			{Name: "clear-meta", Type: opmesh.ArgTypeBool, Default: "false", Help: "Clear existing metadata before applying the new pairs"},
+			{Name: "dry-run", Type: opmesh.ArgTypeBool, Default: "false", Help: "Show what would be updated without changing state"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -468,16 +468,16 @@ func pinsUpdate(d PinsDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			cid := pinner.StrArg(input, "cid", "")
+			cid := opmesh.StrArg(input, "cid", "")
 			if cid == "" {
 				return nil, fmt.Errorf("pins_update: missing required argument cid")
 			}
 
-			name := pinner.StrArg(input, "name", "")
-			metaPairs := pinner.StrSliceArg(input, "meta")
-			clearMeta := pinner.BoolArg(input, "clear-meta", false)
+			name := opmesh.StrArg(input, "name", "")
+			metaPairs := opmesh.StrSliceArg(input, "meta")
+			clearMeta := opmesh.BoolArg(input, "clear-meta", false)
 
-			if pinner.BoolArg(input, "dry-run", false) {
+			if opmesh.BoolArg(input, "dry-run", false) {
 				options := map[string]string{"CID": cid}
 				if name != "" {
 					options["Name"] = name

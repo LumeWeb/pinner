@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/portal-sdk/admin"
 )
 
@@ -66,24 +66,24 @@ type QuotaCleanupResult struct {
 // derivedLimit reads an optional int arg (nil when omitted) and returns its
 // value or fallback.
 func derivedLimit(input map[string]any, key string, fallback int) int {
-	if v := pinner.IntArgPtr(input, key); v != nil {
+	if v := opmesh.IntArgPtr(input, key); v != nil {
 		return *v
 	}
 	return fallback
 }
 
 // adminQuotaPlansList is the `admin quota plans list` operation.
-func adminQuotaPlansList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaPlansList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_plans_list",
 		Title:       "List quota plans",
 		Summary:     "List all quota plans",
 		Description: "List all quota plans with their upload/download/storage limits and active/default flags. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
 			if err != nil {
@@ -96,26 +96,26 @@ func adminQuotaPlansList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return quotaPlansListResult(slicePage(plans, page.Start, page.Limit)), nil
 		}),
 	})
 }
 
 // adminQuotaPlansGet is the `admin quota plans get` operation.
-func adminQuotaPlansGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaPlansGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_plans_get",
 		Title:       "Get a quota plan",
 		Summary:     "Get a quota plan by ID",
 		Description: "Get a single quota plan by numeric ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Quota plan ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Quota plan ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -125,7 +125,7 @@ func adminQuotaPlansGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_quota_plans_get: plan ID is required")
 			}
@@ -135,25 +135,25 @@ func adminQuotaPlansGet(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaPlansCreate is the `admin quota plans create` operation.
-func adminQuotaPlansCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaPlansCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_plans_create",
 		Title:       "Create a quota plan",
 		Summary:     "Create a quota plan",
 		Description: "Create a quota plan with upload/download/storage limits and an optional window type (default LIFETIME). Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Plan name"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Plan description"},
-			{Name: "upload-limit", Type: pinner.ArgTypeInt, Help: "Upload limit (bytes)"},
-			{Name: "download-limit", Type: pinner.ArgTypeInt, Help: "Download limit (bytes)"},
-			{Name: "storage-limit", Type: pinner.ArgTypeInt, Help: "Storage limit (bytes)"},
-			{Name: "window-type", Type: pinner.ArgTypeString, Default: "LIFETIME", Help: "Window type (ROLLING, DAY, WEEK, MONTH, YEAR, LIFETIME)"},
-			{Name: "is-active", Type: pinner.ArgTypeBool, Help: "Mark plan as active"},
-			{Name: "is-default", Type: pinner.ArgTypeBool, Help: "Set as default plan for new users"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Plan name"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Plan description"},
+			{Name: "upload-limit", Type: opmesh.ArgTypeInt, Help: "Upload limit (bytes)"},
+			{Name: "download-limit", Type: opmesh.ArgTypeInt, Help: "Download limit (bytes)"},
+			{Name: "storage-limit", Type: opmesh.ArgTypeInt, Help: "Storage limit (bytes)"},
+			{Name: "window-type", Type: opmesh.ArgTypeString, Default: "LIFETIME", Help: "Window type (ROLLING, DAY, WEEK, MONTH, YEAR, LIFETIME)"},
+			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark plan as active"},
+			{Name: "is-default", Type: opmesh.ArgTypeBool, Help: "Set as default plan for new users"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -163,24 +163,24 @@ func adminQuotaPlansCreate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			name := pinner.StrArg(input, "name", "")
+			name := opmesh.StrArg(input, "name", "")
 			if name == "" {
 				return nil, fmt.Errorf("admin_quota_plans_create: name is required")
 			}
-			windowType := pinner.StrArg(input, "window-type", "LIFETIME")
+			windowType := opmesh.StrArg(input, "window-type", "LIFETIME")
 			limits := admin.QuotaLimits{
-				UploadLimitBytes:   pinner.IntArg(input, "upload-limit", 0),
-				DownloadLimitBytes: pinner.IntArg(input, "download-limit", 0),
-				StorageLimitBytes:  pinner.IntArg(input, "storage-limit", 0),
+				UploadLimitBytes:   opmesh.IntArg(input, "upload-limit", 0),
+				DownloadLimitBytes: opmesh.IntArg(input, "download-limit", 0),
+				StorageLimitBytes:  opmesh.IntArg(input, "storage-limit", 0),
 				WindowType:         windowType,
 			}
-			plan := admin.NewQuotaPlan(name, pinner.StrArg(input, "description", ""), limits)
-			plan.IsActive = pinner.BoolArg(input, "is-active", false)
+			plan := admin.NewQuotaPlan(name, opmesh.StrArg(input, "description", ""), limits)
+			plan.IsActive = opmesh.BoolArg(input, "is-active", false)
 			created, err := svc.CreatePlan(ctx, plan)
 			if err != nil {
 				return nil, err
 			}
-			if pinner.BoolArg(input, "is-default", false) {
+			if opmesh.BoolArg(input, "is-default", false) {
 				// Return the committed plan alongside the error so the caller
 				// knows the plan exists but the default was not applied.
 				if err := svc.SetDefaultPlan(ctx, fmt.Sprintf("%d", created.Id)); err != nil {
@@ -195,27 +195,27 @@ func adminQuotaPlansCreate(d AdminDeps) pinner.Operation {
 
 // adminQuotaPlansUpdate is the `admin quota plans update` operation. Only the
 // fields provided are overridden; others keep their current values.
-func adminQuotaPlansUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaPlansUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_plans_update",
 		Title:       "Update a quota plan",
 		Summary:     "Update a quota plan",
 		Description: "Update an existing quota plan. Only the fields provided are changed; others keep their current values. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Quota plan ID", PositionalOnly: true},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "Plan name"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Plan description"},
-			{Name: "upload-limit", Type: pinner.ArgTypeNullableInt, Help: "Upload limit (bytes)"},
-			{Name: "download-limit", Type: pinner.ArgTypeNullableInt, Help: "Download limit (bytes)"},
-			{Name: "storage-limit", Type: pinner.ArgTypeNullableInt, Help: "Storage limit (bytes)"},
-			{Name: "window-type", Type: pinner.ArgTypeString, Help: "Window type (ROLLING, DAY, WEEK, MONTH, YEAR, LIFETIME)"},
-			{Name: "is-active", Type: pinner.ArgTypeNullableBool, Help: "Mark plan as active"},
-			{Name: "is-default", Type: pinner.ArgTypeNullableBool, Help: "Set as default plan for new users"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Quota plan ID"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "Plan name"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Plan description"},
+			{Name: "upload-limit", Type: opmesh.ArgTypeNullableInt, Help: "Upload limit (bytes)"},
+			{Name: "download-limit", Type: opmesh.ArgTypeNullableInt, Help: "Download limit (bytes)"},
+			{Name: "storage-limit", Type: opmesh.ArgTypeNullableInt, Help: "Storage limit (bytes)"},
+			{Name: "window-type", Type: opmesh.ArgTypeString, Help: "Window type (ROLLING, DAY, WEEK, MONTH, YEAR, LIFETIME)"},
+			{Name: "is-active", Type: opmesh.ArgTypeNullableBool, Help: "Mark plan as active"},
+			{Name: "is-default", Type: opmesh.ArgTypeNullableBool, Help: "Set as default plan for new users"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -225,20 +225,20 @@ func adminQuotaPlansUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			planID := pinner.StrArg(input, "id", "")
+			planID := opmesh.StrArg(input, "id", "")
 			if planID == "" {
 				return nil, fmt.Errorf("admin_quota_plans_update: plan ID is required")
 			}
 			// Flag presence is not enough (the CLI fills every arg), so check the
 			// effective (non-default) values actually being changed.
-			if pinner.StrArg(input, "name", "") == "" &&
-				pinner.StrArg(input, "description", "") == "" &&
-				pinner.StrArg(input, "window-type", "") == "" &&
-				pinner.IntArgPtr(input, "upload-limit") == nil &&
-				pinner.IntArgPtr(input, "download-limit") == nil &&
-				pinner.IntArgPtr(input, "storage-limit") == nil &&
-				pinner.BoolArgPtr(input, "is-active") == nil &&
-				pinner.BoolArgPtr(input, "is-default") == nil {
+			if opmesh.StrArg(input, "name", "") == "" &&
+				opmesh.StrArg(input, "description", "") == "" &&
+				opmesh.StrArg(input, "window-type", "") == "" &&
+				opmesh.IntArgPtr(input, "upload-limit") == nil &&
+				opmesh.IntArgPtr(input, "download-limit") == nil &&
+				opmesh.IntArgPtr(input, "storage-limit") == nil &&
+				opmesh.BoolArgPtr(input, "is-active") == nil &&
+				opmesh.BoolArgPtr(input, "is-default") == nil {
 				return nil, fmt.Errorf("admin_quota_plans_update: at least one field is required")
 			}
 			existing, err := svc.GetPlan(ctx, planID)
@@ -257,27 +257,27 @@ func adminQuotaPlansUpdate(d AdminDeps) pinner.Operation {
 			limits.UploadLimitBytes = derivedLimit(input, "upload-limit", limits.UploadLimitBytes)
 			limits.DownloadLimitBytes = derivedLimit(input, "download-limit", limits.DownloadLimitBytes)
 			limits.StorageLimitBytes = derivedLimit(input, "storage-limit", limits.StorageLimitBytes)
-			if wt := pinner.StrArg(input, "window-type", ""); wt != "" {
+			if wt := opmesh.StrArg(input, "window-type", ""); wt != "" {
 				limits.WindowType = wt
 			}
 			name := existing.Name
-			if n := pinner.StrArg(input, "name", ""); n != "" {
+			if n := opmesh.StrArg(input, "name", ""); n != "" {
 				name = n
 			}
 			description := existing.Description
-			if dsc := pinner.StrArg(input, "description", ""); dsc != "" {
+			if dsc := opmesh.StrArg(input, "description", ""); dsc != "" {
 				description = dsc
 			}
 			plan := admin.NewQuotaPlan(name, description, limits)
 			plan.IsActive = existing.IsActive
-			if v := pinner.BoolArgPtr(input, "is-active"); v != nil {
+			if v := opmesh.BoolArgPtr(input, "is-active"); v != nil {
 				plan.IsActive = *v
 			}
 			updated, err := svc.UpdatePlan(ctx, planID, plan)
 			if err != nil {
 				return nil, err
 			}
-			if v := pinner.BoolArgPtr(input, "is-default"); v != nil && *v {
+			if v := opmesh.BoolArgPtr(input, "is-default"); v != nil && *v {
 				if err := svc.SetDefaultPlan(ctx, planID); err != nil {
 					return nil, fmt.Errorf("plan updated but failed to set as default: %w", err)
 				}
@@ -290,23 +290,23 @@ func adminQuotaPlansUpdate(d AdminDeps) pinner.Operation {
 
 // adminQuotaPlansDelete is the `admin quota plans delete` operation.
 // DESTRUCTIVE: requires confirm=true.
-func adminQuotaPlansDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaPlansDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_plans_delete",
 		Title:       "Delete a quota plan",
 		Summary:     "Delete a quota plan by ID",
 		Description: "Delete a quota plan by numeric ID. DESTRUCTIVE and irreversible: requires confirm=true. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Quota plan ID", PositionalOnly: true},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Quota plan ID"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("admin_quota_plans_delete: confirmation is required")
 			}
 			svc, err := d.quota()
@@ -316,7 +316,7 @@ func adminQuotaPlansDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_quota_plans_delete: plan ID is required")
 			}
@@ -329,19 +329,19 @@ func adminQuotaPlansDelete(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaPlansSetDefault is the `admin quota plans set-default` operation.
-func adminQuotaPlansSetDefault(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaPlansSetDefault(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_plans_set_default",
 		Title:       "Set a quota plan as default",
 		Summary:     "Set a quota plan as the default",
 		Description: "Set a quota plan as the default for new users. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Quota plan ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Quota plan ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -351,7 +351,7 @@ func adminQuotaPlansSetDefault(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_quota_plans_set_default: plan ID is required")
 			}
@@ -369,17 +369,17 @@ func allowanceLimitArg(input map[string]any, key string) int {
 }
 
 // adminQuotaAllowancesList is the `admin quota allowances list` operation.
-func adminQuotaAllowancesList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaAllowancesList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_allowances_list",
 		Title:       "List quota allowances",
 		Summary:     "List all quota allowances",
 		Description: "List all quota allowances granted to users. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
 			if err != nil {
@@ -392,31 +392,31 @@ func adminQuotaAllowancesList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return quotaAllowancesListResult(slicePage(allowances, page.Start, page.Limit)), nil
 		}),
 	})
 }
 
 // adminQuotaAllowancesCreate is the `admin quota allowances create` operation.
-func adminQuotaAllowancesCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaAllowancesCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_allowances_create",
 		Title:       "Create a quota allowance",
 		Summary:     "Create a quota allowance for a user",
 		Description: "Grant a quota allowance to a user. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeInt, Required: true, Help: "User ID"},
-			{Name: "source", Type: pinner.ArgTypeString, Help: "Allowance source reference"},
-			{Name: "quota-type", Type: pinner.ArgTypeString, Help: "Allowance type (e.g. download, storage, upload, bonus)"},
-			{Name: "upload-limit", Type: pinner.ArgTypeInt, Help: "Upload allowance (bytes)"},
-			{Name: "download-limit", Type: pinner.ArgTypeInt, Help: "Download allowance (bytes)"},
-			{Name: "storage-limit", Type: pinner.ArgTypeInt, Help: "Storage allowance (bytes)"},
-			{Name: "expiry", Type: pinner.ArgTypeInt, Help: "Expiry in days from now"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeInt, Required: true, Help: "User ID"},
+			{Name: "source", Type: opmesh.ArgTypeString, Help: "Allowance source reference"},
+			{Name: "quota-type", Type: opmesh.ArgTypeString, Help: "Allowance type (e.g. download, storage, upload, bonus)"},
+			{Name: "upload-limit", Type: opmesh.ArgTypeInt, Help: "Upload allowance (bytes)"},
+			{Name: "download-limit", Type: opmesh.ArgTypeInt, Help: "Download allowance (bytes)"},
+			{Name: "storage-limit", Type: opmesh.ArgTypeInt, Help: "Storage allowance (bytes)"},
+			{Name: "expiry", Type: opmesh.ArgTypeInt, Help: "Expiry in days from now"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -426,16 +426,16 @@ func adminQuotaAllowancesCreate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			userID := pinner.IntArg(input, "user-id", 0)
+			userID := opmesh.IntArg(input, "user-id", 0)
 			if userID == 0 {
 				return nil, fmt.Errorf("admin_quota_allowances_create: user-id is required")
 			}
 			return svc.CreateAllowance(ctx, userID,
-				pinner.StrArg(input, "source", ""),
-				pinner.StrArg(input, "quota-type", ""),
-				pinner.IntArg(input, "upload-limit", 0),
-				pinner.IntArg(input, "download-limit", 0),
-				pinner.IntArg(input, "storage-limit", 0),
+				opmesh.StrArg(input, "source", ""),
+				opmesh.StrArg(input, "quota-type", ""),
+				opmesh.IntArg(input, "upload-limit", 0),
+				opmesh.IntArg(input, "download-limit", 0),
+				opmesh.IntArg(input, "storage-limit", 0),
 				expiryTime(input),
 			)
 		}),
@@ -443,8 +443,8 @@ func adminQuotaAllowancesCreate(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaAllowancesUpdate is the `admin quota allowances update` operation.
-func adminQuotaAllowancesUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaAllowancesUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:    "admin_quota_allowances_update",
 		Title:   "Update a quota allowance",
 		Summary: "Update a quota allowance",
@@ -456,19 +456,19 @@ func adminQuotaAllowancesUpdate(d AdminDeps) pinner.Operation {
 		// silently zeroing user id / byte limits.
 		Description: "Replace a quota allowance by grant ID. This is a full replace: every field below must be supplied (the backend has no partial-update semantics and an omitted field is reset). Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<grant-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Allowance grant ID", PositionalOnly: true},
-			{Name: "user-id", Type: pinner.ArgTypeInt, Required: true, Help: "User ID"},
-			{Name: "source", Type: pinner.ArgTypeString, Required: true, Help: "Allowance source reference"},
-			{Name: "quota-type", Type: pinner.ArgTypeString, Required: true, Help: "Allowance type"},
-			{Name: "upload-limit", Type: pinner.ArgTypeInt, Required: true, Help: "Upload allowance (bytes)"},
-			{Name: "download-limit", Type: pinner.ArgTypeInt, Required: true, Help: "Download allowance (bytes)"},
-			{Name: "storage-limit", Type: pinner.ArgTypeInt, Required: true, Help: "Storage allowance (bytes)"},
-			{Name: "expiry", Type: pinner.ArgTypeInt, Help: "Expiry in days from now (optional; zero means no expiry)"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Allowance grant ID"},
+			{Name: "user-id", Type: opmesh.ArgTypeInt, Required: true, Help: "User ID"},
+			{Name: "source", Type: opmesh.ArgTypeString, Required: true, Help: "Allowance source reference"},
+			{Name: "quota-type", Type: opmesh.ArgTypeString, Required: true, Help: "Allowance type"},
+			{Name: "upload-limit", Type: opmesh.ArgTypeInt, Required: true, Help: "Upload allowance (bytes)"},
+			{Name: "download-limit", Type: opmesh.ArgTypeInt, Required: true, Help: "Download allowance (bytes)"},
+			{Name: "storage-limit", Type: opmesh.ArgTypeInt, Required: true, Help: "Storage allowance (bytes)"},
+			{Name: "expiry", Type: opmesh.ArgTypeInt, Help: "Expiry in days from now (optional; zero means no expiry)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -478,15 +478,15 @@ func adminQuotaAllowancesUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			grantID := pinner.StrArg(input, "id", "")
+			grantID := opmesh.StrArg(input, "id", "")
 			if grantID == "" {
 				return nil, fmt.Errorf("admin_quota_allowances_update: grant ID is required")
 			}
 			// Full-replace PUT: the CLI relaxes the Required markers, so validate
 			// the identity/type fields at runtime to avoid forwarding zeros.
-			userID := pinner.IntArg(input, "user-id", 0)
-			source := pinner.StrArg(input, "source", "")
-			quotaType := pinner.StrArg(input, "quota-type", "")
+			userID := opmesh.IntArg(input, "user-id", 0)
+			source := opmesh.StrArg(input, "source", "")
+			quotaType := opmesh.StrArg(input, "quota-type", "")
 			if userID <= 0 {
 				return nil, fmt.Errorf("admin_quota_allowances_update: user-id is required")
 			}
@@ -497,9 +497,9 @@ func adminQuotaAllowancesUpdate(d AdminDeps) pinner.Operation {
 				return nil, fmt.Errorf("admin_quota_allowances_update: quota-type is required")
 			}
 			return svc.UpdateAllowance(ctx, grantID, userID, source, quotaType,
-				pinner.IntArg(input, "upload-limit", 0),
-				pinner.IntArg(input, "download-limit", 0),
-				pinner.IntArg(input, "storage-limit", 0),
+				opmesh.IntArg(input, "upload-limit", 0),
+				opmesh.IntArg(input, "download-limit", 0),
+				opmesh.IntArg(input, "storage-limit", 0),
 				expiryTime(input),
 			)
 		}),
@@ -507,19 +507,19 @@ func adminQuotaAllowancesUpdate(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaAllowancesDelete is the `admin quota allowances delete` operation.
-func adminQuotaAllowancesDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaAllowancesDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_allowances_delete",
 		Title:       "Delete a quota allowance",
 		Summary:     "Delete a quota allowance by grant ID",
 		Description: "Delete a quota allowance by grant ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<grant-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Allowance grant ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Allowance grant ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -529,7 +529,7 @@ func adminQuotaAllowancesDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			grantID := pinner.StrArg(input, "id", "")
+			grantID := opmesh.StrArg(input, "id", "")
 			if grantID == "" {
 				return nil, fmt.Errorf("admin_quota_allowances_delete: grant ID is required")
 			}
@@ -542,17 +542,17 @@ func adminQuotaAllowancesDelete(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaUserConfigsList is the `admin quota user-configs list` operation.
-func adminQuotaUserConfigsList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaUserConfigsList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_user_configs_list",
 		Title:       "List user quota configs",
 		Summary:     "List all user quota configurations",
 		Description: "List all user quota configurations. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
 			if err != nil {
@@ -565,7 +565,7 @@ func adminQuotaUserConfigsList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return quotaUserConfigsListResult(slicePage(configs, page.Start, page.Limit)), nil
 		}),
 	})
@@ -573,34 +573,34 @@ func adminQuotaUserConfigsList(d AdminDeps) pinner.Operation {
 
 // adminQuotaUserConfigsUpdate is the `admin quota user-configs update`
 // operation.
-func adminQuotaUserConfigsUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaUserConfigsUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_user_configs_update",
 		Title:       "Update a user quota config",
 		Summary:     "Update a user's quota configuration",
 		Description: "Update a user's quota configuration, such as their assigned plan or per-user limits. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		// The value fields are nullable so an omitted flag yields a nil *int and is
 		// left unchanged; plain int args collapse to 0 on the CLI and would be
 		// forwarded as a non-nil 0 pointer, silently resetting fields an admin
 		// never intended to touch on a partial update.
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeInt, Required: true, Help: "User ID"},
-			{Name: "plan-id", Type: pinner.ArgTypeNullableInt, Help: "Quota plan ID to assign (omit to keep current)"},
-			{Name: "enforcement-policy", Type: pinner.ArgTypeString, Help: "Enforcement policy (HARD_LIMITS, UNLIMITED, ALLOWANCE, THRESHOLD)"},
-			{Name: "upload-limit", Type: pinner.ArgTypeNullableInt, Help: "Upload limit override (bytes)"},
-			{Name: "download-limit", Type: pinner.ArgTypeNullableInt, Help: "Download limit override (bytes)"},
-			{Name: "storage-limit", Type: pinner.ArgTypeNullableInt, Help: "Storage limit override (bytes)"},
-			{Name: "upload-threshold", Type: pinner.ArgTypeNullableInt, Help: "Upload threshold override (bytes)"},
-			{Name: "download-threshold", Type: pinner.ArgTypeNullableInt, Help: "Download threshold override (bytes)"},
-			{Name: "storage-threshold", Type: pinner.ArgTypeNullableInt, Help: "Storage threshold override (bytes)"},
-			{Name: "window-duration", Type: pinner.ArgTypeNullableInt, Help: "Window duration override"},
-			{Name: "window-start-hour", Type: pinner.ArgTypeNullableInt, Help: "Window start hour override"},
-			{Name: "window-timezone", Type: pinner.ArgTypeString, Help: "Window timezone override"},
-			{Name: "window-type", Type: pinner.ArgTypeString, Help: "Window type override"},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeInt, Required: true, Help: "User ID"},
+			{Name: "plan-id", Type: opmesh.ArgTypeNullableInt, Help: "Quota plan ID to assign (omit to keep current)"},
+			{Name: "enforcement-policy", Type: opmesh.ArgTypeString, Help: "Enforcement policy (HARD_LIMITS, UNLIMITED, ALLOWANCE, THRESHOLD)"},
+			{Name: "upload-limit", Type: opmesh.ArgTypeNullableInt, Help: "Upload limit override (bytes)"},
+			{Name: "download-limit", Type: opmesh.ArgTypeNullableInt, Help: "Download limit override (bytes)"},
+			{Name: "storage-limit", Type: opmesh.ArgTypeNullableInt, Help: "Storage limit override (bytes)"},
+			{Name: "upload-threshold", Type: opmesh.ArgTypeNullableInt, Help: "Upload threshold override (bytes)"},
+			{Name: "download-threshold", Type: opmesh.ArgTypeNullableInt, Help: "Download threshold override (bytes)"},
+			{Name: "storage-threshold", Type: opmesh.ArgTypeNullableInt, Help: "Storage threshold override (bytes)"},
+			{Name: "window-duration", Type: opmesh.ArgTypeNullableInt, Help: "Window duration override"},
+			{Name: "window-start-hour", Type: opmesh.ArgTypeNullableInt, Help: "Window start hour override"},
+			{Name: "window-timezone", Type: opmesh.ArgTypeString, Help: "Window timezone override"},
+			{Name: "window-type", Type: opmesh.ArgTypeString, Help: "Window type override"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -610,15 +610,15 @@ func adminQuotaUserConfigsUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			userID := pinner.IntArg(input, "user-id", 0)
+			userID := opmesh.IntArg(input, "user-id", 0)
 			if userID == 0 {
 				return nil, fmt.Errorf("admin_quota_user_configs_update: user-id is required")
 			}
 			cfg := &admin.UserQuotaConfigUpdate{}
-			if v := pinner.IntArgPtr(input, "plan-id"); v != nil {
+			if v := opmesh.IntArgPtr(input, "plan-id"); v != nil {
 				cfg.QuotaPlanId = v
 			}
-			if v := pinner.StrArg(input, "enforcement-policy", ""); v != "" {
+			if v := opmesh.StrArg(input, "enforcement-policy", ""); v != "" {
 				ep := admin.UserQuotaConfigUpdateEnforcementPolicy(v)
 				cfg.EnforcementPolicy = &ep
 			}
@@ -629,19 +629,19 @@ func adminQuotaUserConfigsUpdate(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaUserConfigsReset is the `admin quota user-configs reset` operation.
-func adminQuotaUserConfigsReset(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaUserConfigsReset(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_user_configs_reset",
 		Title:       "Reset a user's quota plan",
 		Summary:     "Reset a user's quota plan to default",
 		Description: "Reset a user's assigned quota plan to the default. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeInt, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeInt, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -651,7 +651,7 @@ func adminQuotaUserConfigsReset(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			userID := pinner.IntArg(input, "user-id", 0)
+			userID := opmesh.IntArg(input, "user-id", 0)
 			if userID == 0 {
 				return nil, fmt.Errorf("admin_quota_user_configs_reset: user-id is required")
 			}
@@ -664,16 +664,16 @@ func adminQuotaUserConfigsReset(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaStats is the `admin quota stats` operation.
-func adminQuotaStats(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaStats(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_stats",
 		Title:       "Quota system statistics",
 		Summary:     "Show quota system statistics",
 		Description: "View system-wide quota statistics. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
 			if err != nil {
@@ -688,18 +688,18 @@ func adminQuotaStats(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaReconcile is the `admin quota reconcile` operation.
-func adminQuotaReconcile(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaReconcile(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_reconcile",
 		Title:       "Reconcile quota data",
 		Summary:     "Reconcile quota data",
 		Description: "Reconcile quota data for all users or a specific user. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeNullableInt, Help: "Specific user ID to reconcile (optional)"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeNullableInt, Help: "Specific user ID to reconcile (optional)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -709,7 +709,7 @@ func adminQuotaReconcile(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			msg, count, err := svc.Reconcile(ctx, pinner.IntArgPtr(input, "user-id"))
+			msg, count, err := svc.Reconcile(ctx, opmesh.IntArgPtr(input, "user-id"))
 			if err != nil {
 				return nil, err
 			}
@@ -719,18 +719,18 @@ func adminQuotaReconcile(d AdminDeps) pinner.Operation {
 }
 
 // adminQuotaCleanup is the `admin quota cleanup` operation.
-func adminQuotaCleanup(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminQuotaCleanup(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_quota_cleanup",
 		Title:       "Cleanup expired quota data",
 		Summary:     "Clean up expired quota data",
 		Description: "Clean up expired quota data older than the retention period. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "retention-days", Type: pinner.ArgTypeInt, Default: "90", Help: "Retention period in days"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "retention-days", Type: opmesh.ArgTypeInt, Default: "90", Help: "Retention period in days"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.quota()
@@ -740,7 +740,7 @@ func adminQuotaCleanup(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			days := pinner.IntArg(input, "retention-days", 90)
+			days := opmesh.IntArg(input, "retention-days", 90)
 			n, err := svc.Cleanup(ctx, days)
 			if err != nil {
 				return nil, err
@@ -755,7 +755,7 @@ func adminQuotaCleanup(d AdminDeps) pinner.Operation {
 // expiryTime converts the `expiry` days-from-now arg into a time.Time. When
 // absent (0) it returns the zero time.
 func expiryTime(input map[string]any) time.Time {
-	days := pinner.IntArg(input, "expiry", 0)
+	days := opmesh.IntArg(input, "expiry", 0)
 	if days <= 0 {
 		return time.Time{}
 	}
@@ -765,34 +765,34 @@ func expiryTime(input map[string]any) time.Time {
 // setLimitFields populates the limit/threshold/window override fields on a user
 // config update from the nullable int args.
 func setLimitFields(input map[string]any, cfg *admin.UserQuotaConfigUpdate) {
-	if v := pinner.IntArgPtr(input, "upload-limit"); v != nil {
+	if v := opmesh.IntArgPtr(input, "upload-limit"); v != nil {
 		cfg.UploadLimitBytes = v
 	}
-	if v := pinner.IntArgPtr(input, "download-limit"); v != nil {
+	if v := opmesh.IntArgPtr(input, "download-limit"); v != nil {
 		cfg.DownloadLimitBytes = v
 	}
-	if v := pinner.IntArgPtr(input, "storage-limit"); v != nil {
+	if v := opmesh.IntArgPtr(input, "storage-limit"); v != nil {
 		cfg.StorageLimitBytes = v
 	}
-	if v := pinner.IntArgPtr(input, "upload-threshold"); v != nil {
+	if v := opmesh.IntArgPtr(input, "upload-threshold"); v != nil {
 		cfg.UploadThreshold = v
 	}
-	if v := pinner.IntArgPtr(input, "download-threshold"); v != nil {
+	if v := opmesh.IntArgPtr(input, "download-threshold"); v != nil {
 		cfg.DownloadThreshold = v
 	}
-	if v := pinner.IntArgPtr(input, "storage-threshold"); v != nil {
+	if v := opmesh.IntArgPtr(input, "storage-threshold"); v != nil {
 		cfg.StorageThreshold = v
 	}
-	if v := pinner.IntArgPtr(input, "window-duration"); v != nil {
+	if v := opmesh.IntArgPtr(input, "window-duration"); v != nil {
 		cfg.WindowDuration = v
 	}
-	if v := pinner.IntArgPtr(input, "window-start-hour"); v != nil {
+	if v := opmesh.IntArgPtr(input, "window-start-hour"); v != nil {
 		cfg.WindowStartHour = v
 	}
-	if v := pinner.StrArg(input, "window-timezone", ""); v != "" {
+	if v := opmesh.StrArg(input, "window-timezone", ""); v != "" {
 		cfg.WindowTimezone = &v
 	}
-	if v := pinner.StrArg(input, "window-type", ""); v != "" {
+	if v := opmesh.StrArg(input, "window-type", ""); v != "" {
 		cfg.WindowType = &v
 	}
 }

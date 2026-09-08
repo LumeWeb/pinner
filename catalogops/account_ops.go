@@ -4,10 +4,11 @@
 // drives the core auth service and returns typed data; rendering happens in the
 // frontend wiring layer.
 //
-// These are catalog operations (not hand-written CLI subcommands) so the same
-// definition compiles to BOTH the urfave CLI surface and the MCP tool surface —
-// an account control authored here is reachable from `pinner account ...` and as
-// an MCP tool, with identical safety/interaction/visibility metadata on each.
+// These are catalog operations (not hand-written CLI subcommands): one
+// opmesh-model definition feeds every frontend. Each frontend's presentation
+// metadata lives on the boundary packages — catalogmcp (MCP targets /
+// descriptions) and catalogmeta (Environment carve-outs, per-arg agent/CLI
+// metadata) — keyed by these operations' stable IDs.
 package catalogops
 
 import (
@@ -15,7 +16,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/auth"
 	"go.lumeweb.com/pinner/core/config"
 )
@@ -70,7 +71,7 @@ func (d AccountDeps) portalURL() string {
 // manager + auth service, then invokes `fn` with the authenticated service.
 // All account operations that call core through an authenticated client use
 // this; it centralizes the auth-resolution boilerplate.
-func authClientHandler(d AccountDeps, fn func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error)) pinner.Handler {
+func authClientHandler(d AccountDeps, fn func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error)) opmesh.Handler {
 	return handler(func(ctx context.Context, input map[string]any) (any, error) {
 		cfgMgr := d.config()
 		if cfgMgr == nil {
@@ -94,8 +95,8 @@ func timePtrStr(t *time.Time) *string {
 }
 
 // AccountOperations returns the catalog operations for the account domain.
-func AccountOperations(d AccountDeps) []pinner.Operation {
-	return []pinner.Operation{
+func AccountOperations(d AccountDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		accountInfo(d),
 		accountUpdateEmail(d),
 		accountUpdatePassword(d),
@@ -151,19 +152,16 @@ type AccountSubscriptionResult struct {
 }
 
 // accountInfo is the `account info` operation: reads the account profile.
-func accountInfo(d AccountDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func accountInfo(d AccountDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "account_info",
 		Title:       "Account info",
 		Summary:     "Show your Pinner.xyz account profile",
 		Description: "Fetch your account profile: the email address, first/last name, user id, email-verified flag, and whether 2FA is enabled.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call account_info to read the authenticated user's profile (email, name, user id, verified, otp_enabled). Read-only."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
 		Handler: authClientHandler(d, func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error) {
 			info, err := svc.GetAccount(ctx)
@@ -187,28 +185,24 @@ func accountInfo(d AccountDeps) pinner.Operation {
 
 // accountUpdateEmail is the `account email <new>` operation: changes the email,
 // requiring the current password for verification.
-func accountUpdateEmail(d AccountDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func accountUpdateEmail(d AccountDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "account_update_email",
 		Title:       "Update account email",
 		Summary:     "Change the email address on your account",
 		Description: "Change the email address associated with your account. Your current password is required for verification. On success a verification email is sent to the new address.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call account_update_email to change the account's email address. Requires the current password for verification. On success the user must confirm via the verification email sent to the new address."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Environment: pinner.EnvCLIOnly,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<email>",
-		Args: []pinner.OperationArg{
-			{Name: "email", Type: pinner.ArgTypeString, Required: true, Help: "New email address", AgentHelp: "The new email address for the account."},
-			{Name: "password", Type: pinner.ArgTypeString, Required: true, Sensitive: true, Help: "Current account password for verification", AgentHelp: "The user's current account password, used to verify the change."},
+		Args: []opmesh.OperationArg{
+			{Name: "email", Type: opmesh.ArgTypeString, Required: true, Help: "New email address"},
+			{Name: "password", Type: opmesh.ArgTypeString, Required: true, Sensitive: true, Help: "Current account password for verification"},
 		},
 		Handler: authClientHandler(d, func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error) {
-			email := pinner.StrArg(input, "email", "")
-			password := pinner.StrArg(input, "password", "")
+			email := opmesh.StrArg(input, "email", "")
+			password := opmesh.StrArg(input, "password", "")
 			if email == "" {
 				return nil, fmt.Errorf("account_update_email: email is required")
 			}
@@ -228,28 +222,24 @@ func accountUpdateEmail(d AccountDeps) pinner.Operation {
 
 // accountUpdatePassword is the `account password` operation: changes the
 // password, requiring the current password.
-func accountUpdatePassword(d AccountDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func accountUpdatePassword(d AccountDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "account_update_password",
 		Title:       "Update account password",
 		Summary:     "Change the password on your account",
 		Description: "Change the password associated with your account. Your current password is required.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call account_update_password to change the account's password. Requires the current password and a new password."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Environment: pinner.EnvCLIOnly,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "current_password", Type: pinner.ArgTypeString, Required: true, Sensitive: true, Help: "Current password", AgentHelp: "The user's current account password."},
-			{Name: "new_password", Type: pinner.ArgTypeString, Required: true, Sensitive: true, Help: "New password", AgentHelp: "The new password to set for the account."},
+		Args: []opmesh.OperationArg{
+			{Name: "current_password", Type: opmesh.ArgTypeString, Required: true, Sensitive: true, Help: "Current password"},
+			{Name: "new_password", Type: opmesh.ArgTypeString, Required: true, Sensitive: true, Help: "New password"},
 		},
 		Handler: authClientHandler(d, func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error) {
-			current := pinner.StrArg(input, "current_password", "")
-			next := pinner.StrArg(input, "new_password", "")
+			current := opmesh.StrArg(input, "current_password", "")
+			next := opmesh.StrArg(input, "new_password", "")
 			if current == "" {
 				return nil, fmt.Errorf("account_update_password: current password is required")
 			}
@@ -267,25 +257,22 @@ func accountUpdatePassword(d AccountDeps) pinner.Operation {
 // accountOTPDisable is the `account otp disable` operation: disables
 // two-factor authentication, requiring the current account password for
 // verification.
-func accountOTPDisable(d AccountDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func accountOTPDisable(d AccountDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "account_otp_disable",
 		Title:       "Disable two-factor authentication",
 		Summary:     "Disable 2FA on your account",
 		Description: "Disables two-factor authentication on your account. Your current account password is required to verify.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call account_otp_disable to turn off the account's two-factor authentication. Requires the user's current account password."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "password", Type: pinner.ArgTypeString, Required: true, Sensitive: true, Help: "Current account password for verification", AgentHelp: "The user's current account password, used to verify disabling two-factor authentication."},
+		Args: []opmesh.OperationArg{
+			{Name: "password", Type: opmesh.ArgTypeString, Required: true, Sensitive: true, Help: "Current account password for verification"},
 		},
 		Handler: authClientHandler(d, func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error) {
-			pw := pinner.StrArg(input, "password", "")
+			pw := opmesh.StrArg(input, "password", "")
 			if pw == "" {
 				return nil, fmt.Errorf("account_otp_disable: password is required")
 			}
@@ -299,19 +286,16 @@ func accountOTPDisable(d AccountDeps) pinner.Operation {
 
 // accountSubscription is the `account subscription` operation: reads the active
 // subscription status and returns the web-portal deep-link to manage it.
-func accountSubscription(d AccountDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func accountSubscription(d AccountDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "account_subscription",
 		Title:       "Active subscription",
 		Summary:     "Show your active subscription status",
 		Description: "Fetch your active Pinner.xyz subscription status (subscribed, plan period, gateway, cancellation/pause state) and the web-app URL where you manage or start a subscription.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call account_subscription to read the user's active subscription status and obtain the web_url deep-link to https://account.<portal>/account/subscription where they sign in and manage/subscribe. The URL is returned as data; a human must open it in a browser to actually subscribe or change their plan."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
 		Handler: authClientHandler(d, func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error) {
 			status, err := svc.GetSubscriptionStatus(ctx)
@@ -393,19 +377,16 @@ func remainingUsable(remaining *int) bool {
 // accountQuota is the `account quota` operation: reads the account's quota
 // status and derives whether granted usage covers access (quota trumps a
 // subscription).
-func accountQuota(d AccountDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func accountQuota(d AccountDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "account_quota",
 		Title:       "Account quota",
 		Summary:     "Show your quota usage and remaining allowance",
 		Description: "Fetch your Pinner.xyz quota status (upload, download, and storage usage/limits/remaining) and whether granted usage currently covers the account. Quota TRUMPS a subscription: if has_quota is true the user can proceed without a subscription. Returns the web_app web_url deep-link for managing usage / subscribing.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call account_quota to read the account's quota status and whether it is covered by granted usage (has_quota). Quota trumps a subscription: when has_quota is true the user needs no subscription. When has_quota is false the result relates to account_subscription; when that reports not-subscribed the response carries a web_url deep-link that the human opens in the web app to subscribe — the model acting alone cannot subscribe on their behalf."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
 		Handler: authClientHandler(d, func(ctx context.Context, svc auth.AuthService, input map[string]any) (any, error) {
 			quota, err := svc.GetQuota(ctx)

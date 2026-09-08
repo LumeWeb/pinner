@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/ipns"
 )
 
@@ -69,44 +69,44 @@ type ENSUnpointResult struct {
 // single-level (ens_point, ens_unpoint) and stay behind progressive disclosure
 // on the MCP surface — they are never promoted to the curated tools/list, so
 // adding ENS support does not bloat the default tool call list.
-func ENSOperations(d ENSDeps) []pinner.Operation {
-	return []pinner.Operation{
+func ENSOperations(d ENSDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		ensPoint(d),
 		ensUnpoint(d),
 	}
 }
 
-func ensPoint(d ENSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ensPoint(d ENSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ens_point", Title: "Point an onchain/ENS domain at IPFS content", Summary: "Publish a CID to IPNS and return the ENS contenthash to set onchain",
 		Description: "Point an onchain/decentralized domain (e.g. vitalik.eth) at IPFS content via IPNS. Idempotent: if an IPNS key for this domain already exists it is reused and the new CID republished. Returns the contenthash string (ipns://...) the user must set in the ENS resolver, plus a verify URL and the wallet-next-step guidance. The onchain contenthash set is NOT done by Pinner — the user signs it from their own wallet/ENS manager.",
-		Category:    "ens", Safety: pinner.SafetyMutate, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ens", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Onchain/ENS domain to point (e.g. vitalik.eth)", AgentHelp: "The onchain/ENS domain to point, e.g. vitalik.eth. Do not invent one; use the name the user provided."},
-			{Name: "cid", Type: pinner.ArgTypeString, Required: true, Help: "CID to point the domain at"},
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Onchain/ENS domain to point (e.g. vitalik.eth)"},
+			{Name: "cid", Type: opmesh.ArgTypeString, Required: true, Help: "CID to point the domain at"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
 			if err != nil {
 				return nil, err
 			}
-			name := pinner.StrArg(input, "name", "")
-			cid := pinner.StrArg(input, "cid", "")
+			name := opmesh.StrArg(input, "name", "")
+			cid := opmesh.StrArg(input, "cid", "")
 			return PointENS(ctx, svc, name, cid)
 		}),
 	})
 }
 
-func ensUnpoint(d ENSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ensUnpoint(d ENSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ens_unpoint", Title: "Remove an onchain/ENS domain pointing", Summary: "Delete the IPNS key for an onchain/ENS domain",
 		Description: "Remove the IPNS key for an onchain/decentralized domain so its IPNS name is no longer managed by Pinner. DESTRUCTIVE and irreversible: the key is permanently removed and any content pointed at by the returned contenthash stops being served. This does NOT clear the onchain contenthash record — guide the user to remove/clear it in their ENS resolver if the name should stop resolving. Requires confirm=true.",
-		Category:    "ens", Safety: pinner.SafetyDestructive, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ens", Safety: opmesh.SafetyDestructive, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Onchain/ENS domain to unpoint (e.g. vitalik.eth)"},
-			{Name: "confirm", Type: pinner.ArgTypeBool, AgentRequired: true, Default: "false", Help: "Confirm the destructive delete", AgentHelp: "Must be true to delete the key; this is destructive and cannot be undone. Only a human sets this on confirmation; a model alone cannot confirm a destructive delete."},
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Onchain/ENS domain to unpoint (e.g. vitalik.eth)"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, AgentRequired: true, Default: "false", Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			// Enforce confirm here, not just on the MCP schema: a human or app
@@ -115,14 +115,14 @@ func ensUnpoint(d ENSDeps) pinner.Operation {
 			// The default is deliberately "false" (no CLI wiring needs a
 			// delete-without-confirm contract), so an omitted confirm fails
 			// this gate and only an explicit confirm=true deletes.
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("ens_unpoint: confirmation is required to delete the key")
 			}
 			svc, err := d.service(input)
 			if err != nil {
 				return nil, err
 			}
-			name := pinner.StrArg(input, "name", "")
+			name := opmesh.StrArg(input, "name", "")
 			return UnpointENS(ctx, svc, name)
 		}),
 	})

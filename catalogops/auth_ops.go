@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/auth"
 	"go.lumeweb.com/pinner/core/config"
 )
@@ -49,8 +49,8 @@ func (d AuthDeps) config() config.Manager {
 }
 
 // AuthOperations returns the catalog operations for the auth domain.
-func AuthOperations(d AuthDeps) []pinner.Operation {
-	return []pinner.Operation{
+func AuthOperations(d AuthDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		authStatus(d),
 		authLogin(d),
 		authLogout(d),
@@ -85,19 +85,16 @@ type AuthLogoutResult struct {
 // authStatus is the `auth status` operation. It verifies the stored auth
 // token is valid by making a request to the Pinner.xyz API and returns the
 // auth state as typed data.
-func authStatus(d AuthDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func authStatus(d AuthDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "auth_status",
 		Title:       "Check authentication status",
 		Summary:     "Verify you are authenticated",
 		Description: "Check whether the stored Pinner.xyz auth token is present and valid, returning the authenticated state, the token subject (user id) and, when available, the account email. Call this before authenticated operations to confirm a valid session.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call auth_status to verify the stored Pinner.xyz credential is present and valid before running authenticated operations. Returns {authenticated: bool, email?, user_id?, message?}. When authenticated is false, steer the human to the out-of-band sign-in flow (auth_sso -> auth_resume) rather than asking for a password or OTP on this channel."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			cfgMgr := d.config()
@@ -147,30 +144,26 @@ func authStatus(d AuthDeps) pinner.Operation {
 // config, and returns the resulting auth state. It NEVER prompts for a
 // password or OTP: those are human/terminal and SSO/OOB mechanisms, not
 // agent-safe inputs on this channel.
-func authLogin(d AuthDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func authLogin(d AuthDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "auth_login",
 		Title:       "Save an auth token",
 		Summary:     "Authenticate by saving a provided auth token",
 		Description: "Save a provided Pinner.xyz auth token (JWT) as the stored credential and confirm it is valid. This is the agent-safe login variant; it has no password or OTP input. Interactive or out-of-band sign-in uses the SSO flow (auth_sso) so the human authenticates in a browser.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call auth_login with a pre-issued auth token (JWT) to store it as the active Pinner.xyz credential. The token argument is sensitive. Returns {status, user_id?, message}. This channel accepts an auth token only, not a password or OTP; interactive sign-in goes through auth_sso."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Environment: pinner.EnvLocalOnly,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "token", Type: pinner.ArgTypeString, Required: true, Sensitive: true, Help: "Pinner.xyz auth token (JWT) to save", AgentHelp: "The Pinner.xyz auth token (JWT) to store as the active credential. Sensitive value."},
+		Args: []opmesh.OperationArg{
+			{Name: "token", Type: opmesh.ArgTypeString, Required: true, Sensitive: true, Help: "Pinner.xyz auth token (JWT) to save"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			cfgMgr := d.config()
 			if cfgMgr == nil {
 				return nil, fmt.Errorf("auth_login: no config manager available")
 			}
-			token := pinner.StrArg(input, "token", "")
+			token := opmesh.StrArg(input, "token", "")
 			if token == "" {
 				return nil, fmt.Errorf("auth_login: missing required argument token")
 			}
@@ -189,20 +182,16 @@ func authLogin(d AuthDeps) pinner.Operation {
 
 // authLogout is the `auth logout` operation. It clears the stored auth token
 // from local config without revoking any API keys on the server.
-func authLogout(d AuthDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func authLogout(d AuthDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "auth_logout",
 		Title:       "Log out",
 		Summary:     "Clear the stored auth token",
 		Description: "Remove the stored Pinner.xyz auth token from local config so the CLI / MCP server no longer authenticates. Does not revoke API keys on the server.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Call auth_logout to clear the locally stored Pinner.xyz credential. Returns {status: logged_out | not_authenticated, config_path?, message}. Note this only clears the local token; it does not revoke server-side API keys."),
-		),
 		Category:    "account",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Environment: pinner.EnvLocalOnly,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			cfgMgr := d.config()

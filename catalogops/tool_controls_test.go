@@ -8,14 +8,15 @@ import (
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
+	"go.lumeweb.com/pinner/catalogmeta"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
 	"go.lumeweb.com/pinner/core/dns"
 )
 
 // argByName returns the named OperationArg from an operation, or nil.
-func argByName(t *testing.T, op pinner.Operation, name string) *pinner.OperationArg {
+func argByName(t *testing.T, op opmesh.Operation, name string) *opmesh.OperationArg {
 	t.Helper()
 	for i := range op.Args() {
 		if op.Args()[i].Name == name {
@@ -27,7 +28,7 @@ func argByName(t *testing.T, op pinner.Operation, name string) *pinner.Operation
 
 // websitesOps builds the websites operations with nil deps; the descriptors
 // are inspectable without invoking handlers.
-func websitesOps() []pinner.Operation {
+func websitesOps() []opmesh.Operation {
 	return WebsitesOperations(WebsitesDeps{})
 }
 
@@ -37,7 +38,7 @@ func websitesOps() []pinner.Operation {
 // args are exposed on the agent/MCP surface, and marked AgentOnly so they are
 // omitted from the CLI flags.
 func TestWebsitesCreateRequiredFields(t *testing.T) {
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range websitesOps() {
 		if o.Name() == "websites_create" {
 			op = o
@@ -65,13 +66,15 @@ func TestWebsitesCreateRequiredFields(t *testing.T) {
 	}
 	// The platform-claim args exist and are AgentOnly (CLI omits their flags;
 	// the CLI derives the platform claim by parsing/deriving instead).
+	// Post-opmesh-migration the AgentOnly flag lives on the frontend-metadata
+	// boundary (catalogmeta), keyed by operation ID + arg name.
 	agentOnly := []string{"platform", "platform-domain", "platform-namespace", "generate", "label"}
 	for _, name := range agentOnly {
 		a := argByName(t, op, name)
 		if a == nil {
 			t.Fatalf("websites_create missing arg %q", name)
 		}
-		if !a.AgentOnly {
+		if fe := catalogmeta.ArgFrontendForArg("websites_create", name); fe == nil || !fe.AgentOnly {
 			t.Errorf("websites_create arg %q must be AgentOnly (omitted from the CLI surface)", name)
 		}
 	}
@@ -80,7 +83,7 @@ func TestWebsitesCreateRequiredFields(t *testing.T) {
 // TestWebsitesDeleteRequiredFields verifies P0: websites_delete requires both
 // the website target and confirm before a destructive delete can proceed.
 func TestWebsitesDeleteRequiredFields(t *testing.T) {
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range websitesOps() {
 		if o.Name() == "websites_delete" {
 			op = o
@@ -106,7 +109,7 @@ func TestWebsitesDeleteRequiredFields(t *testing.T) {
 // key without confirmation, while staying out of the CLI's required set (the
 // CLI deletes keys without --force; see ipns_wiring.go).
 func TestIPNSKeysDeleteRequiresAgentConfirm(t *testing.T) {
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range IPNSOperations(IPNSDeps{}) {
 		if o.Name() == "ipns_keys_delete" {
 			op = o
@@ -116,7 +119,7 @@ func TestIPNSKeysDeleteRequiresAgentConfirm(t *testing.T) {
 	if op == nil {
 		t.Fatal("ipns_keys_delete operation not found")
 	}
-	if op.Safety() != pinner.SafetyDestructive {
+	if op.Safety() != opmesh.SafetyDestructive {
 		t.Errorf("ipns_keys_delete must be SafetyDestructive")
 	}
 	a := argByName(t, op, "confirm")
@@ -136,7 +139,7 @@ func TestIPNSKeysDeleteRequiresAgentConfirm(t *testing.T) {
 // outside the model ActorModel SafetyDestructive gate. The confirm check is the
 // first statement, so this returns before any service construction.
 func TestIPNSKeysDeleteConfirmGate(t *testing.T) {
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range IPNSOperations(IPNSDeps{}) {
 		if o.Name() == "ipns_keys_delete" {
 			op = o
@@ -158,7 +161,7 @@ func TestIPNSKeysDeleteConfirmGate(t *testing.T) {
 // shared seam the CLI adapter feeds) fills confirm=true and the handler gate
 // proceeds rather than rejecting a CLI delete that omits --confirm.
 func TestIPNSKeysDeleteConfirmDefaultSatisfiesSharedRoute(t *testing.T) {
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range IPNSOperations(IPNSDeps{}) {
 		if o.Name() == "ipns_keys_delete" {
 			op = o
@@ -168,7 +171,7 @@ func TestIPNSKeysDeleteConfirmDefaultSatisfiesSharedRoute(t *testing.T) {
 	if op == nil {
 		t.Fatal("ipns_keys_delete operation not found")
 	}
-	normalized, err := pinner.NormalizeOperationInput(op, map[string]any{"id": "k1"})
+	normalized, err := opmesh.NormalizeOperationInput(op, map[string]any{"id": "k1"})
 	if err != nil {
 		t.Fatalf("NormalizeOperationInput: %v", err)
 	}
@@ -187,7 +190,7 @@ func TestIPNSKeysDeleteConfirmDefaultSatisfiesSharedRoute(t *testing.T) {
 // string form.
 func TestIPNSKeysIDArgsAcceptIntegerRoundtrip(t *testing.T) {
 	for _, name := range []string{"ipns_keys_get", "ipns_keys_delete"} {
-		var op pinner.Operation
+		var op opmesh.Operation
 		for _, o := range IPNSOperations(IPNSDeps{}) {
 			if o.Name() == name {
 				op = o
@@ -201,16 +204,16 @@ func TestIPNSKeysIDArgsAcceptIntegerRoundtrip(t *testing.T) {
 		if a == nil {
 			t.Fatalf("%s missing id arg", name)
 		}
-		if a.Type != pinner.ArgTypeFlexibleID {
+		if a.Type != opmesh.ArgTypeFlexibleID {
 			t.Errorf("%s id arg must be ArgTypeFlexibleID so an integer id from ipns_keys_list is accepted; got %v", name, a.Type)
 		}
 		// The exact round-trip that was broken: an integer id must pass the
 		// shared normalize seam and coerce to its string form.
-		normalized, err := pinner.NormalizeOperationInput(op, map[string]any{"id": 42})
+		normalized, err := opmesh.NormalizeOperationInput(op, map[string]any{"id": 42})
 		if err != nil {
 			t.Fatalf("%s with integer id must normalize (was rejected before ArgTypeFlexibleID): %v", name, err)
 		}
-		if got := pinner.StrFlexibleArg(normalized, "id", ""); got != "42" {
+		if got := opmesh.StrFlexibleArg(normalized, "id", ""); got != "42" {
 			t.Fatalf("%s integer id must coerce to string form, got %q", name, got)
 		}
 	}
@@ -321,7 +324,7 @@ func (m *mockDNSServiceForOps) DeleteRecord(ctx context.Context, id, name, recor
 // This restores the documented "fields not provided are left unchanged"
 // contract that the previous default-filling (ttl=3600, disabled=false) broke.
 func TestDNSRecordsUpdateOmitsUnchangedFields(t *testing.T) {
-	var op pinner.Operation
+	var op opmesh.Operation
 	for _, o := range DNSOperations(DNSDeps{}) {
 		if o.Name() == "dns_records_update" {
 			op = o
@@ -347,7 +350,7 @@ func TestDNSRecordsUpdateOmitsUnchangedFields(t *testing.T) {
 				return mock
 			},
 		}
-		var op pinner.Operation
+		var op opmesh.Operation
 		for _, o := range DNSOperations(deps) {
 			if o.Name() == "dns_records_update" {
 				op = o
@@ -426,7 +429,7 @@ func TestDNSRecordsCreateNormalizesType(t *testing.T) {
 					return mock
 				},
 			}
-			var op pinner.Operation
+			var op opmesh.Operation
 			for _, o := range DNSOperations(deps) {
 				if o.Name() == "dns_records_create" {
 					op = o
@@ -467,7 +470,7 @@ func TestDNSRecordsCreateInvokeAcceptsLowercase(t *testing.T) {
 		},
 	}
 
-	c := pinner.NewCatalog()
+	c := opmesh.NewCatalog()
 	for _, o := range DNSOperations(deps) {
 		if err := c.Add(o); err != nil {
 			t.Fatalf("Add(%q): %v", o.Name(), err)
@@ -483,7 +486,7 @@ func TestDNSRecordsCreateInvokeAcceptsLowercase(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			input := map[string]any{"zone": "123", "type": tc.in, "content": "v=spf1 include:mxroute.com -all"}
-			if _, err := c.Invoke(context.Background(), "dns_records_create", input, pinner.ActorModel); err != nil {
+			if _, err := c.Invoke(context.Background(), "dns_records_create", input, opmesh.ActorModel); err != nil {
 				t.Fatalf("Catalog.Invoke dns_records_create: %v", err)
 			}
 			if got.Type != "TXT" {
@@ -496,7 +499,7 @@ func TestDNSRecordsCreateInvokeAcceptsLowercase(t *testing.T) {
 	// case-insensitive match.
 	t.Run("bogus type still rejected", func(t *testing.T) {
 		input := map[string]any{"zone": "123", "type": "ZZZ", "content": "x"}
-		if _, err := c.Invoke(context.Background(), "dns_records_create", input, pinner.ActorModel); err == nil {
+		if _, err := c.Invoke(context.Background(), "dns_records_create", input, opmesh.ActorModel); err == nil {
 			t.Fatal("Catalog.Invoke with out-of-range type must be rejected")
 		}
 	})
@@ -536,7 +539,7 @@ func TestDNSRecordsCreateNormalizesMXContent(t *testing.T) {
 					return mock
 				},
 			}
-			var op pinner.Operation
+			var op opmesh.Operation
 			for _, o := range DNSOperations(deps) {
 				if o.Name() == "dns_records_create" {
 					op = o
@@ -586,13 +589,13 @@ func TestDNSRecordsCreateInvokeDefaultMXPriority(t *testing.T) {
 				return &ipfs.RecordResponse{ZoneId: 1, Name: record.Name, Type: record.Type, Content: record.Content}, nil
 			},
 		}
-		cat := pinner.NewCatalog()
+		cat := opmesh.NewCatalog()
 		for _, o := range DNSOperations(mkDeps(mock)) {
 			if err := cat.Add(o); err != nil {
 				t.Fatalf("Add(%q): %v", o.Name(), err)
 			}
 		}
-		_, err := cat.Invoke(context.Background(), "dns_records_create", input, pinner.ActorModel)
+		_, err := cat.Invoke(context.Background(), "dns_records_create", input, opmesh.ActorModel)
 		return got, err
 	}
 
@@ -650,7 +653,7 @@ func TestDNSRecordsCreateRejectsInvalidMXPriority(t *testing.T) {
 					return mock
 				},
 			}
-			var op pinner.Operation
+			var op opmesh.Operation
 			for _, o := range DNSOperations(deps) {
 				if o.Name() == "dns_records_create" {
 					op = o
@@ -693,7 +696,7 @@ func TestDNSRecordsCreateInvokeRejectsMalformedMXPriority(t *testing.T) {
 			},
 		}
 	}
-	c := pinner.NewCatalog()
+	c := opmesh.NewCatalog()
 	for _, o := range DNSOperations(mkDeps()) {
 		if err := c.Add(o); err != nil {
 			t.Fatalf("Add(%q): %v", o.Name(), err)
@@ -702,7 +705,7 @@ func TestDNSRecordsCreateInvokeRejectsMalformedMXPriority(t *testing.T) {
 	for _, prio := range []any{1.5, -0.5, 65535.9, "20"} {
 		t.Run(fmt.Sprintf("priority-%v", prio), func(t *testing.T) {
 			input := map[string]any{"zone": "123", "type": "MX", "content": "mail.example.com", "priority": prio}
-			if _, err := c.Invoke(context.Background(), "dns_records_create", input, pinner.ActorModel); err == nil {
+			if _, err := c.Invoke(context.Background(), "dns_records_create", input, opmesh.ActorModel); err == nil {
 				t.Fatalf("Catalog.Invoke must reject malformed priority %v, got nil error", prio)
 			}
 		})
@@ -713,7 +716,7 @@ func TestDNSRecordsCreateInvokeRejectsMalformedMXPriority(t *testing.T) {
 // upper-case the type before hitting the server (same case-sensitivity +
 // unmarshal-bomb path as create).
 func TestDNSRecordSelectorsNormalizeType(t *testing.T) {
-	opFor := func(t *testing.T, deps DNSDeps, name string) pinner.Operation {
+	opFor := func(t *testing.T, deps DNSDeps, name string) opmesh.Operation {
 		t.Helper()
 		for _, o := range DNSOperations(deps) {
 			if o.Name() == name {
@@ -777,7 +780,7 @@ func TestDNSRecordSelectorsNormalizeType(t *testing.T) {
 	})
 }
 
-func forDNSOp(name string) pinner.Operation {
+func forDNSOp(name string) opmesh.Operation {
 	for _, o := range DNSOperations(DNSDeps{}) {
 		if o.Name() == name {
 			return o
@@ -808,14 +811,14 @@ func TestDNSRecordsDeleteConfirmRequired(t *testing.T) {
 // server-side search yet deliberately do not declare `search`, so agents never
 // see a search that would be silently ignored.
 func TestServerSideListOpsExposeSearch(t *testing.T) {
-	listOps := map[string][]pinner.Operation{
+	listOps := map[string][]opmesh.Operation{
 		"api_keys_list":   APIKeysOperations(APIKeysDeps{}),
 		"operations_list": OperationsOperations(OperationsDeps{}),
 		"ipns_keys_list":  IPNSOperations(IPNSDeps{}),
 		"pins_list":       PinsOperations(PinsDeps{}),
 	}
 	for name, ops := range listOps {
-		var op pinner.Operation
+		var op opmesh.Operation
 		for _, o := range ops {
 			if o.Name() == name {
 				op = o
@@ -830,7 +833,7 @@ func TestServerSideListOpsExposeSearch(t *testing.T) {
 			t.Errorf("%s must declare a search arg so every server-side-searchable list tool supports text search", name)
 			continue
 		}
-		if a.Type != pinner.ArgTypeString {
+		if a.Type != opmesh.ArgTypeString {
 			t.Errorf("%s search arg must be ArgTypeString, got %v", name, a.Type)
 		}
 	}
@@ -886,7 +889,7 @@ func TestDNSRecordsDeleteSelection(t *testing.T) {
 				return mock
 			},
 		}
-		var op pinner.Operation
+		var op opmesh.Operation
 		for _, o := range DNSOperations(deps) {
 			if o.Name() == "dns_records_delete" {
 				op = o

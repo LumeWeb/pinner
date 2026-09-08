@@ -7,7 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking changes
+
+- **opmesh convergence — catalogops rewritten over `go.lumeweb.com/opmesh`**:
+  every `catalogops` domain provider now returns `[]opmesh.Operation`
+  (frontend-clean, defined directly against the opmesh model) instead of
+  `[]pinner.Operation`, and `pinnerops.AssembleCatalogOps` now returns an
+  `opmesh.Catalog` instead of a `pinner.Catalog`. Consumers that registered the
+  domain providers into a `pinner.Catalog` must register into an
+  `opmesh.Catalog` instead. Operation IDs, args, defaults, enums, selection
+  groups, safety/interaction/visibility, actor+confirmation policy, and
+  handler behavior are unchanged; the affected frontend metadata moved to the
+  new boundary packages below (catalogmeta, catalogmcp).
+
 ### Features
+
+- new `catalogmeta` subpackage (stdlib-only): the frontend-metadata boundary
+  keyed by stable operation ID — `EnvironmentOf` for the surface carve-outs
+  (`EnvBoth`/`EnvCLIOnly`/`EnvLocalOnly`/`EnvHostedOnly`, relocated verbatim
+  from the former inline `pinner.Environment` declarations) and
+  `ArgFrontendFor`/`ArgFrontendForArg` for the per-argument frontend metadata
+  previously templated on the core definitions (`AgentHelp`, `AgentOnly`,
+  `PositionalOnly`, `Sources`, preserved verbatim).
+- new `catalogmcp` subpackage (the MCP boundary, the module's only
+  `mcpforge` consumer): the relocated per-profile MCP tool machinery —
+  `Target`/`MCPTargets`/`TargetFor`/`Fallback`/`Hidden`/`FallbackFunc`,
+  `TargetsOf` (per-operation MCP targets extracted verbatim from the former
+  inline declarations), the feature-gated description DSL
+  (`FeatFileHostInput`, the websites_create `DescBuilder` description and its
+  `MCPProfile`/`ForgeFeatureCarrier`/`ProfileFromHas`/`AdaptProfile`/
+  `ProfileAdapterGap` adapter), and a model-surface compiler
+  (`NewCompiler`/`NewCompilerForProfile`) that maps an `opmesh.Catalog` to
+  `[]opmesh.ToolDescriptor` with target-resolved descriptions (matching the
+  pre-migration root-pinner compiler contract).
+- `converge` is repurposed as the projection bridge for the root-package
+  bridging surface: catalogops no longer produces `pinner.Operation` values,
+  so no core-path content flows through the seam; its projection contract,
+  tests, and import-isolation boundary are unchanged.
 
 - new `converge` subpackage: the FIRST STEP of opmesh convergence — a total,
   panic-free PROJECTION SEAM from this module's frontend-ful

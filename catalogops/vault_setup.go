@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/vault"
 )
 
@@ -47,8 +47,8 @@ type VaultRestoreHandoff struct {
 // the MCP layer consumes to drive pinner_vault_create / pinner_vault_restore
 // as clean, CLI-free OOB hand-offs. They are separate from VaultOperations so
 // the CLI's hand-written interactive create/restore commands are unaffected.
-func VaultSetupOperations(d VaultDeps) []pinner.Operation {
-	return []pinner.Operation{
+func VaultSetupOperations(d VaultDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		vaultCreate(d),
 		vaultRestore(d),
 	}
@@ -58,25 +58,22 @@ func VaultSetupOperations(d VaultDeps) []pinner.Operation {
 // vault create
 // ---------------------------------------------------------------------------
 
-func vaultCreate(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultCreate(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_create",
 		Title:       "Create a new vault",
 		Summary:     "Provision and activate a new vault with a fresh recovery seed",
 		Description: "Provision a new vault identity under the given profile name. The create is completed out-of-band: the human approves the Sia device connection in a browser and retrieves the freshly generated recovery seed once. Returns the profile targeted by the create.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Provision a new vault under a profile and hand the host off to a human. The create is completed out-of-band: the human opens the returned create_url, approves the Sia device connection in a browser, and retrieves the one-time recovery seed. Poll the returned vault_create_resume handle until the vault is active and the seed has been retrieved. The plaintext mnemonic never appears on this channel."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityModel,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityModel,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Required: true, Help: "Vault profile name to provision (a fresh vault cannot auto-resolve a default)"},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Required: true, Help: "Vault profile name to provision (a fresh vault cannot auto-resolve a default)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			profileName := pinner.StrArg(input, "profile", "")
+			profileName := opmesh.StrArg(input, "profile", "")
 			if profileName == "" {
 				return nil, fmt.Errorf("vault_create: --profile <name> is required to provision a new vault")
 			}
@@ -141,25 +138,22 @@ func resolveRestoreProfile(flagValue string) (string, error) {
 	return profileName, nil
 }
 
-func vaultRestore(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultRestore(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_restore",
 		Title:       "Restore a vault",
 		Summary:     "Start an out-of-band restore for a vault profile",
 		Description: "Start restoring an existing vault on this device from a recovery seed supplied out-of-band by a human in a browser. Resolves the target profile and returns it so an out-of-band restore_url can be minted; the restore itself completes when the human enters the seed on that page. The seed never crosses the agent channel.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Start an out-of-band vault restore for a profile. An out-of-band restore_url is returned for the human to open in a browser and enter the recovery seed to complete the restore; poll the returned vault_restore_resume handle until done. The seed never appears on this channel."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityModel,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityModel,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile to restore (defaults to the default/only profile, else 'default')"},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile to restore (defaults to the default/only profile, else 'default')"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			profileName, err := resolveRestoreProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := resolveRestoreProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}

@@ -1,20 +1,17 @@
-package catalogops
+package catalogmcp
 
 import (
 	"go.lumeweb.com/mcpforge"
-	"go.lumeweb.com/pinner"
 )
 
 // FeatFileHostInput mirrors pinner-cli's hostenv feature vocabulary: a host
 // that can build {download_url, file_id} file references (OpenAI/ChatGPT
 // runtime) enables the top-level `file` parameter on upload/vault tools.
-// pinner deliberately does not detect hosts; consumers pass a MCPProfile
-// (or any carrier reporting a mcpforge.FeatureSet) into
-// pinner.NewMCPCompilerForProfile to resolve profile-gated segments.
-const FeatFileHostInput = mcpforge.Feature("file-host-input")
-
-// MCPProfile is the feature-carrier pinner hands to DescFunc resolvers via
-// pinner.NewMCPCompilerForProfile. See profile_adapter.go for the explicit
+// This boundary does not detect hosts; consumers pass a MCPProfile (or any
+// carrier reporting a mcpforge.FeatureSet) into catalogmcp.NewCompilerForProfile
+// to resolve profile-gated segments.
+// MCPProfile is the feature-carrier consumers hand to DescFunc resolvers via
+// catalogmcp.NewCompilerForProfile. See profile.go for the explicit
 // adapter contract: consumers with a richer host profile (e.g. a
 // Has/IsHost-style pinner-cli hostenv.PlatformProfile) adapt it via
 // ProfileFromHas, or implement ForgeFeatureCarrier directly. An unadapted
@@ -23,6 +20,12 @@ const FeatFileHostInput = mcpforge.Feature("file-host-input")
 type MCPProfile struct {
 	Features mcpforge.FeatureSet
 }
+
+// FeatFileHostInput gates the description DSL segment for hosts that can
+// build {download_url, file_id} file references (e.g. OpenAI/ChatGPT-style
+// runtimes); it enables the top-level `file` parameter clause on description
+// resolution.
+const FeatFileHostInput = mcpforge.Feature("file-host-input")
 
 // FeatureSet reports the carrier's features (mcpforge.FeatureCarrier).
 func (p MCPProfile) FeatureSet() mcpforge.FeatureSet {
@@ -73,8 +76,8 @@ var websitesCreateDesc = mcpforge.Static[mcpforge.FeatureCarrier]("Create a webs
 // websitesCreateTargets is the MCPTargets slice for websites_create. The
 // FallbackFunc target resolves the DescBuilder per-request so the description
 // is profile-aware without a static string.
-var websitesCreateTargets = pinner.MCPTargets(
-	pinner.FallbackFunc(func(p any) string {
+var websitesCreateTargets = MCPTargets(
+	FallbackFunc(func(p any) string {
 		return websitesCreateDesc.Resolve(forgeProfileOf(p))
 	}),
 )

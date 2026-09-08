@@ -2,6 +2,20 @@
 // go.lumeweb.com/pinner's frontend-ful operation model onto the
 // frontend-clean operation model of go.lumeweb.com/opmesh.
 //
+// # Current role (post-convergence)
+//
+// The opmesh convergence is complete on the core path: catalogops now
+// DEFINES its operations directly against the opmesh model (there is no
+// pinner.Operation content left to project from the operation providers), and
+// pinnerops assembles opmesh catalogs natively. This seam therefore no longer
+// sits on the operation-definition path. It survives unchanged as the
+// projection BRIDGE for consumers that still assemble from the root pinner
+// package — which this stage deliberately keeps intact as a bridging surface
+// (its frontend-ful model is what pinner-cli's current local adapters compile
+// against). Its projection contract, tests, and import-isolation boundary are
+// unchanged; only its role narrowed. The enum-parity tests here keep the two
+// vocabularies from silently drifting while both exist.
+//
 // # Why this exists
 //
 // The root pinner package and go.lumeweb.com/opmesh are parallel forks of the

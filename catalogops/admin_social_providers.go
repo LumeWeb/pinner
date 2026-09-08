@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/portal-sdk/admin"
 )
 
@@ -54,34 +54,34 @@ type SocialProvidersDeleteResult struct {
 // can relax the CLI Required markers for positionals.
 func socialProviderRequestFromInput(input map[string]any) *admin.SocialProviderRequest {
 	return &admin.SocialProviderRequest{
-		ProviderId:   pinner.StrArg(input, "provider-id", ""),
-		ClientId:     pinner.StrArg(input, "client-id", ""),
-		ClientSecret: pinner.StrArg(input, "client-secret", ""),
-		DisplayName:  pinner.StrArg(input, "display-name", ""),
-		AuthUrl:      pinner.StrArg(input, "auth-url", ""),
-		TokenUrl:     pinner.StrArg(input, "token-url", ""),
-		UserUrl:      pinner.StrArg(input, "user-url", ""),
-		Scopes:       pinner.StrSliceArg(input, "scopes"),
-		UserIdKey:    pinner.StrArg(input, "user-id-key", ""),
-		UserEmailKey: pinner.StrArg(input, "user-email-key", ""),
-		UserNameKey:  pinner.StrArg(input, "user-name-key", ""),
-		OrderIndex:   pinner.IntArg(input, "order-index", 0),
-		Enabled:      pinner.BoolArg(input, "enabled", false),
+		ProviderId:   opmesh.StrArg(input, "provider-id", ""),
+		ClientId:     opmesh.StrArg(input, "client-id", ""),
+		ClientSecret: opmesh.StrArg(input, "client-secret", ""),
+		DisplayName:  opmesh.StrArg(input, "display-name", ""),
+		AuthUrl:      opmesh.StrArg(input, "auth-url", ""),
+		TokenUrl:     opmesh.StrArg(input, "token-url", ""),
+		UserUrl:      opmesh.StrArg(input, "user-url", ""),
+		Scopes:       opmesh.StrSliceArg(input, "scopes"),
+		UserIdKey:    opmesh.StrArg(input, "user-id-key", ""),
+		UserEmailKey: opmesh.StrArg(input, "user-email-key", ""),
+		UserNameKey:  opmesh.StrArg(input, "user-name-key", ""),
+		OrderIndex:   opmesh.IntArg(input, "order-index", 0),
+		Enabled:      opmesh.BoolArg(input, "enabled", false),
 	}
 }
 
 // adminSocialProvidersList is the `admin social-providers list` operation.
-func adminSocialProvidersList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_social_providers_list",
 		Title:       "List social providers",
 		Summary:     "List all social login providers",
 		Description: "List all configured social login providers. Client secrets are never returned. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.socialProviders()
 			if err != nil {
@@ -94,7 +94,7 @@ func adminSocialProvidersList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			paged := slicePage(providers, page.Start, page.Limit)
 			return socialProvidersListResultTotal(paged, total), nil
 		}),
@@ -102,19 +102,19 @@ func adminSocialProvidersList(d AdminDeps) pinner.Operation {
 }
 
 // adminSocialProvidersGet is the `admin social-providers get` operation.
-func adminSocialProvidersGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminSocialProvidersGet,
 		Title:       "Get a social provider",
 		Summary:     "Get a social login provider by ID",
 		Description: "Get a single social login provider by numeric ID. Client secrets are never returned. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<provider-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Social provider ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Social provider ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.socialProviders()
@@ -124,7 +124,7 @@ func adminSocialProvidersGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_social_providers_get: provider ID is required")
 			}
@@ -134,30 +134,30 @@ func adminSocialProvidersGet(d AdminDeps) pinner.Operation {
 }
 
 // adminSocialProvidersCreate is the `admin social-providers create` operation.
-func adminSocialProvidersCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminSocialProvidersCreate,
 		Title:       "Create a social provider",
 		Summary:     "Create a social login provider configuration",
 		Description: "Create a new social login provider configuration (OAuth2 endpoints, client credentials, attribute keys and display metadata). Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "provider-id", Type: pinner.ArgTypeString, Required: true, Help: "Provider type identifier (e.g. github, google)"},
-			{Name: "client-id", Type: pinner.ArgTypeString, Required: true, Help: "OAuth2 client ID"},
-			{Name: "client-secret", Type: pinner.ArgTypeString, Required: true, Help: "OAuth2 client secret"},
-			{Name: "display-name", Type: pinner.ArgTypeString, Required: true, Help: "Human-readable provider name"},
-			{Name: "auth-url", Type: pinner.ArgTypeString, Required: true, Help: "OAuth2 authorization endpoint"},
-			{Name: "token-url", Type: pinner.ArgTypeString, Required: true, Help: "OAuth2 token endpoint"},
-			{Name: "user-url", Type: pinner.ArgTypeString, Required: true, Help: "User info endpoint"},
-			{Name: "scopes", Type: pinner.ArgTypeStringSlice, Help: "OAuth2 scopes to request"},
-			{Name: "user-id-key", Type: pinner.ArgTypeString, Required: true, Help: "User info JSON key holding the user ID"},
-			{Name: "user-email-key", Type: pinner.ArgTypeString, Required: true, Help: "User info JSON key holding the email"},
-			{Name: "user-name-key", Type: pinner.ArgTypeString, Required: true, Help: "User info JSON key holding the display name"},
-			{Name: "order-index", Type: pinner.ArgTypeInt, Help: "Display order (lower first)"},
-			{Name: "enabled", Type: pinner.ArgTypeBool, Help: "Enable the provider for login"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "provider-id", Type: opmesh.ArgTypeString, Required: true, Help: "Provider type identifier (e.g. github, google)"},
+			{Name: "client-id", Type: opmesh.ArgTypeString, Required: true, Help: "OAuth2 client ID"},
+			{Name: "client-secret", Type: opmesh.ArgTypeString, Required: true, Help: "OAuth2 client secret"},
+			{Name: "display-name", Type: opmesh.ArgTypeString, Required: true, Help: "Human-readable provider name"},
+			{Name: "auth-url", Type: opmesh.ArgTypeString, Required: true, Help: "OAuth2 authorization endpoint"},
+			{Name: "token-url", Type: opmesh.ArgTypeString, Required: true, Help: "OAuth2 token endpoint"},
+			{Name: "user-url", Type: opmesh.ArgTypeString, Required: true, Help: "User info endpoint"},
+			{Name: "scopes", Type: opmesh.ArgTypeStringSlice, Help: "OAuth2 scopes to request"},
+			{Name: "user-id-key", Type: opmesh.ArgTypeString, Required: true, Help: "User info JSON key holding the user ID"},
+			{Name: "user-email-key", Type: opmesh.ArgTypeString, Required: true, Help: "User info JSON key holding the email"},
+			{Name: "user-name-key", Type: opmesh.ArgTypeString, Required: true, Help: "User info JSON key holding the display name"},
+			{Name: "order-index", Type: opmesh.ArgTypeInt, Help: "Display order (lower first)"},
+			{Name: "enabled", Type: opmesh.ArgTypeBool, Help: "Enable the provider for login"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.socialProviders()
@@ -186,8 +186,8 @@ func adminSocialProvidersCreate(d AdminDeps) pinner.Operation {
 }
 
 // adminSocialProvidersUpdate is the `admin social-providers update` operation.
-func adminSocialProvidersUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:    OpAdminSocialProvidersUpdate,
 		Title:   "Update a social provider",
 		Summary: "Update a social login provider configuration",
@@ -196,25 +196,25 @@ func adminSocialProvidersUpdate(d AdminDeps) pinner.Operation {
 		// arrive as enabled=false and the backend would disable the provider.
 		Description: "Update an existing social login provider configuration. Only the fields provided are changed; others keep their current values (an omitted client-secret keeps the stored secret). Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<provider-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Social provider ID", PositionalOnly: true},
-			{Name: "client-secret", Type: pinner.ArgTypeString, Help: "OAuth2 client secret (omit to keep the stored secret)"},
-			{Name: "provider-key", Type: pinner.ArgTypeString, Help: "Provider type identifier (e.g. github, google)"},
-			{Name: "client-id", Type: pinner.ArgTypeString, Help: "OAuth2 client ID"},
-			{Name: "display-name", Type: pinner.ArgTypeString, Help: "Human-readable provider name"},
-			{Name: "auth-url", Type: pinner.ArgTypeString, Help: "OAuth2 authorization endpoint"},
-			{Name: "token-url", Type: pinner.ArgTypeString, Help: "OAuth2 token endpoint"},
-			{Name: "user-url", Type: pinner.ArgTypeString, Help: "User info endpoint"},
-			{Name: "scopes", Type: pinner.ArgTypeStringSlice, Help: "OAuth2 scopes to request (replaces the current set; omit to keep it)"},
-			{Name: "user-id-key", Type: pinner.ArgTypeString, Help: "User info JSON key holding the user ID"},
-			{Name: "user-email-key", Type: pinner.ArgTypeString, Help: "User info JSON key holding the email"},
-			{Name: "user-name-key", Type: pinner.ArgTypeString, Help: "User info JSON key holding the display name"},
-			{Name: "order-index", Type: pinner.ArgTypeNullableInt, Help: "Display order (lower first)"},
-			{Name: "enabled", Type: pinner.ArgTypeNullableBool, Help: "Enable the provider for login"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Social provider ID"},
+			{Name: "client-secret", Type: opmesh.ArgTypeString, Help: "OAuth2 client secret (omit to keep the stored secret)"},
+			{Name: "provider-key", Type: opmesh.ArgTypeString, Help: "Provider type identifier (e.g. github, google)"},
+			{Name: "client-id", Type: opmesh.ArgTypeString, Help: "OAuth2 client ID"},
+			{Name: "display-name", Type: opmesh.ArgTypeString, Help: "Human-readable provider name"},
+			{Name: "auth-url", Type: opmesh.ArgTypeString, Help: "OAuth2 authorization endpoint"},
+			{Name: "token-url", Type: opmesh.ArgTypeString, Help: "OAuth2 token endpoint"},
+			{Name: "user-url", Type: opmesh.ArgTypeString, Help: "User info endpoint"},
+			{Name: "scopes", Type: opmesh.ArgTypeStringSlice, Help: "OAuth2 scopes to request (replaces the current set; omit to keep it)"},
+			{Name: "user-id-key", Type: opmesh.ArgTypeString, Help: "User info JSON key holding the user ID"},
+			{Name: "user-email-key", Type: opmesh.ArgTypeString, Help: "User info JSON key holding the email"},
+			{Name: "user-name-key", Type: opmesh.ArgTypeString, Help: "User info JSON key holding the display name"},
+			{Name: "order-index", Type: opmesh.ArgTypeNullableInt, Help: "Display order (lower first)"},
+			{Name: "enabled", Type: opmesh.ArgTypeNullableBool, Help: "Enable the provider for login"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.socialProviders()
@@ -224,52 +224,52 @@ func adminSocialProvidersUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_social_providers_update: provider ID is required")
 			}
 			// Nil fields are sent omitted and the backend leaves them unchanged.
 			req := &admin.SocialProviderUpdateRequest{}
-			if v := pinner.StrArg(input, "provider-key", ""); v != "" {
+			if v := opmesh.StrArg(input, "provider-key", ""); v != "" {
 				req.ProviderId = &v
 			}
-			if v := pinner.StrArg(input, "client-id", ""); v != "" {
+			if v := opmesh.StrArg(input, "client-id", ""); v != "" {
 				req.ClientId = &v
 			}
-			if v := pinner.StrArg(input, "client-secret", ""); v != "" {
+			if v := opmesh.StrArg(input, "client-secret", ""); v != "" {
 				req.ClientSecret = &v
 			}
-			if v := pinner.StrArg(input, "display-name", ""); v != "" {
+			if v := opmesh.StrArg(input, "display-name", ""); v != "" {
 				req.DisplayName = &v
 			}
-			if v := pinner.StrArg(input, "auth-url", ""); v != "" {
+			if v := opmesh.StrArg(input, "auth-url", ""); v != "" {
 				req.AuthUrl = &v
 			}
-			if v := pinner.StrArg(input, "token-url", ""); v != "" {
+			if v := opmesh.StrArg(input, "token-url", ""); v != "" {
 				req.TokenUrl = &v
 			}
-			if v := pinner.StrArg(input, "user-url", ""); v != "" {
+			if v := opmesh.StrArg(input, "user-url", ""); v != "" {
 				req.UserUrl = &v
 			}
 			// An omitted slice arg normalizes to a non-nil empty []string, so
 			// presence is judged by length: forwarding that empty slice on the
 			// patch would erase all scopes a provider still needs.
-			if v := pinner.StrSliceArg(input, "scopes"); len(v) > 0 {
+			if v := opmesh.StrSliceArg(input, "scopes"); len(v) > 0 {
 				req.Scopes = &v
 			}
-			if v := pinner.StrArg(input, "user-id-key", ""); v != "" {
+			if v := opmesh.StrArg(input, "user-id-key", ""); v != "" {
 				req.UserIdKey = &v
 			}
-			if v := pinner.StrArg(input, "user-email-key", ""); v != "" {
+			if v := opmesh.StrArg(input, "user-email-key", ""); v != "" {
 				req.UserEmailKey = &v
 			}
-			if v := pinner.StrArg(input, "user-name-key", ""); v != "" {
+			if v := opmesh.StrArg(input, "user-name-key", ""); v != "" {
 				req.UserNameKey = &v
 			}
-			if v := pinner.IntArgPtr(input, "order-index"); v != nil {
+			if v := opmesh.IntArgPtr(input, "order-index"); v != nil {
 				req.OrderIndex = v
 			}
-			if v := pinner.BoolArgPtr(input, "enabled"); v != nil {
+			if v := opmesh.BoolArgPtr(input, "enabled"); v != nil {
 				req.Enabled = v
 			}
 			return svc.UpdateSocialProvider(ctx, id, req)
@@ -279,23 +279,23 @@ func adminSocialProvidersUpdate(d AdminDeps) pinner.Operation {
 
 // adminSocialProvidersDelete is the `admin social-providers delete` operation.
 // DESTRUCTIVE: requires confirm=true.
-func adminSocialProvidersDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminSocialProvidersDelete,
 		Title:       "Delete a social provider",
 		Summary:     "Delete a social login provider by ID",
 		Description: "Delete a social login provider configuration by ID. DESTRUCTIVE: users will no longer be able to sign in with this provider. Requires confirm=true. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<provider-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Social provider ID", PositionalOnly: true},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Social provider ID"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("admin_social_providers_delete: confirmation is required")
 			}
 			svc, err := d.socialProviders()
@@ -305,7 +305,7 @@ func adminSocialProvidersDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_social_providers_delete: provider ID is required")
 			}
@@ -318,19 +318,19 @@ func adminSocialProvidersDelete(d AdminDeps) pinner.Operation {
 }
 
 // adminSocialProvidersEnable is the `admin social-providers enable` operation.
-func adminSocialProvidersEnable(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersEnable(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminSocialProvidersEnable,
 		Title:       "Enable a social provider",
 		Summary:     "Enable a social login provider",
 		Description: "Enable a previously disabled social login provider so users can sign in with it. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<provider-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Social provider ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Social provider ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.socialProviders()
@@ -340,7 +340,7 @@ func adminSocialProvidersEnable(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_social_providers_enable: provider ID is required")
 			}
@@ -351,19 +351,19 @@ func adminSocialProvidersEnable(d AdminDeps) pinner.Operation {
 
 // adminSocialProvidersDisable is the `admin social-providers disable`
 // operation.
-func adminSocialProvidersDisable(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminSocialProvidersDisable(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminSocialProvidersDisable,
 		Title:       "Disable a social provider",
 		Summary:     "Disable a social login provider",
 		Description: "Disable a social login provider so it can no longer be used to authenticate. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<provider-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Social provider ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Social provider ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.socialProviders()
@@ -373,7 +373,7 @@ func adminSocialProvidersDisable(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_social_providers_disable: provider ID is required")
 			}

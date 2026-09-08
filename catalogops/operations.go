@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/operations"
 )
 
@@ -22,28 +22,28 @@ type OperationsDeps struct {
 
 // OperationsOperations returns the catalog operations for the operations
 // domain (operations list, operations get).
-func OperationsOperations(d OperationsDeps) []pinner.Operation {
-	return []pinner.Operation{
+func OperationsOperations(d OperationsDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		operationsList(d),
 		operationsGet(d),
 	}
 }
 
-func operationsList(d OperationsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func operationsList(d OperationsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "operations_list", Title: "List account operations", Summary: "List account operations",
 		Description: "List account operations (uploads, pins, and other processing tasks) with optional filters and pagination. By default only active operations (pending, processing) are shown; pass --all to include completed, failed, and duplicate operations.",
-		Category:    "operations", Safety: pinner.SafetyRead, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "operations", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "search", Type: pinner.ArgTypeString, Help: "Full-text search evaluated server-side against operation type, status, protocol, or CID; composes with the filters below", AgentHelp: "Full-text search term evaluated server-side against operation type, status, protocol, or CID. Composes (AND) with the structured filters."},
-			pinner.OperationArg{Name: "status", Type: pinner.ArgTypeStringSlice, Help: "Filter by status (repeatable; pending, processing, completed, failed, duplicate)", AgentHelp: "One or more statuses to filter by. Valid values: pending, processing, completed, failed, duplicate. When omitted, only active operations (pending, processing) are returned unless all=true."},
-			pinner.OperationArg{Name: "all", Type: pinner.ArgTypeBool, Default: "false", Help: "Show operations in all statuses (overrides the default active-only filter)", AgentHelp: "When true, return operations in any status, overriding the default that shows only pending and processing. Ignored when status is explicitly provided."},
-			pinner.OperationArg{Name: "operation", Type: pinner.ArgTypeString, Help: "Filter by operation type (e.g. upload, pin)"},
-			pinner.OperationArg{Name: "protocol", Type: pinner.ArgTypeString, Help: "Filter by protocol (e.g. ipfs)"},
-			pinner.OperationArg{Name: "cid", Type: pinner.ArgTypeString, Help: "Filter by CID"},
-			pinner.OperationArg{Name: "sort", Type: pinner.ArgTypeString, Help: "Sort results (e.g. id:desc, started:asc). Defaults to id:desc.", AgentHelp: "Sort field and direction, e.g. \"id:desc\" or \"started:asc\". Defaults to id:desc."},
-			pinner.OperationArg{Name: "watch", Type: pinner.ArgTypeBool, Default: "false", Help: "Poll until the list settles"},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "search", Type: opmesh.ArgTypeString, Help: "Full-text search evaluated server-side against operation type, status, protocol, or CID; composes with the filters below"},
+			opmesh.OperationArg{Name: "status", Type: opmesh.ArgTypeStringSlice, Help: "Filter by status (repeatable; pending, processing, completed, failed, duplicate)"},
+			opmesh.OperationArg{Name: "all", Type: opmesh.ArgTypeBool, Default: "false", Help: "Show operations in all statuses (overrides the default active-only filter)"},
+			opmesh.OperationArg{Name: "operation", Type: opmesh.ArgTypeString, Help: "Filter by operation type (e.g. upload, pin)"},
+			opmesh.OperationArg{Name: "protocol", Type: opmesh.ArgTypeString, Help: "Filter by protocol (e.g. ipfs)"},
+			opmesh.OperationArg{Name: "cid", Type: opmesh.ArgTypeString, Help: "Filter by CID"},
+			opmesh.OperationArg{Name: "sort", Type: opmesh.ArgTypeString, Help: "Sort results (e.g. id:desc, started:asc). Defaults to id:desc."},
+			opmesh.OperationArg{Name: "watch", Type: opmesh.ArgTypeBool, Default: "false", Help: "Poll until the list settles"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc := d.Service(input)
@@ -53,15 +53,15 @@ func operationsList(d OperationsDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			page := pinner.ParseListPage(input, 10)
+			page := opmesh.ParseListPage(input, 10)
 			res, err := svc.List(ctx, operations.ListOptions{
-				Search:          pinner.SearchArg(input),
-				StatusFilters:   pinner.StrSliceArg(input, "status"),
-				IncludeAll:      pinner.BoolArg(input, "all", false),
-				OperationFilter: pinner.StrArg(input, "operation", ""),
-				ProtocolFilter:  pinner.StrArg(input, "protocol", ""),
-				CIDFilter:       pinner.StrArg(input, "cid", ""),
-				Sort:            pinner.StrArg(input, "sort", ""),
+				Search:          opmesh.SearchArg(input),
+				StatusFilters:   opmesh.StrSliceArg(input, "status"),
+				IncludeAll:      opmesh.BoolArg(input, "all", false),
+				OperationFilter: opmesh.StrArg(input, "operation", ""),
+				ProtocolFilter:  opmesh.StrArg(input, "protocol", ""),
+				CIDFilter:       opmesh.StrArg(input, "cid", ""),
+				Sort:            opmesh.StrArg(input, "sort", ""),
 				Start:           page.Start,
 				Limit:           page.Limit,
 			})
@@ -102,15 +102,15 @@ func newOperationsListResult(res *operations.OperationsListResult) ListResult {
 	})
 }
 
-func operationsGet(d OperationsDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func operationsGet(d OperationsDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "operations_get", Title: "Get operation details", Summary: "Get details of an operation",
 		Description: "Get the full details of a single account operation by ID, optionally waiting for it to complete.",
-		Category:    "operations", Safety: pinner.SafetyRead, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "operations", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeInt, Required: true, Help: "Operation ID"},
-			{Name: "watch", Type: pinner.ArgTypeBool, Default: "false", Help: "Wait for the operation to complete"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeInt, Required: true, Help: "Operation ID"},
+			{Name: "watch", Type: opmesh.ArgTypeBool, Default: "false", Help: "Wait for the operation to complete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc := d.Service(input)
@@ -120,11 +120,11 @@ func operationsGet(d OperationsDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := int64(pinner.IntArg(input, "id", 0))
+			id := int64(opmesh.IntArg(input, "id", 0))
 			if id == 0 {
 				return nil, fmt.Errorf("operations_get: operation ID is required")
 			}
-			if pinner.BoolArg(input, "watch", false) {
+			if opmesh.BoolArg(input, "watch", false) {
 				return svc.Watch(ctx, id)
 			}
 			return svc.Get(ctx, id)

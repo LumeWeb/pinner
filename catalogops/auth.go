@@ -1,6 +1,6 @@
 package catalogops
 
-import "go.lumeweb.com/pinner"
+import "go.lumeweb.com/opmesh"
 
 // AuthTokenInputKey is the reserved input-map key through which the CLI wiring
 // threads the per-invocation --auth-token flag override into an operation's
@@ -8,7 +8,7 @@ import "go.lumeweb.com/pinner"
 //
 // When present and non-empty it takes precedence over the deps.GetAuthToken()
 // config fallback (flag takes precedence over config).
-const AuthTokenInputKey = pinner.ReservedAuthTokenKey
+const AuthTokenInputKey = opmesh.ReservedAuthTokenKey
 
 // authTokenFromInput returns the --auth-token flag override threaded through
 // the input map, or "" when none was provided.

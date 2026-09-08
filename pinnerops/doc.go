@@ -1,11 +1,12 @@
 // Package pinnerops is the Pinner operation ASSEMBLY layer: it takes the
 // domain operation providers (catalogops), a dependency graph
 // (CatalogDepsBundle), and a product surface (Surface) and produces one
-// runnable pinner.Catalog.
+// runnable opmesh.Catalog.
 //
-// Assembly, not execution: the root pinner package owns the operation model
-// (Operation descriptors, the Catalog registry, Invoke policy enforcement) and
-// catalogops owns the per-domain operation providers. pinnerops is the glue
+// Assembly, not execution: opmesh owns the operation model (Operation
+// descriptors, the Catalog registry, Invoke policy enforcement — catalogops
+// defines its operations directly against it) and catalogops owns the
+// per-domain operation providers. pinnerops is the glue
 // that decides WHICH of those operations a given deployment gets:
 //
 //   - Surface gates whole operation domains (account, vault, DNS, ...) in or
@@ -16,9 +17,13 @@
 //   - CatalogDepsBundle carries the concrete, lazy per-invocation dependency
 //     graph every provider gets.
 //
+// Surface gating reads the Environment carve-outs from the catalogmeta
+// frontend-metadata boundary (keyed by stable operation ID), since the opmesh
+// core model deliberately carries no Environment field.
+//
 // The package is deliberately frontend-neutral: it imports only stdlib,
-// samber/lo, and in-module packages (pinner, catalogops, core/config). It
-// must never import pterm, urfave/cli, MCP SDKs, or any frontend package —
-// the CLI and MCP compilers that consume the assembled catalog stay in their
-// own product modules.
+// samber/lo, opmesh, and in-module packages (catalogmeta, catalogops,
+// core/config). It must never import pterm, urfave/cli, MCP SDKs, mcpforge,
+// or any frontend package — the CLI and MCP compilers that consume the
+// assembled catalog stay in their own product modules.
 package pinnerops

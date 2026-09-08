@@ -1,4 +1,4 @@
-package catalogops
+package catalogmcp
 
 import (
 	"testing"

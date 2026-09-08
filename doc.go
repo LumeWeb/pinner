@@ -22,7 +22,11 @@
 // The catalogops subpackage declares the Pinner domain operation set —
 // account, admin (billing, domains, quota, social providers, websites),
 // apikeys, auth, dns, ens, ipns, pins, vault and websites — as catalog
-// operations backed by the core service layer under core/.
+// operations backed by the core service layer under core/. It defines those
+// operations against the frontend-clean go.lumeweb.com/opmesh model; the
+// frontend presentation metadata (MCP tool targets/descriptions, Environment
+// surface carve-outs, per-arg agent/CLI metadata) lives on the catalogmcp and
+// catalogmeta boundary packages, keyed by the operations' stable IDs.
 //
 // # Core services (core/)
 //
@@ -36,12 +40,12 @@
 // Declare a domain operation set, register it, and invoke an operation the
 // way any frontend would:
 //
-//	cat := pinner.NewCatalog()
+//	cat := opmesh.NewCatalog()
 //	ops := catalogops.AccountOperations(catalogops.AccountDeps{...})
 //	for _, op := range ops {
 //		_ = cat.Add(op)
 //	}
-//	input, err := pinner.NormalizeOperationInput(ops[0],
+//	input, err := opmesh.NormalizeOperationInput(ops[0],
 //	    map[string]any{"limit": 10})
-//	result, err := cat.Invoke(ctx, ops[0].Name(), input, pinner.ActorModel)
+//	result, err := cat.Invoke(ctx, ops[0].Name(), input, opmesh.ActorModel)
 package pinner

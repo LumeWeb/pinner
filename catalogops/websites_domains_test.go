@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
 	"go.lumeweb.com/pinner/core/websites"
@@ -242,11 +242,11 @@ func TestWebsitesDomainsDANERepublishTypedResult(t *testing.T) {
 func TestWebsitesDomainsRequiresAuthentication(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		op   func(WebsitesDeps) pinner.Operation
+		op   func(WebsitesDeps) opmesh.Operation
 	}{
-		{"list", func(d WebsitesDeps) pinner.Operation { return websitesDomainsList(d) }},
-		{"remove", func(d WebsitesDeps) pinner.Operation { return websitesDomainsRemove(d) }},
-		{"dane_republish", func(d WebsitesDeps) pinner.Operation { return websitesDomainsDANERepublish(d) }},
+		{"list", func(d WebsitesDeps) opmesh.Operation { return websitesDomainsList(d) }},
+		{"remove", func(d WebsitesDeps) opmesh.Operation { return websitesDomainsRemove(d) }},
+		{"dane_republish", func(d WebsitesDeps) opmesh.Operation { return websitesDomainsDANERepublish(d) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := singleWebsiteFixture()

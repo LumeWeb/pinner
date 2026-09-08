@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/vault"
 )
 
@@ -45,13 +45,13 @@ func newVaultOpsClose(t *testing.T, msvc vault.VaultService, name string, input 
 			mm.On("Close").Return(nil)
 		}
 	}
-	cat := pinner.NewCatalog()
+	cat := opmesh.NewCatalog()
 	for _, op := range VaultOperations(vaultDepsFor(msvc)) {
 		if err := cat.Add(op); err != nil {
 			t.Fatalf("Add(%q): %v", op.Name(), err)
 		}
 	}
-	return cat.Invoke(context.Background(), name, input, pinner.ActorModel)
+	return cat.Invoke(context.Background(), name, input, opmesh.ActorModel)
 }
 
 // TestVaultSharePending_NoFlush guards the split between sharing and duplexing:

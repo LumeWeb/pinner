@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/portal-sdk/admin"
 )
 
@@ -97,20 +97,20 @@ type BillingUserBalanceResult struct {
 }
 
 // adminBillingCreditsList is the `admin billing credits list` operation.
-func adminBillingCreditsList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_list",
 		Title:       "List billing credits",
 		Summary:     "List billing credits",
 		Description: "List billing credits with optional filters. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "user-id", Type: pinner.ArgTypeString, Help: "Filter by user ID"},
-			pinner.OperationArg{Name: "direction", Type: pinner.ArgTypeString, Help: "Filter by direction (credit, debit)"},
-			pinner.OperationArg{Name: "type", Type: pinner.ArgTypeString, Help: "Filter by type"},
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "user-id", Type: opmesh.ArgTypeString, Help: "Filter by user ID"},
+			opmesh.OperationArg{Name: "direction", Type: opmesh.ArgTypeString, Help: "Filter by direction (credit, debit)"},
+			opmesh.OperationArg{Name: "type", Type: opmesh.ArgTypeString, Help: "Filter by type"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -121,39 +121,39 @@ func adminBillingCreditsList(d AdminDeps) pinner.Operation {
 				return nil, err
 			}
 			params := &admin.GetApiBillingCreditsParams{}
-			if v := pinner.StrArg(input, "user-id", ""); v != "" {
+			if v := opmesh.StrArg(input, "user-id", ""); v != "" {
 				params.FiltersUserIdEq = &v
 			}
-			if v := pinner.StrArg(input, "direction", ""); v != "" {
+			if v := opmesh.StrArg(input, "direction", ""); v != "" {
 				params.DirectionEq = &v
 			}
-			if v := pinner.StrArg(input, "type", ""); v != "" {
+			if v := opmesh.StrArg(input, "type", ""); v != "" {
 				params.TypeEq = &v
 			}
 			credits, _, err := svc.ListCredits(ctx, params)
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return billingCreditsListResult(slicePage(credits, page.Start, page.Limit)), nil
 		}),
 	})
 }
 
 // adminBillingCreditsGet is the `admin billing credits get` operation.
-func adminBillingCreditsGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_get",
 		Title:       "Get a credit",
 		Summary:     "Get a credit by ID",
 		Description: "Get a single billing credit by its ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<credit-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Credit ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Credit ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -163,7 +163,7 @@ func adminBillingCreditsGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_credits_get: credit ID is required")
 			}
@@ -173,24 +173,24 @@ func adminBillingCreditsGet(d AdminDeps) pinner.Operation {
 }
 
 // adminBillingCreditsCreate is the `admin billing credits create` operation.
-func adminBillingCreditsCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_create",
 		Title:       "Create a credit",
 		Summary:     "Create a billing credit",
 		Description: "Create a billing credit entry for a user. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeInt, Required: true, Help: "User ID"},
-			{Name: "amount", Type: pinner.ArgTypeString, Required: true, Help: "Amount"},
-			{Name: "type", Type: pinner.ArgTypeString, Required: true, Help: "Credit type"},
-			{Name: "direction", Type: pinner.ArgTypeString, Required: true, Help: "Direction (credit, debit)"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Description"},
-			{Name: "reference-id", Type: pinner.ArgTypeString, Help: "Reference ID"},
-			{Name: "reference-type", Type: pinner.ArgTypeString, Help: "Reference type"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeInt, Required: true, Help: "User ID"},
+			{Name: "amount", Type: opmesh.ArgTypeString, Required: true, Help: "Amount"},
+			{Name: "type", Type: opmesh.ArgTypeString, Required: true, Help: "Credit type"},
+			{Name: "direction", Type: opmesh.ArgTypeString, Required: true, Help: "Direction (credit, debit)"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Description"},
+			{Name: "reference-id", Type: opmesh.ArgTypeString, Help: "Reference ID"},
+			{Name: "reference-type", Type: opmesh.ArgTypeString, Help: "Reference type"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -200,23 +200,23 @@ func adminBillingCreditsCreate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			userID := pinner.IntArg(input, "user-id", 0)
+			userID := opmesh.IntArg(input, "user-id", 0)
 			if userID == 0 {
 				return nil, fmt.Errorf("admin_billing_credits_create: user-id is required")
 			}
 			req := &admin.CreditCreateRequest{
-				Amount:    pinner.StrArg(input, "amount", ""),
-				Direction: pinner.StrArg(input, "direction", ""),
-				Type:      pinner.StrArg(input, "type", ""),
+				Amount:    opmesh.StrArg(input, "amount", ""),
+				Direction: opmesh.StrArg(input, "direction", ""),
+				Type:      opmesh.StrArg(input, "type", ""),
 				UserId:    userID,
 			}
-			if v := pinner.StrArg(input, "description", ""); v != "" {
+			if v := opmesh.StrArg(input, "description", ""); v != "" {
 				req.Description = &v
 			}
-			if v := pinner.StrArg(input, "reference-id", ""); v != "" {
+			if v := opmesh.StrArg(input, "reference-id", ""); v != "" {
 				req.ReferenceId = &v
 			}
-			if v := pinner.StrArg(input, "reference-type", ""); v != "" {
+			if v := opmesh.StrArg(input, "reference-type", ""); v != "" {
 				req.ReferenceType = &v
 			}
 			return svc.CreateCredit(ctx, req)
@@ -225,19 +225,19 @@ func adminBillingCreditsCreate(d AdminDeps) pinner.Operation {
 }
 
 // adminBillingCreditsDelete is the `admin billing credits delete` operation.
-func adminBillingCreditsDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_delete",
 		Title:       "Delete a credit",
 		Summary:     "Soft-delete a credit",
 		Description: "Soft-delete a billing credit by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<credit-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Credit ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Credit ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -247,7 +247,7 @@ func adminBillingCreditsDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_credits_delete: credit ID is required")
 			}
@@ -260,19 +260,19 @@ func adminBillingCreditsDelete(d AdminDeps) pinner.Operation {
 }
 
 // adminBillingCreditsRestore is the `admin billing credits restore` operation.
-func adminBillingCreditsRestore(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsRestore(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_restore",
 		Title:       "Restore a credit",
 		Summary:     "Restore a soft-deleted credit",
 		Description: "Restore a soft-deleted billing credit by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<credit-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Credit ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Credit ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -282,7 +282,7 @@ func adminBillingCreditsRestore(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_credits_restore: credit ID is required")
 			}
@@ -292,22 +292,22 @@ func adminBillingCreditsRestore(d AdminDeps) pinner.Operation {
 }
 
 // adminBillingCreditsPurge is the `admin billing credits purge` operation.
-func adminBillingCreditsPurge(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsPurge(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_purge",
 		Title:       "Purge credits",
 		Summary:     "Purge soft-deleted credits",
 		Description: "Permanently remove soft-deleted credits older than a duration. DESTRUCTIVE: requires confirm=true. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "older-than", Type: pinner.ArgTypeString, Required: true, Help: "Age threshold, e.g. 720h"},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive purge"},
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "older-than", Type: opmesh.ArgTypeString, Required: true, Help: "Age threshold, e.g. 720h"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive purge"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("admin_billing_credits_purge: confirmation is required")
 			}
 			svc, err := d.billing()
@@ -317,7 +317,7 @@ func adminBillingCreditsPurge(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			older := pinner.StrArg(input, "older-than", "")
+			older := opmesh.StrArg(input, "older-than", "")
 			if older == "" {
 				return nil, fmt.Errorf("admin_billing_credits_purge: older-than is required")
 			}
@@ -333,19 +333,19 @@ func adminBillingCreditsPurge(d AdminDeps) pinner.Operation {
 
 // adminBillingCreditsUserBalance is the `admin billing credits user-balance`
 // operation.
-func adminBillingCreditsUserBalance(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsUserBalance(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_user_balance",
 		Title:       "View a user's credit balance",
 		Summary:     "View a user's balance",
 		Description: "View the current credit balance for a user. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -355,7 +355,7 @@ func adminBillingCreditsUserBalance(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_credits_user_balance: user-id is required")
 			}
@@ -370,19 +370,19 @@ func adminBillingCreditsUserBalance(d AdminDeps) pinner.Operation {
 
 // adminBillingCreditsUserDeletedCredits is the
 // `admin billing credits user-deleted-credits` operation.
-func adminBillingCreditsUserDeletedCredits(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingCreditsUserDeletedCredits(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_credits_user_deleted_credits",
 		Title:       "List a user's deleted credits",
 		Summary:     "List a user's soft-deleted credits",
 		Description: "List the soft-deleted credits for a user. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -392,7 +392,7 @@ func adminBillingCreditsUserDeletedCredits(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_credits_user_deleted_credits: user-id is required")
 			}
@@ -406,17 +406,17 @@ func adminBillingCreditsUserDeletedCredits(d AdminDeps) pinner.Operation {
 }
 
 // adminBillingPriceLinesList is the `admin billing price-lines list` operation.
-func adminBillingPriceLinesList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_list",
 		Title:       "List price lines",
 		Summary:     "List billing price lines",
 		Description: "List all billing price lines. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
 			if err != nil {
@@ -429,26 +429,26 @@ func adminBillingPriceLinesList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return billingPriceLinesListResult(slicePage(lines, page.Start, page.Limit)), nil
 		}),
 	})
 }
 
 // adminBillingPriceLinesGet is the `admin billing price-lines get` operation.
-func adminBillingPriceLinesGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_get",
 		Title:       "Get a price line",
 		Summary:     "Get a price line by ID",
 		Description: "Get a single billing price line with its associated plans. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<price-line-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Price line ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -458,7 +458,7 @@ func adminBillingPriceLinesGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_get: price line ID is required")
 			}
@@ -469,21 +469,21 @@ func adminBillingPriceLinesGet(d AdminDeps) pinner.Operation {
 
 // adminBillingPriceLinesCreate is the `admin billing price-lines create`
 // operation.
-func adminBillingPriceLinesCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_create",
 		Title:       "Create a price line",
 		Summary:     "Create a billing price line",
 		Description: "Create a billing price line. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Price line name"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Price line description"},
-			{Name: "is-active", Type: pinner.ArgTypeBool, Help: "Mark active"},
-			{Name: "is-default", Type: pinner.ArgTypeBool, Help: "Mark default"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Price line name"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Price line description"},
+			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark active"},
+			{Name: "is-default", Type: opmesh.ArgTypeBool, Help: "Mark default"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -494,10 +494,10 @@ func adminBillingPriceLinesCreate(d AdminDeps) pinner.Operation {
 				return nil, err
 			}
 			req := &admin.PriceLineCreateRequest{
-				Name:        pinner.StrArg(input, "name", ""),
-				Description: pinner.StrArg(input, "description", ""),
-				IsActive:    pinner.BoolArg(input, "is-active", false),
-				IsDefault:   pinner.BoolArg(input, "is-default", false),
+				Name:        opmesh.StrArg(input, "name", ""),
+				Description: opmesh.StrArg(input, "description", ""),
+				IsActive:    opmesh.BoolArg(input, "is-active", false),
+				IsDefault:   opmesh.BoolArg(input, "is-default", false),
 			}
 			return svc.CreatePriceLine(ctx, req)
 		}),
@@ -506,23 +506,23 @@ func adminBillingPriceLinesCreate(d AdminDeps) pinner.Operation {
 
 // adminBillingPriceLinesUpdate is the `admin billing price-lines update`
 // operation.
-func adminBillingPriceLinesUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_update",
 		Title:       "Update a price line",
 		Summary:     "Update a billing price line",
 		Description: "Update a billing price line by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<price-line-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Price line ID", PositionalOnly: true},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "Price line name"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Price line description"},
-			{Name: "is-active", Type: pinner.ArgTypeBool, Help: "Mark active"},
-			{Name: "is-default", Type: pinner.ArgTypeBool, Help: "Mark default"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "Price line name"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Price line description"},
+			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark active"},
+			{Name: "is-default", Type: opmesh.ArgTypeBool, Help: "Mark default"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -532,15 +532,15 @@ func adminBillingPriceLinesUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_update: price line ID is required")
 			}
 			req := &admin.PriceLineUpdateRequest{
-				Name:        pinner.StrArg(input, "name", ""),
-				Description: pinner.StrArg(input, "description", ""),
-				IsActive:    pinner.BoolArg(input, "is-active", false),
-				IsDefault:   pinner.BoolArg(input, "is-default", false),
+				Name:        opmesh.StrArg(input, "name", ""),
+				Description: opmesh.StrArg(input, "description", ""),
+				IsActive:    opmesh.BoolArg(input, "is-active", false),
+				IsDefault:   opmesh.BoolArg(input, "is-default", false),
 			}
 			return svc.UpdatePriceLine(ctx, id, req)
 		}),
@@ -549,19 +549,19 @@ func adminBillingPriceLinesUpdate(d AdminDeps) pinner.Operation {
 
 // adminBillingPriceLinesDelete is the `admin billing price-lines delete`
 // operation.
-func adminBillingPriceLinesDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_delete",
 		Title:       "Delete a price line",
 		Summary:     "Delete a billing price line",
 		Description: "Delete a billing price line by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<price-line-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Price line ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -571,7 +571,7 @@ func adminBillingPriceLinesDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_delete: price line ID is required")
 			}
@@ -585,21 +585,21 @@ func adminBillingPriceLinesDelete(d AdminDeps) pinner.Operation {
 
 // adminBillingPriceLinesAddPlan is the `admin billing price-lines add-plan`
 // operation.
-func adminBillingPriceLinesAddPlan(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesAddPlan(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_add_plan",
 		Title:       "Add a plan to a price line",
 		Summary:     "Add a pricing plan to a price line",
 		Description: "Add a pricing plan to a price line at a position. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<price-line-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Price line ID", PositionalOnly: true},
-			{Name: "plan-id", Type: pinner.ArgTypeInt, Required: true, Help: "Pricing plan ID"},
-			{Name: "position", Type: pinner.ArgTypeInt, Help: "Position"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
+			{Name: "plan-id", Type: opmesh.ArgTypeInt, Required: true, Help: "Pricing plan ID"},
+			{Name: "position", Type: opmesh.ArgTypeInt, Help: "Position"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -609,11 +609,11 @@ func adminBillingPriceLinesAddPlan(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_add_plan: price line ID is required")
 			}
-			req := &admin.AddPlanToPriceLineRequest{PlanId: pinner.IntArg(input, "plan-id", 0), Position: pinner.IntArg(input, "position", 0)}
+			req := &admin.AddPlanToPriceLineRequest{PlanId: opmesh.IntArg(input, "plan-id", 0), Position: opmesh.IntArg(input, "position", 0)}
 			return svc.AddPlanToPriceLine(ctx, id, req)
 		}),
 	})
@@ -621,20 +621,20 @@ func adminBillingPriceLinesAddPlan(d AdminDeps) pinner.Operation {
 
 // adminBillingPriceLinesDeletePlan is the `admin billing price-lines
 // delete-plan` operation.
-func adminBillingPriceLinesDeletePlan(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesDeletePlan(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_delete_plan",
 		Title:       "Remove a plan from a price line",
 		Summary:     "Remove a pricing plan from a price line",
 		Description: "Remove a pricing plan from a price line. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<price-line-id> <plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "price-line-id", Type: pinner.ArgTypeString, Required: true, Help: "Price line ID", PositionalOnly: true},
-			{Name: "plan-id", Type: pinner.ArgTypeString, Required: true, Help: "Pricing plan ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "price-line-id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
+			{Name: "plan-id", Type: opmesh.ArgTypeString, Required: true, Help: "Pricing plan ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -644,8 +644,8 @@ func adminBillingPriceLinesDeletePlan(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			lineID := pinner.StrArg(input, "price-line-id", "")
-			planID := pinner.StrArg(input, "plan-id", "")
+			lineID := opmesh.StrArg(input, "price-line-id", "")
+			planID := opmesh.StrArg(input, "plan-id", "")
 			if lineID == "" || planID == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_delete_plan: price-line-id and plan-id are required")
 			}
@@ -659,21 +659,21 @@ func adminBillingPriceLinesDeletePlan(d AdminDeps) pinner.Operation {
 
 // adminBillingPriceLinesUpdatePlanPosition is the `admin billing price-lines
 // update-plan-position` operation.
-func adminBillingPriceLinesUpdatePlanPosition(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPriceLinesUpdatePlanPosition(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_price_lines_update_plan_position",
 		Title:       "Update a plan's position in a price line",
 		Summary:     "Update a plan's position in a price line",
 		Description: "Update the position of a pricing plan within a price line. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<price-line-id> <plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "price-line-id", Type: pinner.ArgTypeString, Required: true, Help: "Price line ID", PositionalOnly: true},
-			{Name: "plan-id", Type: pinner.ArgTypeString, Required: true, Help: "Pricing plan ID", PositionalOnly: true},
-			{Name: "position", Type: pinner.ArgTypeInt, Required: true, Help: "New position"},
+		Args: []opmesh.OperationArg{
+			{Name: "price-line-id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
+			{Name: "plan-id", Type: opmesh.ArgTypeString, Required: true, Help: "Pricing plan ID"},
+			{Name: "position", Type: opmesh.ArgTypeInt, Required: true, Help: "New position"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -683,12 +683,12 @@ func adminBillingPriceLinesUpdatePlanPosition(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			lineID := pinner.StrArg(input, "price-line-id", "")
-			planID := pinner.StrArg(input, "plan-id", "")
+			lineID := opmesh.StrArg(input, "price-line-id", "")
+			planID := opmesh.StrArg(input, "plan-id", "")
 			if lineID == "" || planID == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_update_plan_position: price-line-id and plan-id are required")
 			}
-			req := &admin.UpdatePlanPositionRequest{Position: pinner.IntArg(input, "position", 0)}
+			req := &admin.UpdatePlanPositionRequest{Position: opmesh.IntArg(input, "position", 0)}
 			return svc.UpdatePlanPosition(ctx, lineID, planID, req)
 		}),
 	})
@@ -696,17 +696,17 @@ func adminBillingPriceLinesUpdatePlanPosition(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansList is the `admin billing pricing-plans list`
 // operation.
-func adminBillingPricingPlansList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_list",
 		Title:       "List pricing plans",
 		Summary:     "List billing pricing plans",
 		Description: "List all billing pricing plans. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
 			if err != nil {
@@ -719,7 +719,7 @@ func adminBillingPricingPlansList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return billingPricingPlansListResult(slicePage(plans, page.Start, page.Limit)), nil
 		}),
 	})
@@ -727,19 +727,19 @@ func adminBillingPricingPlansList(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansGet is the `admin billing pricing-plans get`
 // operation.
-func adminBillingPricingPlansGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_get",
 		Title:       "Get a pricing plan",
 		Summary:     "Get a billing pricing plan",
 		Description: "Get a single billing pricing plan by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Pricing plan ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Pricing plan ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -749,7 +749,7 @@ func adminBillingPricingPlansGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plans_get: plan ID is required")
 			}
@@ -760,22 +760,22 @@ func adminBillingPricingPlansGet(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansCreate is the `admin billing pricing-plans create`
 // operation.
-func adminBillingPricingPlansCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_create",
 		Title:       "Create a pricing plan",
 		Summary:     "Create a billing pricing plan",
 		Description: "Create a billing pricing plan. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Plan name"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Plan description"},
-			{Name: "currency", Type: pinner.ArgTypeString, Help: "Currency"},
-			{Name: "is-active", Type: pinner.ArgTypeBool, Help: "Mark active"},
-			{Name: "is-public", Type: pinner.ArgTypeBool, Help: "Mark public"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Plan name"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Plan description"},
+			{Name: "currency", Type: opmesh.ArgTypeString, Help: "Currency"},
+			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark active"},
+			{Name: "is-public", Type: opmesh.ArgTypeBool, Help: "Mark public"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -786,11 +786,11 @@ func adminBillingPricingPlansCreate(d AdminDeps) pinner.Operation {
 				return nil, err
 			}
 			req := &admin.PricingPlanCreateRequest{
-				Name:        pinner.StrArg(input, "name", ""),
-				Description: pinner.StrArg(input, "description", ""),
-				Currency:    pinner.StrArg(input, "currency", ""),
-				IsActive:    pinner.BoolArg(input, "is-active", false),
-				IsPublic:    pinner.BoolArg(input, "is-public", false),
+				Name:        opmesh.StrArg(input, "name", ""),
+				Description: opmesh.StrArg(input, "description", ""),
+				Currency:    opmesh.StrArg(input, "currency", ""),
+				IsActive:    opmesh.BoolArg(input, "is-active", false),
+				IsPublic:    opmesh.BoolArg(input, "is-public", false),
 			}
 			return svc.CreatePricingPlan(ctx, req)
 		}),
@@ -799,24 +799,24 @@ func adminBillingPricingPlansCreate(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansUpdate is the `admin billing pricing-plans update`
 // operation.
-func adminBillingPricingPlansUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_update",
 		Title:       "Update a pricing plan",
 		Summary:     "Update a billing pricing plan",
 		Description: "Update a billing pricing plan by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Pricing plan ID", PositionalOnly: true},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "Plan name"},
-			{Name: "description", Type: pinner.ArgTypeString, Help: "Plan description"},
-			{Name: "currency", Type: pinner.ArgTypeString, Help: "Currency"},
-			{Name: "is-active", Type: pinner.ArgTypeBool, Help: "Mark active"},
-			{Name: "is-public", Type: pinner.ArgTypeBool, Help: "Mark public"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Pricing plan ID"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "Plan name"},
+			{Name: "description", Type: opmesh.ArgTypeString, Help: "Plan description"},
+			{Name: "currency", Type: opmesh.ArgTypeString, Help: "Currency"},
+			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark active"},
+			{Name: "is-public", Type: opmesh.ArgTypeBool, Help: "Mark public"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -826,16 +826,16 @@ func adminBillingPricingPlansUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plans_update: plan ID is required")
 			}
 			req := &admin.PricingPlanUpdateRequest{
-				Name:        pinner.StrArg(input, "name", ""),
-				Description: pinner.StrArg(input, "description", ""),
-				Currency:    pinner.StrArg(input, "currency", ""),
-				IsActive:    pinner.BoolArg(input, "is-active", false),
-				IsPublic:    pinner.BoolArg(input, "is-public", false),
+				Name:        opmesh.StrArg(input, "name", ""),
+				Description: opmesh.StrArg(input, "description", ""),
+				Currency:    opmesh.StrArg(input, "currency", ""),
+				IsActive:    opmesh.BoolArg(input, "is-active", false),
+				IsPublic:    opmesh.BoolArg(input, "is-public", false),
 			}
 			return svc.UpdatePricingPlan(ctx, id, req)
 		}),
@@ -844,19 +844,19 @@ func adminBillingPricingPlansUpdate(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansDelete is the `admin billing pricing-plans delete`
 // operation.
-func adminBillingPricingPlansDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_delete",
 		Title:       "Delete a pricing plan",
 		Summary:     "Delete a billing pricing plan",
 		Description: "Delete a billing pricing plan by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Pricing plan ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Pricing plan ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -866,7 +866,7 @@ func adminBillingPricingPlansDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plans_delete: plan ID is required")
 			}
@@ -880,19 +880,19 @@ func adminBillingPricingPlansDelete(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansSync is the `admin billing pricing-plans sync`
 // operation.
-func adminBillingPricingPlansSync(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansSync(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_sync",
 		Title:       "Sync a pricing plan",
 		Summary:     "Sync a pricing plan with its gateway",
 		Description: "Sync a billing pricing plan with its payment gateway. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<plan-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Pricing plan ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Pricing plan ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -902,7 +902,7 @@ func adminBillingPricingPlansSync(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plans_sync: plan ID is required")
 			}
@@ -916,16 +916,16 @@ func adminBillingPricingPlansSync(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlansSyncAll is the `admin billing pricing-plans
 // sync-all` operation.
-func adminBillingPricingPlansSyncAll(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlansSyncAll(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plans_sync_all",
 		Title:       "Sync all pricing plans",
 		Summary:     "Sync all pricing plans with gateways",
 		Description: "Sync all billing pricing plans with their payment gateways. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
 			if err != nil {
@@ -944,17 +944,17 @@ func adminBillingPricingPlansSyncAll(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlanPeriodsList is the
 // `admin billing pricing-plan-periods list` operation.
-func adminBillingPricingPlanPeriodsList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlanPeriodsList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plan_periods_list",
 		Title:       "List pricing plan periods",
 		Summary:     "List billing pricing plan periods",
 		Description: "List all billing pricing plan periods. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
 			if err != nil {
@@ -967,7 +967,7 @@ func adminBillingPricingPlanPeriodsList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return billingPricingPlanPeriodsListResult(slicePage(periods, page.Start, page.Limit)), nil
 		}),
 	})
@@ -975,19 +975,19 @@ func adminBillingPricingPlanPeriodsList(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlanPeriodsGet is the
 // `admin billing pricing-plan-periods get` operation.
-func adminBillingPricingPlanPeriodsGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlanPeriodsGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plan_periods_get",
 		Title:       "Get a pricing plan period",
 		Summary:     "Get a billing pricing plan period",
 		Description: "Get a single billing pricing plan period by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<period-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Period ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Period ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -997,7 +997,7 @@ func adminBillingPricingPlanPeriodsGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plan_periods_get: period ID is required")
 			}
@@ -1008,23 +1008,23 @@ func adminBillingPricingPlanPeriodsGet(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlanPeriodsCreate is the
 // `admin billing pricing-plan-periods create` operation.
-func adminBillingPricingPlanPeriodsCreate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlanPeriodsCreate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plan_periods_create",
 		Title:       "Create a pricing plan period",
 		Summary:     "Create a billing pricing plan period",
 		Description: "Create a billing pricing plan period. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "pricing-plan-id", Type: pinner.ArgTypeInt, Required: true, Help: "Pricing plan ID"},
-			{Name: "quota-plan-id", Type: pinner.ArgTypeInt, Required: true, Help: "Quota plan ID"},
-			{Name: "cadence", Type: pinner.ArgTypeString, Required: true, Help: "Cadence (e.g. monthly, yearly)"},
-			{Name: "price-usd", Type: pinner.ArgTypeFloat, Required: true, Help: "Price in USD"},
-			{Name: "allow-free", Type: pinner.ArgTypeBool, Help: "Allow free"},
-			{Name: "rolling-days", Type: pinner.ArgTypeInt, Help: "Rolling days"},
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "pricing-plan-id", Type: opmesh.ArgTypeInt, Required: true, Help: "Pricing plan ID"},
+			{Name: "quota-plan-id", Type: opmesh.ArgTypeInt, Required: true, Help: "Quota plan ID"},
+			{Name: "cadence", Type: opmesh.ArgTypeString, Required: true, Help: "Cadence (e.g. monthly, yearly)"},
+			{Name: "price-usd", Type: opmesh.ArgTypeFloat, Required: true, Help: "Price in USD"},
+			{Name: "allow-free", Type: opmesh.ArgTypeBool, Help: "Allow free"},
+			{Name: "rolling-days", Type: opmesh.ArgTypeInt, Help: "Rolling days"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1035,15 +1035,15 @@ func adminBillingPricingPlanPeriodsCreate(d AdminDeps) pinner.Operation {
 				return nil, err
 			}
 			req := &admin.PricingPlanPeriodCreateRequest{
-				PricingPlanId: pinner.IntArg(input, "pricing-plan-id", 0),
-				QuotaPlanId:   pinner.IntArg(input, "quota-plan-id", 0),
-				Cadence:       pinner.StrArg(input, "cadence", ""),
+				PricingPlanId: opmesh.IntArg(input, "pricing-plan-id", 0),
+				QuotaPlanId:   opmesh.IntArg(input, "quota-plan-id", 0),
+				Cadence:       opmesh.StrArg(input, "cadence", ""),
 				PriceUsd:      float32(catalogFloatArg(input, "price-usd", 0)),
 			}
-			if v := pinner.BoolArgPtr(input, "allow-free"); v != nil {
+			if v := opmesh.BoolArgPtr(input, "allow-free"); v != nil {
 				req.AllowFree = v
 			}
-			if v := pinner.IntArgPtr(input, "rolling-days"); v != nil {
+			if v := opmesh.IntArgPtr(input, "rolling-days"); v != nil {
 				req.RollingDays = v
 			}
 			return svc.CreatePricingPlanPeriod(ctx, req)
@@ -1053,23 +1053,23 @@ func adminBillingPricingPlanPeriodsCreate(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlanPeriodsUpdate is the
 // `admin billing pricing-plan-periods update` operation.
-func adminBillingPricingPlanPeriodsUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlanPeriodsUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plan_periods_update",
 		Title:       "Update a pricing plan period",
 		Summary:     "Update a billing pricing plan period",
 		Description: "Update a billing pricing plan period by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<period-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Period ID", PositionalOnly: true},
-			{Name: "cadence", Type: pinner.ArgTypeString, Help: "Cadence"},
-			{Name: "price-usd", Type: pinner.ArgTypeFloat, Help: "Price in USD"},
-			{Name: "allow-free", Type: pinner.ArgTypeBool, Help: "Allow free"},
-			{Name: "rolling-days", Type: pinner.ArgTypeInt, Help: "Rolling days"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Period ID"},
+			{Name: "cadence", Type: opmesh.ArgTypeString, Help: "Cadence"},
+			{Name: "price-usd", Type: opmesh.ArgTypeFloat, Help: "Price in USD"},
+			{Name: "allow-free", Type: opmesh.ArgTypeBool, Help: "Allow free"},
+			{Name: "rolling-days", Type: opmesh.ArgTypeInt, Help: "Rolling days"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1079,7 +1079,7 @@ func adminBillingPricingPlanPeriodsUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plan_periods_update: period ID is required")
 			}
@@ -1095,16 +1095,16 @@ func adminBillingPricingPlanPeriodsUpdate(d AdminDeps) pinner.Operation {
 				PriceUsd:    existing.PriceUsd,
 				QuotaPlanId: existing.QuotaPlanId,
 			}
-			if c := pinner.StrArg(input, "cadence", ""); c != "" {
+			if c := opmesh.StrArg(input, "cadence", ""); c != "" {
 				req.Cadence = c
 			}
 			if f := catalogFloatArg(input, "price-usd", 0); f != 0 {
 				req.PriceUsd = float32(f)
 			}
-			if v := pinner.BoolArgPtr(input, "allow-free"); v != nil {
+			if v := opmesh.BoolArgPtr(input, "allow-free"); v != nil {
 				req.AllowFree = v
 			}
-			if v := pinner.IntArgPtr(input, "rolling-days"); v != nil {
+			if v := opmesh.IntArgPtr(input, "rolling-days"); v != nil {
 				req.RollingDays = v
 			}
 			return svc.UpdatePricingPlanPeriod(ctx, id, req)
@@ -1114,19 +1114,19 @@ func adminBillingPricingPlanPeriodsUpdate(d AdminDeps) pinner.Operation {
 
 // adminBillingPricingPlanPeriodsDelete is the
 // `admin billing pricing-plan-periods delete` operation.
-func adminBillingPricingPlanPeriodsDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingPricingPlanPeriodsDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_pricing_plan_periods_delete",
 		Title:       "Delete a pricing plan period",
 		Summary:     "Delete a billing pricing plan period",
 		Description: "Delete a billing pricing plan period by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<period-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Period ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Period ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1136,7 +1136,7 @@ func adminBillingPricingPlanPeriodsDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plan_periods_delete: period ID is required")
 			}
@@ -1150,17 +1150,17 @@ func adminBillingPricingPlanPeriodsDelete(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersList is the `admin billing subscribers list`
 // operation.
-func adminBillingSubscribersList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_list",
 		Title:       "List subscribers",
 		Summary:     "List billing subscribers",
 		Description: "List all billing subscribers across gateways. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
 			if err != nil {
@@ -1173,26 +1173,26 @@ func adminBillingSubscribersList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return billingSubscribersListResult(slicePage(subs, page.Start, page.Limit)), nil
 		}),
 	})
 }
 
 // adminBillingSubscribersGet is the `admin billing subscribers get` operation.
-func adminBillingSubscribersGet(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersGet(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_get",
 		Title:       "Get a subscriber",
 		Summary:     "Get a billing subscriber",
 		Description: "Get a single billing subscriber by ID. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<subscriber-id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Subscriber ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Subscriber ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1202,7 +1202,7 @@ func adminBillingSubscribersGet(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_get: subscriber ID is required")
 			}
@@ -1213,19 +1213,19 @@ func adminBillingSubscribersGet(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersListGateway is the
 // `admin billing subscribers list-gateway` operation.
-func adminBillingSubscribersListGateway(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersListGateway(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_list_gateway",
 		Title:       "List subscribers for a gateway",
 		Summary:     "List billing subscribers for a gateway",
 		Description: "List billing subscribers for a specific gateway. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<gateway-id>",
-		Args: []pinner.OperationArg{
-			{Name: "gateway-id", Type: pinner.ArgTypeString, Required: true, Help: "Gateway ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "gateway-id", Type: opmesh.ArgTypeString, Required: true, Help: "Gateway ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1235,7 +1235,7 @@ func adminBillingSubscribersListGateway(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			gid := pinner.StrArg(input, "gateway-id", "")
+			gid := opmesh.StrArg(input, "gateway-id", "")
 			if gid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_list_gateway: gateway-id is required")
 			}
@@ -1250,19 +1250,19 @@ func adminBillingSubscribersListGateway(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersListUser is the `admin billing subscribers list-user`
 // operation.
-func adminBillingSubscribersListUser(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersListUser(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_list_user",
 		Title:       "List subscribers for a user",
 		Summary:     "List billing subscribers for a user",
 		Description: "List billing subscribers for a specific user. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1272,7 +1272,7 @@ func adminBillingSubscribersListUser(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_list_user: user-id is required")
 			}
@@ -1287,21 +1287,21 @@ func adminBillingSubscribersListUser(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersCancel is the `admin billing subscribers cancel`
 // operation.
-func adminBillingSubscribersCancel(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersCancel(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_cancel",
 		Title:       "Cancel a user's subscription",
 		Summary:     "Cancel a user's subscription",
 		Description: "Cancel a user's billing subscription. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
-			{Name: "mode", Type: pinner.ArgTypeString, Help: "Cancellation mode"},
-			{Name: "immediate", Type: pinner.ArgTypeBool, Help: "Cancel immediately"},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
+			{Name: "mode", Type: opmesh.ArgTypeString, Help: "Cancellation mode"},
+			{Name: "immediate", Type: opmesh.ArgTypeBool, Help: "Cancel immediately"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1311,15 +1311,15 @@ func adminBillingSubscribersCancel(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_cancel: user-id is required")
 			}
 			req := &admin.CancelSubscriptionRequest{}
-			if v := pinner.StrArg(input, "mode", ""); v != "" {
+			if v := opmesh.StrArg(input, "mode", ""); v != "" {
 				req.Mode = &v
 			}
-			if v := pinner.BoolArgPtr(input, "immediate"); v != nil {
+			if v := opmesh.BoolArgPtr(input, "immediate"); v != nil {
 				req.Immediate = v
 			}
 			return svc.CancelUserSubscription(ctx, uid, req)
@@ -1329,19 +1329,19 @@ func adminBillingSubscribersCancel(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersAbortCancel is the
 // `admin billing subscribers abort-cancel` operation.
-func adminBillingSubscribersAbortCancel(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersAbortCancel(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_abort_cancel",
 		Title:       "Abort a subscription cancellation",
 		Summary:     "Abort a scheduled subscription cancellation",
 		Description: "Abort a scheduled cancellation for a user's subscription. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1351,7 +1351,7 @@ func adminBillingSubscribersAbortCancel(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_abort_cancel: user-id is required")
 			}
@@ -1362,20 +1362,20 @@ func adminBillingSubscribersAbortCancel(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersChangePlan is the
 // `admin billing subscribers change-plan` operation.
-func adminBillingSubscribersChangePlan(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersChangePlan(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_change_plan",
 		Title:       "Change a user's plan",
 		Summary:     "Change a user's subscription plan",
 		Description: "Change a user's billing subscription plan. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
-			{Name: "period-id", Type: pinner.ArgTypeInt, Required: true, Help: "Pricing plan period ID"},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
+			{Name: "period-id", Type: opmesh.ArgTypeInt, Required: true, Help: "Pricing plan period ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1385,11 +1385,11 @@ func adminBillingSubscribersChangePlan(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_change_plan: user-id is required")
 			}
-			req := &admin.ChangePlanRequest{PeriodId: pinner.IntArg(input, "period-id", 0)}
+			req := &admin.ChangePlanRequest{PeriodId: opmesh.IntArg(input, "period-id", 0)}
 			return svc.ChangeUserPlan(ctx, uid, req)
 		}),
 	})
@@ -1397,19 +1397,19 @@ func adminBillingSubscribersChangePlan(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersPause is the `admin billing subscribers pause`
 // operation.
-func adminBillingSubscribersPause(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersPause(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_pause",
 		Title:       "Pause a user's subscription",
 		Summary:     "Pause a user's subscription",
 		Description: "Pause a user's billing subscription. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1419,7 +1419,7 @@ func adminBillingSubscribersPause(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_pause: user-id is required")
 			}
@@ -1430,19 +1430,19 @@ func adminBillingSubscribersPause(d AdminDeps) pinner.Operation {
 
 // adminBillingSubscribersResume is the `admin billing subscribers resume`
 // operation.
-func adminBillingSubscribersResume(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingSubscribersResume(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_subscribers_resume",
 		Title:       "Resume a user's subscription",
 		Summary:     "Resume a paused subscription",
 		Description: "Resume a paused billing subscription. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<user-id>",
-		Args: []pinner.OperationArg{
-			{Name: "user-id", Type: pinner.ArgTypeString, Required: true, Help: "User ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "user-id", Type: opmesh.ArgTypeString, Required: true, Help: "User ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -1452,7 +1452,7 @@ func adminBillingSubscribersResume(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			uid := pinner.StrArg(input, "user-id", "")
+			uid := opmesh.StrArg(input, "user-id", "")
 			if uid == "" {
 				return nil, fmt.Errorf("admin_billing_subscribers_resume: user-id is required")
 			}
@@ -1471,16 +1471,16 @@ type BillingOverviewResult struct {
 
 // adminBillingOverview is the `admin billing overview` operation. It aggregates
 // entity counts across the quota and billing services.
-func adminBillingOverview(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminBillingOverview(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "admin_billing_overview",
 		Title:       "Billing overview",
 		Summary:     "Show billing entity overview",
 		Description: "Show an overview of billing entities and their relationship counts. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			billingSvc, err := d.billing()
 			if err != nil {

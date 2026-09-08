@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	ipfs "go.lumeweb.com/ipfs-sdk"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
 	"go.lumeweb.com/pinner/core/ipns"
@@ -199,7 +199,7 @@ func TestENSOperationsInvoke(t *testing.T) {
 		},
 		deleteKey: func(_ context.Context, _ string) error { return nil },
 	}
-	cat := pinner.NewCatalog()
+	cat := opmesh.NewCatalog()
 	for _, op := range ENSOperations(ensDepsFor(t, svc)) {
 		if err := cat.Add(op); err != nil {
 			t.Fatalf("Add(%q): %v", op.Name(), err)
@@ -207,12 +207,12 @@ func TestENSOperationsInvoke(t *testing.T) {
 	}
 
 	t.Run("ens_point requires name and cid", func(t *testing.T) {
-		_, err := cat.Invoke(context.Background(), "ens_point", map[string]any{"name": "vitalik.eth"}, pinner.ActorModel)
+		_, err := cat.Invoke(context.Background(), "ens_point", map[string]any{"name": "vitalik.eth"}, opmesh.ActorModel)
 		require.Error(t, err)
 	})
 
 	t.Run("ens_point success", func(t *testing.T) {
-		res, err := cat.Invoke(context.Background(), "ens_point", map[string]any{"name": "vitalik.eth", "cid": "bafybeigtest"}, pinner.ActorModel)
+		res, err := cat.Invoke(context.Background(), "ens_point", map[string]any{"name": "vitalik.eth", "cid": "bafybeigtest"}, opmesh.ActorModel)
 		require.NoError(t, err)
 		r, ok := res.(*ENSPointResult)
 		require.True(t, ok)
@@ -223,7 +223,7 @@ func TestENSOperationsInvoke(t *testing.T) {
 		// A model agent cannot confirm a destructive delete on its own; the
 		// catalog gate returns ErrConfirmRequired regardless of confirm value
 		// (ens_unpoint's confirm is AgentRequired, not AgentConfirm).
-		_, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth", "confirm": true}, pinner.ActorModel)
+		_, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth", "confirm": true}, opmesh.ActorModel)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "destructive")
 	})
@@ -231,7 +231,7 @@ func TestENSOperationsInvoke(t *testing.T) {
 	t.Run("human unpoint without confirm is rejected", func(t *testing.T) {
 		// A human actor bypasses the model gate but the handler still enforces
 		// confirm; passing false must fail.
-		_, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth", "confirm": false}, pinner.ActorHuman)
+		_, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth", "confirm": false}, opmesh.ActorHuman)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "confirmation is required")
 	})
@@ -241,13 +241,13 @@ func TestENSOperationsInvoke(t *testing.T) {
 		// NOT delete the key: "defaults are filled before the handler runs",
 		// so an omitted confirm resolves to false and the gate fails. This
 		// guards the destructive-op confirmation contract for app/human actors.
-		_, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth"}, pinner.ActorHuman)
+		_, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth"}, opmesh.ActorHuman)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "confirmation is required")
 	})
 
 	t.Run("human unpoint success after confirm", func(t *testing.T) {
-		res, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth", "confirm": true}, pinner.ActorHuman)
+		res, err := cat.Invoke(context.Background(), "ens_unpoint", map[string]any{"name": "vitalik.eth", "confirm": true}, opmesh.ActorHuman)
 		require.NoError(t, err)
 		r, ok := res.(*ENSUnpointResult)
 		require.True(t, ok)

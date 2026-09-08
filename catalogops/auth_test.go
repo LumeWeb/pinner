@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/pinner/catalogmeta"
 	"go.lumeweb.com/pinner/core/auth"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
@@ -178,18 +178,17 @@ func TestPinsServiceExported(t *testing.T) {
 // are declared EnvLocalOnly (valid on the CLI and local MCP, excluded from the
 // hosted surface) while auth_status stays EnvBoth, so hosted mode never
 // advertises credential-mutation ops against shared local config.
+// Post-opmesh-migration the Environment metadata lives on the
+// frontend-metadata boundary (catalogmeta), keyed by the stable operation ID;
+// this test pins the same contract there.
 func TestAuthLoginLogoutEnvironmentLocalOnly(t *testing.T) {
-	envs := map[string]pinner.Environment{}
-	for _, op := range AuthOperations(AuthDeps{}) {
-		envs[op.Name()] = op.Environment()
+	if env := catalogmeta.EnvironmentOf("auth_login"); env != catalogmeta.EnvLocalOnly {
+		t.Errorf("catalogmeta.EnvironmentOf(auth_login) = %v, want EnvLocalOnly", env)
 	}
-	if envs["auth_login"] != pinner.EnvLocalOnly {
-		t.Errorf("auth_login.Environment() = %v, want EnvLocalOnly", envs["auth_login"])
+	if env := catalogmeta.EnvironmentOf("auth_logout"); env != catalogmeta.EnvLocalOnly {
+		t.Errorf("catalogmeta.EnvironmentOf(auth_logout) = %v, want EnvLocalOnly", env)
 	}
-	if envs["auth_logout"] != pinner.EnvLocalOnly {
-		t.Errorf("auth_logout.Environment() = %v, want EnvLocalOnly", envs["auth_logout"])
-	}
-	if envs["auth_status"] != pinner.EnvBoth {
-		t.Errorf("auth_status.Environment() = %v, want EnvBoth", envs["auth_status"])
+	if env := catalogmeta.EnvironmentOf("auth_status"); env != catalogmeta.EnvBoth {
+		t.Errorf("catalogmeta.EnvironmentOf(auth_status) = %v, want EnvBoth", env)
 	}
 }

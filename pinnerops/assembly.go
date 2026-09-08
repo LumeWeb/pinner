@@ -7,7 +7,8 @@ import (
 
 	"github.com/samber/lo"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
+	"go.lumeweb.com/pinner/catalogmeta"
 	"go.lumeweb.com/pinner/catalogops"
 	"go.lumeweb.com/pinner/core/config"
 )
@@ -102,7 +103,7 @@ type CatalogDepsBundle struct {
 // genuinely malformed operation (duplicate name, invalid arg metadata) is
 // surfaced rather than silently dropped, matching how product wiring treats
 // catalog construction.
-func assembleCatalogOps(cat pinner.Catalog, ops []pinner.Operation) error {
+func assembleCatalogOps(cat opmesh.Catalog, ops []opmesh.Operation) error {
 	for _, op := range ops {
 		if err := cat.Add(op); err != nil {
 			return err
@@ -136,16 +137,18 @@ func assembleCatalogOps(cat pinner.Catalog, ops []pinner.Operation) error {
 //
 // A nil bundle is a wiring bug and is rejected here.
 //
-// Note on the return type: pinner.NewCatalog returns the pinner.Catalog
-// interface (its concrete backing type is unexported), so the assembled
-// catalog is returned as the pinner.Catalog interface, which exposes Add for
-// registration and Search/Get/Describe/Invoke for consumption.
-func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (pinner.Catalog, error) {
+// Post-opmesh-migration the assembled catalog is the frontend-clean
+// opmesh.Catalog interface (Add for registration; Search/Get/Describe/Invoke
+// for consumption), built from the catalogops opmesh-native operation
+// definitions. Frontend metadata that used to live on those definitions
+// (Environment carve-outs) is consumed from the catalogmeta boundary package,
+// keyed by the stable operation ID.
+func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (opmesh.Catalog, error) {
 	if deps == nil {
 		return nil, fmt.Errorf("catalog assembly: nil catalog deps bundle")
 	}
 
-	cat := pinner.NewCatalog()
+	cat := opmesh.NewCatalog()
 
 	// Map each catalogops domain to its surface flag. A disabled domain's
 	// operations are never produced, so they are absent from search/describe/
@@ -153,7 +156,7 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (
 	domains := []struct {
 		name    string
 		enabled bool
-		ops     []pinner.Operation
+		ops     []opmesh.Operation
 	}{
 		{"auth", surface.AccountOn(), catalogops.AuthOperations(deps.Auth)},
 		{"account", surface.AccountOn(), catalogops.AccountOperations(deps.Account)},
@@ -170,7 +173,10 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (
 	}
 
 	// An operation's Environment restricts which surfaces may register it.
-	// Hosted mode is a Portal-embedded assembly whose catalog must never
+	// The Environment carve-outs are frontend metadata
+	// (catalogmeta.EnvironmentOf, keyed by the stable operation ID) — the
+	// opmesh core model deliberately carries none. Hosted mode is a
+	// Portal-embedded assembly whose catalog must never
 	// advertise CLI-local complexity (EnvLocalOnly, EnvCLIOnly) — e.g.
 	// auth_login/auth_logout, which mutate shared local config that a stateless
 	// hosted server does not have. The hosted flag is declared explicitly by
@@ -196,13 +202,13 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (
 // excluded (they mutate or depend on shared local config / are CLI frontend
 // only). In CLI/local mode every operation is kept except EnvHostedOnly, which
 // none are declared to be today.
-func filterOpsForEnvironment(ops []pinner.Operation, hosted bool) []pinner.Operation {
-	return lo.Filter(ops, func(op pinner.Operation, _ int) bool {
-		env := op.Environment()
-		if hosted && (env == pinner.EnvCLIOnly || env == pinner.EnvLocalOnly) {
+func filterOpsForEnvironment(ops []opmesh.Operation, hosted bool) []opmesh.Operation {
+	return lo.Filter(ops, func(op opmesh.Operation, _ int) bool {
+		env := catalogmeta.EnvironmentOf(op.Name())
+		if hosted && (env == catalogmeta.EnvCLIOnly || env == catalogmeta.EnvLocalOnly) {
 			return false
 		}
-		if !hosted && env == pinner.EnvHostedOnly {
+		if !hosted && env == catalogmeta.EnvHostedOnly {
 			return false
 		}
 		return true

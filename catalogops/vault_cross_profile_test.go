@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/vault"
 )
 
@@ -44,13 +44,13 @@ func crossProfileProbeDeps(svcA, svcB vault.VaultService) VaultDeps {
 
 func invokeProbe(t *testing.T, deps VaultDeps, name string, input map[string]any) (any, error) {
 	t.Helper()
-	cat := pinner.NewCatalog()
+	cat := opmesh.NewCatalog()
 	for _, op := range VaultOperations(deps) {
 		if err := cat.Add(op); err != nil {
 			t.Fatalf("Add(%q): %v", op.Name(), err)
 		}
 	}
-	return cat.Invoke(context.Background(), name, input, pinner.ActorModel)
+	return cat.Invoke(context.Background(), name, input, opmesh.ActorModel)
 }
 
 // TestCrossProfileProbe_ProfileRequiredRule verifies that on a two-profile
@@ -252,13 +252,13 @@ func TestCrossProfileProbe_SendSchemaRequiresAllFourArgs(t *testing.T) {
 	svcB := vault.NewMockVaultService(t)
 	deps := crossProfileProbeDeps(svcA, svcB)
 
-	cat := pinner.NewCatalog()
+	cat := opmesh.NewCatalog()
 	for _, op := range VaultOperations(deps) {
 		if err := cat.Add(op); err != nil {
 			t.Fatalf("Add(%q): %v", op.Name(), err)
 		}
 	}
-	td, ok := cat.Describe("vault_send", pinner.ActorModel)
+	td, ok := cat.Describe("vault_send", opmesh.ActorModel)
 	require.True(t, ok, "vault_send not described")
 	var parsed struct {
 		Required []string `json:"required"`

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/portal-sdk/admin"
 )
 
@@ -28,17 +28,17 @@ type AdminPlatformDomainsListResult struct {
 }
 
 // adminPlatformDomainsList is the `admin platform-domains list` operation.
-func adminPlatformDomainsList(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminPlatformDomainsList(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminPlatformDomainsList,
 		Title:       "List platform domains",
 		Summary:     "List registered platform domains",
 		Description: "List all registered platform-owned root domains that users can claim free subdomains under, including disabled ones. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args:        pinner.ListArgs(),
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.platformDomains()
 			if err != nil {
@@ -51,7 +51,7 @@ func adminPlatformDomainsList(d AdminDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			return platformDomainsListResult(slicePage(domains, page.Start, page.Limit)), nil
 		}),
 	})
@@ -59,24 +59,24 @@ func adminPlatformDomainsList(d AdminDeps) pinner.Operation {
 
 // adminPlatformDomainsRegister is the `admin platform-domains register`
 // operation.
-func adminPlatformDomainsRegister(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminPlatformDomainsRegister(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminPlatformDomainsRegister,
 		Title:       "Register a platform domain",
 		Summary:     "Register a platform-owned root domain",
 		Description: "Register a platform-owned root domain that users can claim free subdomains under, e.g. pinned.site. The namespace defaults to hns when omitted; pass icann for a traditional DNS root. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Platform root domain, e.g. pinned.site", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Platform root domain, e.g. pinned.site"},
 			// Optional: the backend defaults omitted namespaces to hns.
-			{Name: "namespace", Type: pinner.ArgTypeString, Required: false, Help: "Domain namespace (default hns): icann or hns", PositionalOnly: true},
+			{Name: "namespace", Type: opmesh.ArgTypeString, Required: false, Help: "Domain namespace (default hns): icann or hns"},
 			// Nullable so an omitted flag leaves Enabled nil (backend default)
 			// rather than forcing false; an explicit --enabled=false disables.
-			{Name: "enabled", Type: pinner.ArgTypeNullableBool, Required: false, Help: "Enable the platform domain so users can claim subdomains under it"},
+			{Name: "enabled", Type: opmesh.ArgTypeNullableBool, Required: false, Help: "Enable the platform domain so users can claim subdomains under it"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.platformDomains()
@@ -86,17 +86,17 @@ func adminPlatformDomainsRegister(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domain := pinner.StrArg(input, "domain", "")
+			domain := opmesh.StrArg(input, "domain", "")
 			if domain == "" {
 				return nil, fmt.Errorf("admin_platform_domains_register: domain is required")
 			}
 			req := &admin.PlatformDomainRequest{Domain: domain}
 			// Namespace is optional: the backend defaults an omitted namespace
 			// to hns, so nil is passed through unchanged when not supplied.
-			if namespace := pinner.StrArg(input, "namespace", ""); namespace != "" {
+			if namespace := opmesh.StrArg(input, "namespace", ""); namespace != "" {
 				req.Namespace = &namespace
 			}
-			if enabled := pinner.BoolArgPtr(input, "enabled"); enabled != nil {
+			if enabled := opmesh.BoolArgPtr(input, "enabled"); enabled != nil {
 				req.Enabled = enabled
 			}
 			return svc.RegisterPlatformDomain(ctx, req)
@@ -105,20 +105,20 @@ func adminPlatformDomainsRegister(d AdminDeps) pinner.Operation {
 }
 
 // adminPlatformDomainsUpdate is the `admin platform-domains update` operation.
-func adminPlatformDomainsUpdate(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminPlatformDomainsUpdate(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminPlatformDomainsUpdate,
 		Title:       "Update a platform domain",
 		Summary:     "Enable or disable a platform domain",
 		Description: "Enable or disable a registered platform root. Disabling prevents new claims but does not delete existing bindings. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Platform domain ID", PositionalOnly: true},
-			{Name: "enabled", Type: pinner.ArgTypeBool, Required: true, Help: "Enable (true) or disable (false) the platform domain"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Platform domain ID"},
+			{Name: "enabled", Type: opmesh.ArgTypeBool, Required: true, Help: "Enable (true) or disable (false) the platform domain"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.platformDomains()
@@ -128,11 +128,11 @@ func adminPlatformDomainsUpdate(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_platform_domains_update: platform domain ID is required")
 			}
-			req := &admin.PlatformDomainUpdateRequest{Enabled: pinner.BoolArg(input, "enabled", false)}
+			req := &admin.PlatformDomainUpdateRequest{Enabled: opmesh.BoolArg(input, "enabled", false)}
 			return svc.UpdatePlatformDomain(ctx, id, req)
 		}),
 	})
@@ -147,23 +147,23 @@ type AdminPlatformDomainsDeleteResult struct {
 
 // adminPlatformDomainsDelete is the `admin platform-domains delete` operation.
 // DESTRUCTIVE: requires confirm=true.
-func adminPlatformDomainsDelete(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminPlatformDomainsDelete(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminPlatformDomainsDelete,
 		Title:       "Delete a platform domain",
 		Summary:     "Delete a registered platform domain",
 		Description: "Remove a registered platform root. Existing subdomain bindings remain but can no longer be reconciled as platform subdomains. DESTRUCTIVE and irreversible: requires confirm=true. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Platform domain ID", PositionalOnly: true},
-			{Name: "confirm", Type: pinner.ArgTypeBool, AgentRequired: true, Help: "Confirm the destructive delete", AgentHelp: "Must be true to delete the platform domain; this is destructive and cannot be undone. Only a human sets this on confirmation; a model alone cannot confirm a destructive delete."},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Platform domain ID"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, AgentRequired: true, Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("admin_platform_domains_delete: confirmation is required to delete the platform domain")
 			}
 			svc, err := d.platformDomains()
@@ -173,7 +173,7 @@ func adminPlatformDomainsDelete(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_platform_domains_delete: platform domain ID is required")
 			}
@@ -186,20 +186,20 @@ func adminPlatformDomainsDelete(d AdminDeps) pinner.Operation {
 }
 
 // adminPlatformDomainsBind is the `admin platform-domains bind` operation.
-func adminPlatformDomainsBind(d AdminDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func adminPlatformDomainsBind(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        OpAdminPlatformDomainsBind,
 		Title:       "Bind a website to a platform domain",
 		Summary:     "Bind an operator-owned website to a platform domain",
-		Description: "Bind an operator-owned website directly to the root apex of a platform domain (e.g. pinner.site). The platform root's DNS zone is auto-created on first use. Requires admin privileges.",
+		Description: "Bind an operator-owned website directly to the root apex of a platform domain (e.g. opmesh.site). The platform root's DNS zone is auto-created on first use. Requires admin privileges.",
 		Category:    "admin",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "Platform domain ID", PositionalOnly: true},
-			{Name: "website-id", Type: pinner.ArgTypeInt, Required: true, Help: "ID of the operator-owned website to bind"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Platform domain ID"},
+			{Name: "website-id", Type: opmesh.ArgTypeInt, Required: true, Help: "ID of the operator-owned website to bind"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.platformDomains()
@@ -209,11 +209,11 @@ func adminPlatformDomainsBind(d AdminDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("admin_platform_domains_bind: platform domain ID is required")
 			}
-			websiteID := pinner.IntArg(input, "website-id", 0)
+			websiteID := opmesh.IntArg(input, "website-id", 0)
 			if websiteID == 0 {
 				return nil, fmt.Errorf("admin_platform_domains_bind: website-id is required")
 			}

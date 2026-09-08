@@ -21,7 +21,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/vault"
 )
 
@@ -133,10 +133,10 @@ func withService(ctx context.Context, d VaultDeps, input map[string]any, fn func
 	// A multi-profile server must never silently target the active vault for a
 	// profile-scoped op that lacks an explicit profile (the same not-found bug
 	// class as vault_status before the guard). withService backs the tag ops.
-	if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+	if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 		return pr, nil
 	}
-	profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+	profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 	if err != nil {
 		return nil, err
 	}
@@ -150,8 +150,8 @@ func withService(ctx context.Context, d VaultDeps, input map[string]any, fn func
 
 // VaultOperations returns the catalog operations for the vault domain that can
 // be represented as data-returning handlers driving core services.
-func VaultOperations(d VaultDeps) []pinner.Operation {
-	return []pinner.Operation{
+func VaultOperations(d VaultDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		vaultStatus(d),
 		vaultLs(d),
 		vaultStat(d),
@@ -183,25 +183,25 @@ func VaultOperations(d VaultDeps) []pinner.Operation {
 // vault status
 // ---------------------------------------------------------------------------
 
-func vaultStatus(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultStatus(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_status",
 		Title:       "Vault status",
 		Summary:     "Show vault profile status",
 		Description: "Summarize identity, local session, remote health, storage usage, and cache health for the selected vault profile. Remote health is probed live against the indexer; local cache stats come from the profile's index. Writing new files is done via vault_put_file (and the co-located/remote/mint source it accepts); tags/version operations are exposed by vault_tag_* and vault_version_*. The read-only operations on this catalog are ls/stat/verify/sync/share/rm.",
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -221,30 +221,30 @@ func vaultStatus(d VaultDeps) pinner.Operation {
 // vault ls
 // ---------------------------------------------------------------------------
 
-func vaultLs(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultLs(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_ls",
 		Title:       "List vault files",
 		Summary:     "List files and directories in the vault",
 		Description: "List files and directories at the given vault path (name, type, size, and created time). If no path is provided, lists the root directory. Lists one level only (no recursion).",
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Help: "Vault path to list (e.g. vault:/reports; defaults to the root)", AgentHelp: "The vault path to list. Append a trailing slash (vault:/a/b/) to list a subdirectory; without it, a non-root path is assumed to be a file path and lists the parent. If the directory is empty, the tool auto-retries as a directory."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Help: "Vault path to list (e.g. vault:/reports; defaults to the root)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				vaultPath = vault.VaultRoot
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -263,33 +263,30 @@ func vaultLs(d VaultDeps) pinner.Operation {
 // vault stat
 // ---------------------------------------------------------------------------
 
-func vaultStat(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultStat(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_stat",
 		Title:       "Show vault file metadata",
 		Summary:     "Show file or directory metadata",
 		Description: "Show metadata for a single vault path: type, size, media type, content digest, and object ID. Returns metadata only and does NOT stream file content.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Show metadata for a single vault path: type, size, media type, content digest, object ID, and current status (staged | flushing | durable | failed). Returns metadata only, never the content. While a file is not yet durable (staged/flushing/failed) the result carries flush_attempts, flush_error and flush_started_at: a flushing file shows a flush_started_at and a rising flush_attempts with no error, a failed file shows flush_attempts plus a non-empty flush_error, and a staged file that has never started shows zero attempts/no error and an empty flush_started_at. Compare now against flush_started_at to tell a long-but-progressing host upload from a hung pin. Once durable, these fields are omitted."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path to stat", AgentHelp: "The vault:/ path to report on."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path to stat"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				return nil, fmt.Errorf("vault_stat: missing required argument path")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -308,34 +305,31 @@ func vaultStat(d VaultDeps) pinner.Operation {
 // vault verify
 // ---------------------------------------------------------------------------
 
-func vaultVerify(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultVerify(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_verify",
 		Title:       "Verify vault file integrity",
 		Summary:     "Verify content integrity of a vault file",
 		Description: "Check a vault file's integrity: verifies its recorded SHA-256 digest matches and that the object exists on the Sia indexer. Returns an OK/FAIL result with digest and object facts. Does NOT stream or return file content.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Verify a vault file's integrity: checks that the object exists on the Sia indexer and compares the recorded SHA-256 digest. Returns digest_verified (verified/unverified/mismatch/not_applicable), digest_match, object_exists, and the recorded digest. An accepted share or vault_send has no digest until first decrypt/get/deep verify; in that state digest_verified is 'not_applicable' (a neutral no-verdict-yet — NOT a failure), so treat the pin as successful and resolve the digest on first get or a deep=true verify. Use deep=true to download the full content, recompute the hash, and backfill the digest if missing. Does NOT stream or return file content."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path to verify", AgentHelp: "The vault:/ path to verify."},
-			{Name: "deep", Type: pinner.ArgTypeBool, Default: "false", Help: "Download the full object and recompute SHA-256 (true integrity check; transfers the whole file)"},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path to verify"},
+			{Name: "deep", Type: opmesh.ArgTypeBool, Default: "false", Help: "Download the full object and recompute SHA-256 (true integrity check; transfers the whole file)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				return nil, fmt.Errorf("vault_verify: missing required argument path")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -344,7 +338,7 @@ func vaultVerify(d VaultDeps) pinner.Operation {
 				return nil, err
 			}
 			defer svc.Close()
-			if pinner.BoolArg(input, "deep", false) {
+			if opmesh.BoolArg(input, "deep", false) {
 				// *vault.VerifyResult (full-content deep check)
 				return svc.VerifyDeep(ctx, vaultPath)
 			}
@@ -395,30 +389,30 @@ type VaultVersionRestoreResult struct {
 	Size          int64  `json:"size"`
 }
 
-func vaultVersionLs(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultVersionLs(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_version_ls",
 		Title:       "List vault file versions",
 		Summary:     "List version history of a vault file",
 		Description: "List every stored version of a vault file, newest first (seq descending). Each version carries its version_id, size, digest, and whether it is the current live winner. Overwrites preserve prior content as versions, so this surfaces the file's full history.\n\nTo retrieve an old version's content, pass its version_id to vault_version_get (metadata) or use vault cat with a version id. To restore an old version as the new current, use vault_version_restore.",
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path whose versions to list", AgentHelp: "The vault:/ path whose version history to list."},
-			pinner.OperationArg{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path whose versions to list"},
+			opmesh.OperationArg{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				return nil, fmt.Errorf("vault_version_ls: missing required argument path")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -446,7 +440,7 @@ func vaultVersionLs(d VaultDeps) pinner.Operation {
 				})
 			}
 			totalVersions := len(items)
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			items = slicePage(items, page.Start, page.Limit)
 			headers := []string{"Version ID", "Seq", "Current", "Size", "Updated"}
 			rows := make([][]string, 0, len(items))
@@ -464,32 +458,32 @@ func vaultVersionLs(d VaultDeps) pinner.Operation {
 	})
 }
 
-func vaultVersionGet(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultVersionGet(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_version_get",
 		Title:       "Get vault file version",
 		Summary:     "Get metadata for one version of a vault file",
 		Description: "Return the metadata record (size, digest, object id, created time) for a specific version of a vault file, addressed by its version_id (obtainable from vault_version_ls). Read-only; does not stream content.\n\nTo get the CONTENT of a historical version, use vault cat with the version id on the path.",
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path> <version_id>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path of the file", AgentHelp: "The vault:/ path of the file."},
-			{Name: "version_id", Type: pinner.ArgTypeString, Required: true, Help: "Version id to inspect (from vault_version_ls)", AgentHelp: "The version_id to inspect (from vault_version_ls)."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path of the file"},
+			{Name: "version_id", Type: opmesh.ArgTypeString, Required: true, Help: "Version id to inspect (from vault_version_ls)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
-			versionID := pinner.StrArg(input, "version_id", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
+			versionID := opmesh.StrArg(input, "version_id", "")
 			if vaultPath == "" || versionID == "" {
 				return nil, fmt.Errorf("vault_version_get: missing required argument (path, version_id)")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -520,36 +514,36 @@ func vaultVersionGet(d VaultDeps) pinner.Operation {
 	})
 }
 
-func vaultVersionRestore(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultVersionRestore(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_version_restore",
 		Title:       "Restore a vault file version",
 		Summary:     "Restore an old version as the current file",
 		Description: "Restore a specific historical version of a vault file as the new live current version. The old version's content is copied and re-uploaded as a NEW version (the current winner is replaced; all prior versions, including the one restored, remain in history). Requires confirm=true (destructive to the current live content).",
 		Category:    "vault",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path> <version_id>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path of the file", AgentHelp: "The vault:/ path of the file to restore into."},
-			{Name: "version_id", Type: pinner.ArgTypeString, Required: true, Help: "Version id to restore (from vault_version_ls)", AgentHelp: "The version_id to restore (from vault_version_ls)."},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Default: "false", Required: true, AgentConfirm: true, Help: "Must be true to restore (destructive to current content)", AgentHelp: "Set to true to confirm the destructive restore. An agent may self-confirm this restore headlessly with confirm=true."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path of the file"},
+			{Name: "version_id", Type: opmesh.ArgTypeString, Required: true, Help: "Version id to restore (from vault_version_ls)"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Default: "false", Required: true, AgentConfirm: true, Help: "Must be true to restore (destructive to current content)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
-			versionID := pinner.StrArg(input, "version_id", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
+			versionID := opmesh.StrArg(input, "version_id", "")
 			if vaultPath == "" || versionID == "" {
 				return nil, fmt.Errorf("vault_version_restore: missing required argument (path, version_id)")
 			}
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("vault_version_restore: confirm=true is required (restore is destructive to current live content)")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -607,43 +601,43 @@ type vaultItem struct {
 	Agent  string   `json:"agent,omitempty"`
 }
 
-func vaultSearch(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultSearch(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_search",
 		Title:       "Search vault files",
 		Summary:     "Search vault files by name, tag, status, or write context",
 		Description: "Search vault files by name and metadata.\n\nquery is a filename substring. It is not a query language. Filter with parameters: tag (repeat for AND), tag_any, status, not_status, source, host, agent, since, before, dir, and the structured `where` predicate list.\n\nwhere is an ANDed list of predicates; a field value that is a list is OR/IN on that field. Each object carries ONE field key (or not).\n\nExamples:\n  vault search report --tag finance --host claude-desktop\n  vault search \"q4 invoice\" --since 2024-01-01 --dir reports/\n  vault search --status failed --tag legal\n  vault search --where '[{\"tag\":[\"finance\",\"tax\"]},{\"host\":\"claude-desktop\"}]'",
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: []pinner.OperationArg{
-			{Name: "query", Type: pinner.ArgTypeString, Help: "Case-insensitive substring of the file name", AgentHelp: "A substring of the file name to match (case-insensitive)."},
-			{Name: "tag", Type: pinner.ArgTypeStringSlice, Help: "Require ALL of these tags (repeatable; AND)", AgentHelp: "One or more tags; a file must have all of them. Repeat for multiple."},
-			{Name: "tag_any", Type: pinner.ArgTypeStringSlice, Help: "Require ANY of these tags (list = OR/IN)", AgentHelp: "A file must have at least one of these tags."},
-			{Name: "dir", Type: pinner.ArgTypeString, Help: "Restrict to files under this vault directory", AgentHelp: "A vault directory to restrict results to (inclusive)."},
-			{Name: "status", Type: pinner.ArgTypeString, Enum: []string{"staged", "flushing", "durable", "failed", "pending", "ok", "uploaded", "lost"}, Help: "Only files with this status (staged|flushing|durable|failed; legacy ok/pending/lost accepted)"},
-			{Name: "not_status", Type: pinner.ArgTypeString, Enum: []string{"staged", "flushing", "durable", "failed", "pending", "ok", "uploaded", "lost"}, Help: "Only files NOT with this status (staged|flushing|durable|failed; legacy ok/pending/lost accepted)"},
-			{Name: "since", Type: pinner.ArgTypeString, Help: "Only files created at/after this time (RFC3339 or YYYY-MM-DD)"},
-			{Name: "before", Type: pinner.ArgTypeString, Help: "Only files created before this time (RFC3339 or YYYY-MM-DD)"},
-			{Name: "source", Type: pinner.ArgTypeString, Enum: []string{"mcp", "cli"}, Help: "Only files written by this frontend (mcp|cli)"},
-			{Name: "source_any", Type: pinner.ArgTypeStringSlice, Help: "Any of these frontends (mcp|cli)"},
-			{Name: "host", Type: pinner.ArgTypeString, Help: "Only files written from this host platform (e.g. claude-desktop)"},
-			{Name: "host_any", Type: pinner.ArgTypeStringSlice, Help: "Any of these host platforms"},
-			{Name: "agent", Type: pinner.ArgTypeString, Help: "Only files whose creator agent matches"},
-			{Name: "agent_any", Type: pinner.ArgTypeStringSlice, Help: "Any of these creator agents"},
-			{Name: "where", Type: pinner.ArgTypeRawJSON, RawSchema: vaultSearchWhereSchema, Help: "Structured ANDed predicate list (JSON; --where)", AgentHelp: "A list of predicates to filter by. Items are ANDed. Each object has exactly one field (or not): tag/status/source/host/agent/dir accept a string OR a list (a list means match ANY of them); since/before are scalar times (RFC3339 or YYYY-MM-DD)."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to the active profile)"},
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: []opmesh.OperationArg{
+			{Name: "query", Type: opmesh.ArgTypeString, Help: "Case-insensitive substring of the file name"},
+			{Name: "tag", Type: opmesh.ArgTypeStringSlice, Help: "Require ALL of these tags (repeatable; AND)"},
+			{Name: "tag_any", Type: opmesh.ArgTypeStringSlice, Help: "Require ANY of these tags (list = OR/IN)"},
+			{Name: "dir", Type: opmesh.ArgTypeString, Help: "Restrict to files under this vault directory"},
+			{Name: "status", Type: opmesh.ArgTypeString, Enum: []string{"staged", "flushing", "durable", "failed", "pending", "ok", "uploaded", "lost"}, Help: "Only files with this status (staged|flushing|durable|failed; legacy ok/pending/lost accepted)"},
+			{Name: "not_status", Type: opmesh.ArgTypeString, Enum: []string{"staged", "flushing", "durable", "failed", "pending", "ok", "uploaded", "lost"}, Help: "Only files NOT with this status (staged|flushing|durable|failed; legacy ok/pending/lost accepted)"},
+			{Name: "since", Type: opmesh.ArgTypeString, Help: "Only files created at/after this time (RFC3339 or YYYY-MM-DD)"},
+			{Name: "before", Type: opmesh.ArgTypeString, Help: "Only files created before this time (RFC3339 or YYYY-MM-DD)"},
+			{Name: "source", Type: opmesh.ArgTypeString, Enum: []string{"mcp", "cli"}, Help: "Only files written by this frontend (mcp|cli)"},
+			{Name: "source_any", Type: opmesh.ArgTypeStringSlice, Help: "Any of these frontends (mcp|cli)"},
+			{Name: "host", Type: opmesh.ArgTypeString, Help: "Only files written from this host platform (e.g. claude-desktop)"},
+			{Name: "host_any", Type: opmesh.ArgTypeStringSlice, Help: "Any of these host platforms"},
+			{Name: "agent", Type: opmesh.ArgTypeString, Help: "Only files whose creator agent matches"},
+			{Name: "agent_any", Type: opmesh.ArgTypeStringSlice, Help: "Any of these creator agents"},
+			{Name: "where", Type: opmesh.ArgTypeRawJSON, RawSchema: vaultSearchWhereSchema, Help: "Structured ANDed predicate list (JSON; --where)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to the active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			preds, err := vaultSearchPredicates(input)
 			if err != nil {
 				return nil, err
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -653,7 +647,7 @@ func vaultSearch(d VaultDeps) pinner.Operation {
 			}
 			defer svc.Close()
 			items, err := svc.Search(ctx, vault.SearchRequest{
-				Query: pinner.StrArg(input, "query", ""),
+				Query: opmesh.StrArg(input, "query", ""),
 				Where: preds,
 			})
 			if err != nil {
@@ -665,7 +659,7 @@ func vaultSearch(d VaultDeps) pinner.Operation {
 				paths = append(paths, it.Path)
 				detail[it.Path] = vaultItem{Path: it.Path, Size: it.Size, Tags: it.Tags, Source: it.Source, Host: it.Host, Agent: it.Agent}
 			}
-			return &VaultSearchResult{Query: pinner.StrArg(input, "query", ""), Count: len(items), Results: paths, Detail: detail}, nil
+			return &VaultSearchResult{Query: opmesh.StrArg(input, "query", ""), Count: len(items), Results: paths, Detail: detail}, nil
 		}),
 	})
 }
@@ -716,58 +710,58 @@ func buildWhereSchema() json.RawMessage {
 func vaultSearchPredicates(input map[string]any) ([]vault.Predicate, error) {
 	var preds []vault.Predicate
 	// --tag: each value becomes its own scalar predicate -> AND across repeats.
-	for _, t := range pinner.StrSliceArg(input, "tag") {
+	for _, t := range opmesh.StrSliceArg(input, "tag") {
 		if t != "" {
 			preds = append(preds, vault.Predicate{Tag: []string{t}})
 		}
 	}
 	// --tag-any: one predicate with a list -> OR/IN on the tag field.
-	if any := pinner.StrSliceArg(input, "tag_any"); len(any) > 0 {
+	if any := opmesh.StrSliceArg(input, "tag_any"); len(any) > 0 {
 		preds = append(preds, vault.Predicate{Tag: any})
 	}
 	// --host / --host-any. host/source/agent are scalar ArgTypeString args, so
 	// they must be read with StrArg (StrSliceArg returns nil for a scalar,
 	// which silently dropped these filters) and wrapped in a one-element slice.
-	if h := pinner.StrArg(input, "host", ""); h != "" {
+	if h := opmesh.StrArg(input, "host", ""); h != "" {
 		preds = append(preds, vault.Predicate{Host: []string{h}})
 	}
-	if any := pinner.StrSliceArg(input, "host_any"); len(any) > 0 {
+	if any := opmesh.StrSliceArg(input, "host_any"); len(any) > 0 {
 		preds = append(preds, vault.Predicate{Host: any})
 	}
 	// --source / --source-any. Source is lowercased to match the stored
 	// write-context values ("mcp"/"cli"): the enum gate accepts any case via
 	// EqualFold, but columnFilter matches case-sensitively, so an uppercase
 	// --source MCP would otherwise pass validation yet match no rows.
-	if s := strings.ToLower(pinner.StrArg(input, "source", "")); s != "" {
+	if s := strings.ToLower(opmesh.StrArg(input, "source", "")); s != "" {
 		preds = append(preds, vault.Predicate{Source: []string{s}})
 	}
-	if any := pinner.StrSliceArg(input, "source_any"); len(any) > 0 {
+	if any := opmesh.StrSliceArg(input, "source_any"); len(any) > 0 {
 		preds = append(preds, vault.Predicate{Source: lo.Map(any, func(v string, _ int) string { return strings.ToLower(v) })})
 	}
 	// --agent / --agent-any.
-	if a := pinner.StrArg(input, "agent", ""); a != "" {
+	if a := opmesh.StrArg(input, "agent", ""); a != "" {
 		preds = append(preds, vault.Predicate{Agent: []string{a}})
 	}
-	if any := pinner.StrSliceArg(input, "agent_any"); len(any) > 0 {
+	if any := opmesh.StrSliceArg(input, "agent_any"); len(any) > 0 {
 		preds = append(preds, vault.Predicate{Agent: any})
 	}
 	// --dir.
-	if d := pinner.StrArg(input, "dir", ""); d != "" {
+	if d := opmesh.StrArg(input, "dir", ""); d != "" {
 		preds = append(preds, vault.Predicate{Dir: []string{d}})
 	}
 	// --status (lowercased to match the catalog enum gate).
-	if st := strings.ToLower(pinner.StrArg(input, "status", "")); st != "" {
+	if st := strings.ToLower(opmesh.StrArg(input, "status", "")); st != "" {
 		preds = append(preds, vault.Predicate{Status: []string{st}})
 	}
 	// --not-status.
-	if ns := strings.ToLower(pinner.StrArg(input, "not_status", "")); ns != "" {
+	if ns := strings.ToLower(opmesh.StrArg(input, "not_status", "")); ns != "" {
 		preds = append(preds, vault.Predicate{Not: &vault.Predicate{Status: []string{ns}}})
 	}
 	// --since / --before (validated at compile in Search).
-	if since := pinner.StrArg(input, "since", ""); since != "" {
+	if since := opmesh.StrArg(input, "since", ""); since != "" {
 		preds = append(preds, vault.Predicate{Since: since})
 	}
-	if before := pinner.StrArg(input, "before", ""); before != "" {
+	if before := opmesh.StrArg(input, "before", ""); before != "" {
 		preds = append(preds, vault.Predicate{Before: before})
 	}
 	// --where / MCP where: ANDed with the flag predicates.
@@ -781,25 +775,25 @@ func vaultSearchPredicates(input map[string]any) ([]vault.Predicate, error) {
 	return preds, nil
 }
 
-func vaultTagAdd(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultTagAdd(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_tag_add",
 		Title:       "Add tags to a vault file",
 		Summary:     "Add tags to a vault file (durable)",
 		Description: "Add one or more tags to a vault file. Durable: tags are written to the Sia object's sealed metadata (in-place re-pin at the same content address) AND the local tag index, so they sync to every device without creating a new version. Repeat the --tag flag for multiple tags. Tags are normalized (lowercased, deduped).",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path to tag", AgentHelp: "The vault:/ path of the file to tag."},
-			{Name: "tags", Type: pinner.ArgTypeStringSlice, Required: true, Help: "Tag(s) to add (repeatable)", AgentHelp: "One or more tags to add to the file."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path to tag"},
+			{Name: "tags", Type: opmesh.ArgTypeStringSlice, Required: true, Help: "Tag(s) to add (repeatable)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
-			tags := pinner.StrSliceArg(input, "tags")
+			vaultPath := opmesh.StrArg(input, "path", "")
+			tags := opmesh.StrSliceArg(input, "tags")
 			if vaultPath == "" || len(tags) == 0 {
 				return nil, fmt.Errorf("vault_tag_add: missing required argument (path, tags)")
 			}
@@ -814,25 +808,25 @@ func vaultTagAdd(d VaultDeps) pinner.Operation {
 	})
 }
 
-func vaultTagRm(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultTagRm(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_tag_rm",
 		Title:       "Remove tags from a vault file",
 		Summary:     "Remove tags from a vault file (durable)",
 		Description: "Remove one or more tags from a vault file. Durable (same re-pin-and-write path as vault_tag_add). Tags that become unused by any file are pruned from the tag index. Repeat --tag for multiple tags.",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path", AgentHelp: "The vault:/ path of the file."},
-			{Name: "tags", Type: pinner.ArgTypeStringSlice, Required: true, Help: "Tag(s) to remove (repeatable)", AgentHelp: "One or more tags to remove from the file."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path"},
+			{Name: "tags", Type: opmesh.ArgTypeStringSlice, Required: true, Help: "Tag(s) to remove (repeatable)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
-			tags := pinner.StrSliceArg(input, "tags")
+			vaultPath := opmesh.StrArg(input, "path", "")
+			tags := opmesh.StrSliceArg(input, "tags")
 			if vaultPath == "" || len(tags) == 0 {
 				return nil, fmt.Errorf("vault_tag_rm: missing required argument (path, tags)")
 			}
@@ -847,28 +841,28 @@ func vaultTagRm(d VaultDeps) pinner.Operation {
 	})
 }
 
-func vaultTagSet(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultTagSet(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_tag_set",
 		Title:       "Set tags on a vault file",
 		Summary:     "Replace a vault file's full tag set (durable)",
 		Description: "Replace a vault file's tag set with exactly the given tags (remove-all-then-add). Durable (same re-pin-and-write path as vault_tag_add). Pass an empty set to clear all tags. Repeat --tag for multiple tags.",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path", AgentHelp: "The vault:/ path of the file."},
-			{Name: "tags", Type: pinner.ArgTypeStringSlice, Help: "Full tag set (repeatable; empty clears all)", AgentHelp: "The exact tag set; omit to clear all tags."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path"},
+			{Name: "tags", Type: opmesh.ArgTypeStringSlice, Help: "Full tag set (repeatable; empty clears all)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				return nil, fmt.Errorf("vault_tag_set: missing required argument path")
 			}
-			tags := pinner.StrSliceArg(input, "tags")
+			tags := opmesh.StrSliceArg(input, "tags")
 			return withService(ctx, d, input, func(ctx context.Context, svc vault.VaultService) (any, error) {
 				f, err := svc.SetTags(ctx, vaultPath, tags)
 				if err != nil {
@@ -880,18 +874,18 @@ func vaultTagSet(d VaultDeps) pinner.Operation {
 	})
 }
 
-func vaultTagLs(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultTagLs(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_tag_ls",
 		Title:       "List vault tags",
 		Summary:     "List every distinct tag in use",
 		Description: "List every distinct tag currently in use across the vault, ordered most-recently-used first. Read-only. Use with vault_search --tag to find 'everything tagged X'.",
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			return withService(ctx, d, input, func(ctx context.Context, svc vault.VaultService) (any, error) {
@@ -899,7 +893,7 @@ func vaultTagLs(d VaultDeps) pinner.Operation {
 				if err != nil {
 					return nil, err
 				}
-				page := pinner.ParseList(input)
+				page := opmesh.ParseList(input)
 				items := slicePage(tags, page.Start, page.Limit)
 				headers := []string{"Tag"}
 				rows := make([][]string, 0, len(items))
@@ -924,40 +918,40 @@ type VaultRmResult struct {
 	Deleted string `json:"deleted"`
 }
 
-func vaultRm(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultRm(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_rm",
 		Title:       "Delete a vault file",
 		Summary:     "Delete a file from the vault",
 		Description: "Permanently delete a file from the vault: removes it from both the local vault database and the Sia indexer. DESTRUCTIVE and irreversible: requires confirm=true. Targets a single file path.",
 		Category:    "vault",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path to delete", AgentHelp: "The vault:/ path of the file to delete."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to the active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path to delete"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to the active profile)"},
 			// confirm is required on the surface and enforced here so any
 			// caller (CLI --force gate, programmatic, or MCP) must confirm
 			// before a file is irreversibly removed.
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive delete", AgentHelp: "Must be true to delete the file; this is destructive and cannot be undone."},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				return nil, fmt.Errorf("vault_rm: missing required argument path")
 			}
 			// The CLI wiring maps --force to confirm; enforcing here guards
 			// programmatic/MCP callers who bypass the CLI gate from deleting a
 			// file with no confirmation state effective.
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("vault_rm: confirmation is required to remove the file")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -985,25 +979,25 @@ type VaultSyncResult struct {
 	EventsProcessed int `json:"events_processed"`
 }
 
-func vaultSync(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultSync(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_sync",
 		Title:       "Sync vault cache from indexer",
 		Summary:     "Sync local vault cache from indexer",
 		Description: "Pull incremental changes from the Sia indexer into the local vault cache using an event cursor. Loops while a fetched batch is full so the cache converges even when >100 changes accumulate. Returns the number of events processed. Does NOT upload or delete any files.",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -1063,33 +1057,30 @@ type VaultFlushResult struct {
 	Flushed int `json:"flushed,omitempty"`
 }
 
-func vaultFlush(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultFlush(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_flush",
 		Title:       "Flush staged vault files to durable storage",
 		Summary:     "Upload and pin pending vault files",
 		Description: "Upload and pin staged vault files so they become durable on Sia. vault_put_file stages bytes locally and returns immediately; this packs the staged bytes into shared slabs, uploads and pins them, and marks the rows durable. Flush all staged files, or a single path via the path argument. The flush runs on a per-profile flush worker: this tool returns immediately with an accepted job { job_id, profile, path? } — poll vault_flush_status(job_id) or vault_stat until status is durable before sharing a freshly written file (a share link requires a durable object).",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Make staged vault files durable on Sia. vault_put_file returns before bytes are on Sia (status: staged); call this to kick off upload + pin. Flush all staged files by default, or pass path to flush a single file. This tool is non-blocking and runs on a per-profile flush worker (one worker goroutine per profile, never a shared global queue). It returns a job { job_id, profile, path? } with status accepted — poll vault_flush_status(job_id) or vault_stat until status is durable, then vault_share. A full host-set upload takes time, so the immediate accepted response is not completion. If a file stays non-durable across polls, vault_stat's flush_started_at, flush_attempts and flush_error describe its progress: a flushing file shows a flush_started_at and a rising flush_attempts with no error, a failed file shows flush_attempts plus a non-empty flush_error, and a staged file that never started shows zero attempts/no error and an empty flush_started_at. Comparing now against flush_started_at distinguishes a long-but-progressing host upload from a hung pin."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "[<path>]",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Help: "Vault path to flush (flush only this file if set; otherwise flush every staged file)", AgentHelp: "An optional vault:/ path restricting the flush to a single file; when omitted, every staged file is flushed."},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Help: "Vault path to flush (flush only this file if set; otherwise flush every staged file)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
-			path := pinner.StrArg(input, "path", "")
+			path := opmesh.StrArg(input, "path", "")
 
 			// Per-profile flush manager path (default when wired): Enqueue is the
 			// ONLY launch — do NOT also spawn a detached goroutine (that would
@@ -1184,25 +1175,22 @@ type VaultFlushJobStatus struct {
 	StartedAt string `json:"started_at,omitempty"`
 }
 
-func vaultFlushStatus(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultFlushStatus(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_flush_status",
 		Title:       "Vault flush job status",
 		Summary:     "Check the status of a vault_flush job",
 		Description: "Return the current status of a flush job previously accepted by vault_flush, addressed by its job_id. Status is queued (accepted, not started), running (the per-profile worker is flushing), done (all targeted staged files became durable; flushed reports the count), or failed (the flush errored; error explains why). A running job carries started_at (RFC3339) so a swarm can detect a hung pin by elapsed time; read vault_stat's flush_started_at / flush_attempts / flush_error on the file for the underlying state. Read-only.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Check the status of a flush job accepted by vault_flush, given its job_id. Returns { job_id, profile, path?, status (queued|running|done|failed), flushed?, error?, started_at? }. A done job means the targeted staged file(s) are now durable; a failed job carries an error whose cause is visible in vault_stat's flush_error, after which vault_flush can be re-run. started_at is the RFC3339 time the worker began the job, so a job stuck in 'running' longer than your hang threshold (compare against vault_stat's flush_started_at on the file) is a hung pin, not just a slow upload. Requires a wired flush manager; without one this errors with code no_flush_manager."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "job_id", Type: pinner.ArgTypeString, Required: true, Help: "The job_id returned by vault_flush", AgentHelp: "The job_id returned by vault_flush."},
+		Args: []opmesh.OperationArg{
+			{Name: "job_id", Type: opmesh.ArgTypeString, Required: true, Help: "The job_id returned by vault_flush"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			jobID := pinner.StrArg(input, "job_id", "")
+			jobID := opmesh.StrArg(input, "job_id", "")
 			if jobID == "" {
 				return nil, fmt.Errorf("vault_flush_status: missing required argument job_id")
 			}
@@ -1243,21 +1231,18 @@ type VaultProfilesResult struct {
 	Profiles []string `json:"profiles"`
 }
 
-func vaultProfiles(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultProfiles(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_profiles",
 		Title:       "List vault profiles",
 		Summary:     "List every unlocked vault profile",
 		Description: "List every provisioned/unlocked vault profile name the running server can access. On a multi-profile server, vault ops that require a profile (stat/verify/search/flush/share/send/accept) return code profile_required unless you pass profile=<name>; use this tool to enumerate the names. Read-only.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("List every provisioned/unlocked vault profile name the server can access: { profiles: [<names>] }. On a multi-profile server (more than one unlocked profile), vault ops without an explicit profile= argument return code profile_required instead of silently hitting the active vault; pass the name from this list. Read-only."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args:        []pinner.OperationArg{},
+		Args:        []opmesh.OperationArg{},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			return &VaultProfilesResult{Profiles: d.unlockedProfiles()}, nil
 		}),
@@ -1315,38 +1300,35 @@ func parseVaultExpiry(s string) (time.Time, error) {
 	return time.Now().Add(du), nil
 }
 
-func vaultShare(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultShare(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_share",
 		Title:       "Share a vault file",
 		Summary:     "Generate a shareable link for a vault file",
 		Description: "Generate a shareable download link for a vault file. Returns a pre-signed URL and its expiry time. The URL is time-limited and grants read access to a single object. Control the expiry with the expiry field (e.g. 7d, 30d, 1h, or 0 for never). Does NOT upload or modify the file itself. Only durable files can be shared: a file that is staged/flushing/failed returns a structured {code:\"not_durable\",...} result, never a misleading success.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Generate a share link for a durable vault file. Returns a time-limited pre-signed https:// URL whose fragment carries the object's encryption key (#encryption_key=…). Pass this URL unchanged to vault_share_accept on another profile to pin slab references — a metadata-only operation that transfers no content. Donor sealed metadata is NOT put into the share URL; the fragment still only carries the encryption key. A link works only for a durable file: if the file is staged/flushing/failed this returns a structured {code:\"not_durable\", path, status, message} result (failed means the durability flush failed and sharing will not work until the file is re-uploaded; a staged/flushing file needs its flush completed via vault_flush, then vault_flush_status or vault_stat until durable, or vault_send). Bound how long the link works with the expiry field (e.g. 7d, 30d, 1h, or 0 for never)."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Vault path to share", AgentHelp: "The vault:/ path to the file to share."},
-			{Name: "expiry", Type: pinner.ArgTypeString, Default: "7d", Help: "Share link expiry (e.g. 7d, 30d, 1h, or 0 for never)"},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to the active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Vault path to share"},
+			{Name: "expiry", Type: opmesh.ArgTypeString, Default: "7d", Help: "Share link expiry (e.g. 7d, 30d, 1h, or 0 for never)"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to the active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			vaultPath := pinner.StrArg(input, "path", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if vaultPath == "" {
 				return nil, fmt.Errorf("vault_share: missing required argument path")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			validUntil, err := parseVaultExpiry(pinner.StrArg(input, "expiry", "7d"))
+			validUntil, err := parseVaultExpiry(opmesh.StrArg(input, "expiry", "7d"))
 			if err != nil {
 				return nil, err
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -1413,43 +1395,40 @@ type VaultShareAcceptResult struct {
 	DigestVerified string `json:"digest_verified,omitempty"` // "not_applicable"
 }
 
-func vaultShareAccept(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultShareAccept(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_share_accept",
 		Title:       "Accept a vault share",
 		Summary:     "Accept a share URL and pin the shared content",
 		Description: "Accept a time-limited share link for a vault file and pin the referenced content into this profile's vault at the given path. Only the slab references are recorded — the content is not re-downloaded, so it is fast regardless of file size. Returns the newly-pinned file.",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Accept a share URL issued by another agent/profile and pin its slab references into this profile's vault. Metadata-only — no content is downloaded from Sia hosts, so it completes quickly regardless of file size. Accept creates an independent pin of the same object key (a metadata-only slab-reference copy), NOT a rewritten object, so accept_state is 'pinned' and digest_verified is 'not_applicable' until the acceptor first gets/decrypts or deep-verifies the content. The accepting profile owns an independent object referencing the same sectors, so the content survives even if the sharer deletes theirs. The share URL's scheme and host are rewritten to this profile's indexer origin before any request is made, so the agent never needs to validate or transform the URL. Accepting the same share at different paths creates multiple local rows referencing the same indexer object (like hard-links); PinObject is idempotent, so duplicate accepts of the same slabs are a no-op on the indexer. path is the vault:/ destination for the pinned copy."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path>",
-		Args: []pinner.OperationArg{
-			{Name: "share_url", Type: pinner.ArgTypeString, Required: true, Help: "The share URL to accept", AgentHelp: "The https:// share URL you received from vault_share. It is time-limited and carries the encryption key in its fragment (#encryption_key=…). Pass it through unchanged."},
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "Where to store the accepted copy", AgentHelp: "The vault:/ destination path where the accepted copy should be pinned."},
-			{Name: "tags", Type: pinner.ArgTypeStringSlice, Help: "Tags to apply at write time (repeatable; durable)", AgentHelp: "Tags applied atomically at write time — durable on the sealed object and local tag index. Eliminates the need for a separate vault_tag_add call."},
-			{Name: "target_principal", Type: pinner.ArgTypeString, Help: "Optional principal/source identity recorded in the share ledger"},
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile to accept into (defaults to the active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "share_url", Type: opmesh.ArgTypeString, Required: true, Help: "The share URL to accept"},
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "Where to store the accepted copy"},
+			{Name: "tags", Type: opmesh.ArgTypeStringSlice, Help: "Tags to apply at write time (repeatable; durable)"},
+			{Name: "target_principal", Type: opmesh.ArgTypeString, Help: "Optional principal/source identity recorded in the share ledger"},
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile to accept into (defaults to the active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			shareURL := pinner.StrArg(input, "share_url", "")
-			vaultPath := pinner.StrArg(input, "path", "")
+			shareURL := opmesh.StrArg(input, "share_url", "")
+			vaultPath := opmesh.StrArg(input, "path", "")
 			if shareURL == "" || vaultPath == "" {
 				return nil, fmt.Errorf("vault_share_accept: missing required argument (share_url, path)")
 			}
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			targetPrincipal := pinner.StrArg(input, "target_principal", "")
-			tags := pinner.StrSliceArg(input, "tags")
+			targetPrincipal := opmesh.StrArg(input, "target_principal", "")
+			tags := opmesh.StrSliceArg(input, "tags")
 			var metadata map[string]any
 			if len(tags) > 0 {
 				metadata = map[string]any{"tags": tags}
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -1494,32 +1473,29 @@ type VaultSendResult struct {
 	AcceptState string `json:"accept_state"` // "pinned"
 }
 
-func vaultSend(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultSend(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_send",
 		Title:       "Send a vault file to another profile",
 		Summary:     "Hand off a durable vault file from one profile to another",
 		Description: "Hand a durable vault file from one vault profile to another within the same process (the swarm handoff primitive). The server flushes-if-needed (it does NOT block on a long Sia upload in the request — if the source is not yet durable it returns a structured not_durable result telling you to vault_flush and poll vault_flush_status), then mints a 24h share from the source and accepts it into the destination profile. Accept is metadata-only (a pin of the same object key, not a full decrypt), so it returns quickly with accept_state pinned once the destination row exists. Requires two distinct profiles (from_profile, to_profile) and a vault:/ destination (dest_path).",
-		MCPTargets: pinner.MCPTargets(
-			pinner.Fallback("Send a durable vault file from one profile to another in the same process (swarm handoff). Requires path (vault:/ source), from_profile, to_profile (two distinct unlocked profiles), and dest_path (vault:/ destination); tags is an optional durable tag list. The server flushes-if-needed — it does NOT block on a long Sia upload in the request: if the source is not yet durable it returns {code:'not_durable', path, status, message}, and the source is made durable by running vault_flush, then polling vault_flush_status(job_id) or vault_stat until durable, before calling vault_send again. Once durable it mints a 24h share from the source, accepts it into the destination profile (metadata-only pin of the same object key — no full decrypt, no long client-side sleep), and returns once the destination row exists: {from_profile, to_profile, dest_path, object_key, size, accept_state:'pinned'}. Accept-state pinned — NOT a digest failure — is the success signal; the destination will deep-verify on first get/decrypt."),
-		),
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<path> <dest_path>",
-		Args: []pinner.OperationArg{
-			{Name: "path", Type: pinner.ArgTypeString, Required: true, Help: "vault:/ source path to send", AgentHelp: "The vault:/ source path whose durable object to hand off."},
-			{Name: "dest_path", Type: pinner.ArgTypeString, Required: true, Help: "vault:/ destination path in to_profile", AgentHelp: "The vault:/ destination path where the source object should be pinned in to_profile."},
-			{Name: "from_profile", Type: pinner.ArgTypeString, Required: true, Help: "Source profile name", AgentHelp: "The unlocked profile that owns the source object (required)."},
-			{Name: "to_profile", Type: pinner.ArgTypeString, Required: true, Help: "Destination profile name", AgentHelp: "The unlocked profile that will own the pinned destination copy (required)."},
-			{Name: "tags", Type: pinner.ArgTypeStringSlice, Help: "Tags to apply at accept time (repeatable; durable)", AgentHelp: "Optional durable tags applied at accept time on the destination row."},
+		Args: []opmesh.OperationArg{
+			{Name: "path", Type: opmesh.ArgTypeString, Required: true, Help: "vault:/ source path to send"},
+			{Name: "dest_path", Type: opmesh.ArgTypeString, Required: true, Help: "vault:/ destination path in to_profile"},
+			{Name: "from_profile", Type: opmesh.ArgTypeString, Required: true, Help: "Source profile name"},
+			{Name: "to_profile", Type: opmesh.ArgTypeString, Required: true, Help: "Destination profile name"},
+			{Name: "tags", Type: opmesh.ArgTypeStringSlice, Help: "Tags to apply at accept time (repeatable; durable)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			path := pinner.StrArg(input, "path", "")
-			destPath := pinner.StrArg(input, "dest_path", "")
-			fromProfile := pinner.StrArg(input, "from_profile", "")
-			toProfile := pinner.StrArg(input, "to_profile", "")
+			path := opmesh.StrArg(input, "path", "")
+			destPath := opmesh.StrArg(input, "dest_path", "")
+			fromProfile := opmesh.StrArg(input, "from_profile", "")
+			toProfile := opmesh.StrArg(input, "to_profile", "")
 			if path == "" || destPath == "" {
 				return nil, fmt.Errorf("vault_send: missing required argument (path, dest_path)")
 			}
@@ -1572,7 +1548,7 @@ func vaultSend(d VaultDeps) pinner.Operation {
 				return nil, err
 			}
 			var metadata map[string]any
-			if tags := pinner.StrSliceArg(input, "tags"); len(tags) > 0 {
+			if tags := opmesh.StrSliceArg(input, "tags"); len(tags) > 0 {
 				metadata = map[string]any{"tags": tags}
 			}
 			f, err := toSvc.ShareAccept(ctx, destPath, shareURL, "", metadata)
@@ -1602,26 +1578,26 @@ type VaultForgetResult struct {
 	State   string `json:"state"`
 }
 
-func vaultForget(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultForget(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_forget",
 		Title:       "Forget a vault profile",
 		Summary:     "Remove a vault profile and its local data",
 		Description: "Permanently removes a vault profile from this machine: the registry entry and its local data (state, cache DB, and any pending recovery seed) are deleted. DESTRUCTIVE and irreversible: the on-disk credential for accessing the vault is gone. Remote vault data on Sia is not deleted. Requires an explicit profile (never auto-resolves) and confirm=true to proceed.",
 		Category:    "vault",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Required: true, Help: "Vault profile to forget; must not auto-resolve a default", AgentHelp: "The name of the vault profile to remove. Always required; this tool never auto-resolves a default profile."},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive operation", AgentHelp: "Must be true to forget the profile; this permanently deletes local vault data and cannot be undone."},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Required: true, Help: "Vault profile to forget; must not auto-resolve a default"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive operation"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("vault_forget: confirm is required to forget a vault profile")
 			}
-			profileName := pinner.StrArg(input, "profile", "")
+			profileName := opmesh.StrArg(input, "profile", "")
 			if profileName == "" {
 				return nil, fmt.Errorf("vault_forget: profile is required to forget a vault profile")
 			}
@@ -1643,22 +1619,22 @@ type VaultProfileUseResult struct {
 	Profile string `json:"profile"`
 }
 
-func vaultProfileUse(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultProfileUse(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_profile_use",
 		Title:       "Set default vault profile",
 		Summary:     "Set the default profile for vault commands",
 		Description: "Sets the profile used by default when neither an explicit name argument nor the PINNER_PROFILE environment variable selects one. An explicit name argument or the PINNER_PROFILE environment variable (a host-side setting, not settable by an agent) still take precedence.",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<name>",
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Profile name to set as default", AgentHelp: "The vault profile name to set as the default for subsequent vault operations."},
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Profile name to set as default"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			name := pinner.StrArg(input, "name", "")
+			name := opmesh.StrArg(input, "name", "")
 			if name == "" {
 				return nil, fmt.Errorf("vault_profile_use: missing required argument name")
 			}
@@ -1687,25 +1663,25 @@ type VaultCacheResult struct {
 	Existed         bool   `json:"-"`
 }
 
-func vaultCacheRebuild(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultCacheRebuild(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_cache_rebuild",
 		Title:       "Rebuild vault cache",
 		Summary:     "Rebuild the cache from remote state",
 		Description: "Discards the local SQLite index and re-syncs all metadata from the Sia indexer. File content is not re-downloaded; only the index is rederived. The prior cache is set aside (not deleted) and restored if the rebuild fails. Use to repair a corrupted or stale local cache.",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}
@@ -1783,25 +1759,25 @@ func vaultCacheRebuild(d VaultDeps) pinner.Operation {
 	})
 }
 
-func vaultCacheClear(d VaultDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func vaultCacheClear(d VaultDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "vault_cache_clear",
 		Title:       "Clear vault cache",
 		Summary:     "Clear the local cache (keeps profile credentials)",
 		Description: "Deletes the SQLite cache file. The next vault operation recreates an empty cache; run vault_cache_rebuild to populate it from remote.",
 		Category:    "vault",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "profile", Type: pinner.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
+		Args: []opmesh.OperationArg{
+			{Name: "profile", Type: opmesh.ArgTypeString, Help: "Vault profile name (defaults to active profile)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if pr := d.profileRequired(pinner.StrArg(input, "profile", "")); pr != nil {
+			if pr := d.profileRequired(opmesh.StrArg(input, "profile", "")); pr != nil {
 				return pr, nil
 			}
-			profileName, err := vault.ResolveProfile(pinner.StrArg(input, "profile", ""))
+			profileName, err := vault.ResolveProfile(opmesh.StrArg(input, "profile", ""))
 			if err != nil {
 				return nil, err
 			}

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/pinner/catalogmeta"
 	"go.lumeweb.com/pinner/core/auth"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
@@ -112,19 +112,17 @@ func TestAccountOTPDisablePropagatesServiceError(t *testing.T) {
 // account_update_password declare EnvCLIOnly: they are valid only on the urfave
 // CLI frontend and are omitted from every MCP surface (they pass the user's
 // password through the LLM channel and duplicate the OOB browser hand-off
-// tools).
+// tools). Post-opmesh-migration the Environment metadata lives on the
+// frontend-metadata boundary (catalogmeta), keyed by the stable operation ID;
+// this test pins the same contract there.
 func TestAccountUpdateEnvCLIOnly(t *testing.T) {
-	envs := map[string]pinner.Environment{}
-	for _, op := range AccountOperations(AccountDeps{}) {
-		envs[op.Name()] = op.Environment()
-	}
 	for _, name := range []string{"account_update_email", "account_update_password"} {
-		if envs[name] != pinner.EnvCLIOnly {
-			t.Errorf("%s.Environment() = %v, want EnvCLIOnly", name, envs[name])
+		if env := catalogmeta.EnvironmentOf(name); env != catalogmeta.EnvCLIOnly {
+			t.Errorf("catalogmeta.EnvironmentOf(%q) = %v, want EnvCLIOnly", name, env)
 		}
 	}
-	if envs["account_info"] != pinner.EnvBoth {
-		t.Errorf("account_info.Environment() = %v, want EnvBoth", envs["account_info"])
+	if env := catalogmeta.EnvironmentOf("account_info"); env != catalogmeta.EnvBoth {
+		t.Errorf("catalogmeta.EnvironmentOf(account_info) = %v, want EnvBoth", env)
 	}
 }
 

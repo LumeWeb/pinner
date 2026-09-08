@@ -10,7 +10,7 @@ package catalogops
 import (
 	"fmt"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/admin"
 	"go.lumeweb.com/pinner/core/config"
 )
@@ -121,8 +121,8 @@ func (d AdminDeps) socialProviders() (admin.SocialProviderAdminService, error) {
 
 // AdminOperations returns the catalog operations for the admin domain. Each
 // admin section registers its operations here.
-func AdminOperations(d AdminDeps) []pinner.Operation {
-	return []pinner.Operation{
+func AdminOperations(d AdminDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		// admin platform-domains
 		adminPlatformDomainsList(d),
 		adminPlatformDomainsRegister(d),

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	coreadmin "go.lumeweb.com/pinner/core/admin"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
@@ -309,7 +309,7 @@ func TestAdminSocialProvidersUpdateOmittedScopesKeepExisting(t *testing.T) {
 	// Normalize like Catalog.Invoke does: this is the step that coerces an
 	// omitted slice arg to a non-nil empty []string, so the regression is only
 	// visible through the same path production dispatch takes.
-	normalized, err := pinner.NormalizeOperationInput(op, map[string]any{"id": "3"})
+	normalized, err := opmesh.NormalizeOperationInput(op, map[string]any{"id": "3"})
 	if err != nil {
 		t.Fatalf("normalize: %v", err)
 	}

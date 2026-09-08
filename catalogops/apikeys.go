@@ -8,7 +8,7 @@ import (
 
 	portalsdk "go.lumeweb.com/portal-sdk"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/apikeys"
 )
 
@@ -21,33 +21,33 @@ type APIKeysDeps struct {
 
 // APIKeysOperations returns the catalog operations for the api-keys domain
 // (list, create, delete).
-func APIKeysOperations(d APIKeysDeps) []pinner.Operation {
-	return []pinner.Operation{
+func APIKeysOperations(d APIKeysDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		apiKeysList(d),
 		apiKeysCreate(d),
 		apiKeysDelete(d),
 	}
 }
 
-func apiKeysList(d APIKeysDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func apiKeysList(d APIKeysDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_list", Title: "List API keys", Summary: "List all API keys",
 		Description: "List all API keys for your account, optionally filtered by name.",
-		Category:    "account", Safety: pinner.SafetyRead, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "account", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "search", Type: pinner.ArgTypeString, Help: "Full-text search evaluated server-side against key name"},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "search", Type: opmesh.ArgTypeString, Help: "Full-text search evaluated server-side against key name"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc := d.Service(input)
 			if svc == nil {
 				return nil, fmt.Errorf("api-keys service unavailable")
 			}
-			keys, _, err := svc.ListAPIKeys(ctx, pinner.SearchArg(input))
+			keys, _, err := svc.ListAPIKeys(ctx, opmesh.SearchArg(input))
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			items := slicePage(keys, page.Start, page.Limit)
 			headers := []string{"UUID", "NAME"}
 			rows := make([][]string, 0, len(items))
@@ -64,21 +64,21 @@ func apiKeysList(d APIKeysDeps) pinner.Operation {
 	})
 }
 
-func apiKeysCreate(d APIKeysDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func apiKeysCreate(d APIKeysDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_create", Title: "Create an API key", Summary: "Create a new API key",
 		Description: "Create a new API key for your account. The created key value (the secret) is returned exactly once in the response: it cannot be retrieved again, only deleted and recreated. The value is a credential that is not displayed again after creation; if it is exposed, it is deleted and recreated via api_keys_delete.",
-		Category:    "account", Safety: pinner.SafetyMutate, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "account", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Key name"},
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Key name"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc := d.Service(input)
 			if svc == nil {
 				return nil, fmt.Errorf("api-keys service unavailable")
 			}
-			name := pinner.StrArg(input, "name", "")
+			name := opmesh.StrArg(input, "name", "")
 			if name == "" {
 				return nil, fmt.Errorf("api_keys_create: key name is required")
 			}
@@ -87,26 +87,26 @@ func apiKeysCreate(d APIKeysDeps) pinner.Operation {
 	})
 }
 
-func apiKeysDelete(d APIKeysDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func apiKeysDelete(d APIKeysDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_delete", Title: "Delete an API key", Summary: "Delete an API key",
 		Description: "Delete an API key by name or UUID. Deleting the key currently used for authentication is blocked unless confirm=true.",
-		Category:    "account", Safety: pinner.SafetyDestructive, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "account", Safety: opmesh.SafetyDestructive, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeString, Required: true, Help: "API key name or UUID", AgentHelp: "The name or UUID of the API key to delete."},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Default: "false", Help: "Allow deleting the key currently used for authentication", AgentHelp: "Set true to delete the API key even if it is the one currently used for authentication."},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "API key name or UUID"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Default: "false", Help: "Allow deleting the key currently used for authentication"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc := d.Service(input)
 			if svc == nil {
 				return nil, fmt.Errorf("api-keys service unavailable")
 			}
-			id := pinner.StrArg(input, "id", "")
+			id := opmesh.StrArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("api_keys_delete: key name or UUID is required")
 			}
-			if err := svc.DeleteAPIKey(ctx, id, pinner.BoolArg(input, "confirm", false)); err != nil {
+			if err := svc.DeleteAPIKey(ctx, id, opmesh.BoolArg(input, "confirm", false)); err != nil {
 				return nil, err
 			}
 			return &APIKeyDeleteResult{ID: id}, nil

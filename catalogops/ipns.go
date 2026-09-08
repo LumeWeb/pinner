@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	"go.lumeweb.com/pinner/core/ipns"
 )
@@ -62,8 +62,8 @@ func (d IPNSDeps) config() config.Manager {
 // IPNSOperations returns the catalog operations for the IPNS domain. They are
 // two-level (ipns.keys.list, ipns.keys.create, ... ipns.publish, ipns.resolve);
 // the wiring nests ipns.keys.* under a "keys" parent.
-func IPNSOperations(d IPNSDeps) []pinner.Operation {
-	return []pinner.Operation{
+func IPNSOperations(d IPNSDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		ipnsKeysList(d),
 		ipnsKeysCreate(d),
 		ipnsKeysGet(d),
@@ -74,14 +74,14 @@ func IPNSOperations(d IPNSDeps) []pinner.Operation {
 	}
 }
 
-func ipnsKeysList(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsKeysList(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_keys_list", Title: "List IPNS keys", Summary: "List all IPNS keys",
 		Description: "List all IPNS keys for the authenticated account, optionally narrowing by a server-side name substring search.",
-		Category:    "ipns", Safety: pinner.SafetyRead, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "search", Type: pinner.ArgTypeString, Help: "Full-text search evaluated server-side against key name"},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "search", Type: opmesh.ArgTypeString, Help: "Full-text search evaluated server-side against key name"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
@@ -92,7 +92,7 @@ func ipnsKeysList(d IPNSDeps) pinner.Operation {
 				return nil, err
 			}
 			var keys []ipfs.IPNSKeyResponse
-			if search := pinner.SearchArg(input); search != "" {
+			if search := opmesh.SearchArg(input); search != "" {
 				keys, err = svc.ListKeys(ctx, ipfs.ListKeyOption{}.WithFilterName(search))
 			} else {
 				keys, err = svc.ListKeys(ctx)
@@ -100,7 +100,7 @@ func ipnsKeysList(d IPNSDeps) pinner.Operation {
 			if err != nil {
 				return nil, err
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			items := slicePage(keys, page.Start, page.Limit)
 			headers := []string{"ID", "NAME", "IPNS NAME", "PEER ID", "CREATED"}
 			rows := make([][]string, 0, len(items))
@@ -117,15 +117,15 @@ func ipnsKeysList(d IPNSDeps) pinner.Operation {
 	})
 }
 
-func ipnsKeysCreate(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsKeysCreate(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_keys_create", Title: "Create an IPNS key", Summary: "Create a new IPNS key",
 		Description: "Create a new IPNS key, optionally importing an existing private key via the key field.",
-		Category:    "ipns", Safety: pinner.SafetyMutate, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Key name"},
-			{Name: "key", Type: pinner.ArgTypeString, Sensitive: true, Help: "Private key to import (optional)"},
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Key name"},
+			{Name: "key", Type: opmesh.ArgTypeString, Sensitive: true, Help: "Private key to import (optional)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
@@ -135,12 +135,12 @@ func ipnsKeysCreate(d IPNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			name := pinner.StrArg(input, "name", "")
+			name := opmesh.StrArg(input, "name", "")
 			if name == "" {
 				return nil, fmt.Errorf("ipns_keys_create: key name is required")
 			}
 			var key *string
-			if k := pinner.StrArg(input, "key", ""); k != "" {
+			if k := opmesh.StrArg(input, "key", ""); k != "" {
 				key = &k
 			}
 			return svc.CreateKey(ctx, name, key)
@@ -148,14 +148,14 @@ func ipnsKeysCreate(d IPNSDeps) pinner.Operation {
 	})
 }
 
-func ipnsKeysGet(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsKeysGet(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_keys_get", Title: "Get an IPNS key", Summary: "Get details of a specific IPNS key",
 		Description: "Get the full details (name, ID, sequence) of a single IPNS key.",
-		Category:    "ipns", Safety: pinner.SafetyRead, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeFlexibleID, Required: true, Help: "Key ID"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeFlexibleID, Required: true, Help: "Key ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
@@ -165,7 +165,7 @@ func ipnsKeysGet(d IPNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrFlexibleArg(input, "id", "")
+			id := opmesh.StrFlexibleArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("ipns_keys_get: key ID is required")
 			}
@@ -174,14 +174,14 @@ func ipnsKeysGet(d IPNSDeps) pinner.Operation {
 	})
 }
 
-func ipnsKeysDelete(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsKeysDelete(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_keys_delete", Title: "Delete an IPNS key", Summary: "Delete an IPNS key",
 		Description: "Delete an IPNS key by ID. DESTRUCTIVE and irreversible: this permanently removes the key and breaks any website publishing under it until republished. Requires confirm=true.",
-		Category:    "ipns", Safety: pinner.SafetyDestructive, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyDestructive, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<id>",
-		Args: []pinner.OperationArg{
-			{Name: "id", Type: pinner.ArgTypeFlexibleID, Required: true, Help: "Key ID"},
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeFlexibleID, Required: true, Help: "Key ID"},
 			// Confirm is declared so the destructive confirm hand-off on the MCP
 			// surface has a field to set on resume. It is AgentRequired (MCP-only)
 			// with Default set so the CLI adapter injects a real value: the CLI's
@@ -192,7 +192,7 @@ func ipnsKeysDelete(d IPNSDeps) pinner.Operation {
 			// model surface is still protected regardless, because the central
 			// SafetyDestructive gate refuses destructive ops for a model actor
 			// until a human confirms.
-			{Name: "confirm", Type: pinner.ArgTypeBool, AgentRequired: true, Default: "true", Help: "Confirm the destructive delete", AgentHelp: "Must be true to delete the key; this is destructive and cannot be undone. Only a human sets this on confirmation; a model alone cannot confirm a destructive delete."},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, AgentRequired: true, Default: "true", Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			// Enforce confirm here, not just on the MCP schema: a human or app
@@ -200,7 +200,7 @@ func ipnsKeysDelete(d IPNSDeps) pinner.Operation {
 			// confirm:false and still delete. Mirrors websites_delete and
 			// dns_records_delete. The CLI never sets confirm (see ipns_wiring),
 			// so this does not affect the CLI path.
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("ipns_keys_delete: confirmation is required to delete the key")
 			}
 			svc, err := d.service(input)
@@ -210,7 +210,7 @@ func ipnsKeysDelete(d IPNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			id := pinner.StrFlexibleArg(input, "id", "")
+			id := opmesh.StrFlexibleArg(input, "id", "")
 			if id == "" {
 				return nil, fmt.Errorf("ipns_keys_delete: key ID is required")
 			}
@@ -219,16 +219,16 @@ func ipnsKeysDelete(d IPNSDeps) pinner.Operation {
 	})
 }
 
-func ipnsPublish(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsPublish(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_publish", Title: "Publish a CID to IPNS", Summary: "Publish a CID under an IPNS key",
 		Description: "Publish a CID to an IPNS key, optionally with a TTL.",
-		Category:    "ipns", Safety: pinner.SafetyMutate, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<cid>",
-		Args: []pinner.OperationArg{
-			{Name: "cid", Type: pinner.ArgTypeString, Required: true, Help: "Content identifier"},
-			{Name: "key-name", Type: pinner.ArgTypeString, Help: "IPNS key to publish under (defaults to default key)"},
-			{Name: "ttl", Type: pinner.ArgTypeString, Help: "TTL for the published record"},
+		Args: []opmesh.OperationArg{
+			{Name: "cid", Type: opmesh.ArgTypeString, Required: true, Help: "Content identifier"},
+			{Name: "key-name", Type: opmesh.ArgTypeString, Help: "IPNS key to publish under (defaults to default key)"},
+			{Name: "ttl", Type: opmesh.ArgTypeString, Help: "TTL for the published record"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
@@ -238,27 +238,27 @@ func ipnsPublish(d IPNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			cid := pinner.StrArg(input, "cid", "")
+			cid := opmesh.StrArg(input, "cid", "")
 			if cid == "" {
 				return nil, fmt.Errorf("ipns_publish: CID is required")
 			}
 			var ttl *string
-			if t := pinner.StrArg(input, "ttl", ""); t != "" {
+			if t := opmesh.StrArg(input, "ttl", ""); t != "" {
 				ttl = &t
 			}
-			return svc.Publish(ctx, cid, pinner.StrArg(input, "key-name", ""), ttl)
+			return svc.Publish(ctx, cid, opmesh.StrArg(input, "key-name", ""), ttl)
 		}),
 	})
 }
 
-func ipnsRepublish(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsRepublish(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_republish", Title: "Republish an IPNS record", Summary: "Republish an IPNS record for a key",
 		Description: "Republish an existing IPNS record for a key.",
-		Category:    "ipns", Safety: pinner.SafetyMutate, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "",
-		Args: []pinner.OperationArg{
-			{Name: "key-name", Type: pinner.ArgTypeString, Required: true, Help: "IPNS key to republish"},
+		Args: []opmesh.OperationArg{
+			{Name: "key-name", Type: opmesh.ArgTypeString, Required: true, Help: "IPNS key to republish"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
@@ -268,19 +268,19 @@ func ipnsRepublish(d IPNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			return svc.Republish(ctx, pinner.StrArg(input, "key-name", ""))
+			return svc.Republish(ctx, opmesh.StrArg(input, "key-name", ""))
 		}),
 	})
 }
 
-func ipnsResolve(d IPNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func ipnsResolve(d IPNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_resolve", Title: "Resolve an IPNS name", Summary: "Resolve an IPNS name to a CID",
 		Description: "Resolve an IPNS name to the CID it points to.",
-		Category:    "ipns", Safety: pinner.SafetyRead, Interaction: pinner.InteractionAgentSafe, Visibility: pinner.VisibilityBoth,
+		Category:    "ipns", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
-		Args: []pinner.OperationArg{
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "IPNS name to resolve"},
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "IPNS name to resolve"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.service(input)
@@ -290,7 +290,7 @@ func ipnsResolve(d IPNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			name := pinner.StrArg(input, "name", "")
+			name := opmesh.StrArg(input, "name", "")
 			if name == "" {
 				return nil, fmt.Errorf("ipns_resolve: name is required")
 			}

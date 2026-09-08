@@ -1,11 +1,12 @@
-package catalogops
+package catalogmcp
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
+	"go.lumeweb.com/pinner/catalogops"
 )
 
 // platformProfileDouble mirrors the capability surface of pinner-cli's
@@ -64,9 +65,9 @@ func openAITunnelProfileDouble() platformProfileDouble {
 }
 
 // websitesCreateOp returns the websites_create operation from the domain set.
-func websitesCreateOp(t *testing.T) pinner.Operation {
+func websitesCreateOp(t *testing.T) opmesh.Operation {
 	t.Helper()
-	for _, op := range WebsitesOperations(WebsitesDeps{}) {
+	for _, op := range catalogops.WebsitesOperations(catalogops.WebsitesDeps{}) {
 		if op.Name() == "websites_create" {
 			return op
 		}
@@ -92,10 +93,10 @@ func TestAdaptedPlatformProfilePreservesFileHostDescription(t *testing.T) {
 	require.True(t, carrier.FeatureSet().Has(FeatFileHostInput),
 		"adaptation must carry FeatFileHostInput across the boundary")
 
-	cat := pinner.NewCatalog()
+	cat := opmesh.NewCatalog()
 	require.NoError(t, cat.Add(websitesCreateOp(t)))
 
-	tools, err := pinner.NewMCPCompilerForProfile(carrier).Compile(cat)
+	tools, err := NewCompilerForProfile(carrier).Compile(cat)
 	require.NoError(t, err)
 	require.NotEmpty(t, tools)
 

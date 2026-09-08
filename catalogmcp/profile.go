@@ -1,4 +1,4 @@
-package catalogops
+package catalogmcp
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 // Profile adaptation contract.
 //
-// pinner's MCP bridge is any-typed: pinner.NewMCPCompilerForProfile takes an
+// pinner's MCP bridge is any-typed: catalogmcp.NewCompilerForProfile takes an
 // opaque `any` and hands it to DescFunc description resolvers. The ONLY thing
 // this package needs from a profile is its mcpforge.FeatureSet, expressed via
 // ForgeFeatureCarrier (FeatureSet() mcpforge.FeatureSet). Two shapes cross the
@@ -32,7 +32,7 @@ import (
 //	carrier := catalogops.ProfileFromHas(func(f string) bool {
 //	    return prof.Has(hostenv.Feature(f)) // hostenv.Feature is a string
 //	})
-//	compiler := pinner.NewMCPCompilerForProfile(carrier)
+//	compiler := catalogmcp.NewCompilerForProfile(carrier)
 //
 // ProfileFromHas probes every feature this package's descriptions gate on, so
 // adapting through it cannot drop a segment the DSL knows about
@@ -60,7 +60,7 @@ var profileFeatures = []mcpforge.Feature{FeatFileHostInput}
 // hostenv.PlatformProfile) into this package's feature carrier. It probes the
 // given FeatureProbe for every feature in this package's description
 // vocabulary, so no feature-gated segment can be silently lost at the
-// any-typed pinner.NewMCPCompilerForProfile boundary. A nil probe yields an
+// any-typed catalogmcp.NewCompilerForProfile boundary. A nil probe yields an
 // empty MCPProfile (equivalent to an intentionally featureless profile).
 //
 // Example (migration path from a hostenv.PlatformProfile `prof`):
@@ -68,7 +68,7 @@ var profileFeatures = []mcpforge.Feature{FeatFileHostInput}
 //	carrier := catalogops.ProfileFromHas(func(f string) bool {
 //	    return prof.Has(hostenv.Feature(f))
 //	})
-//	compiler := pinner.NewMCPCompilerForProfile(carrier)
+//	compiler := catalogmcp.NewCompilerForProfile(carrier)
 func ProfileFromHas(has FeatureProbe) MCPProfile {
 	if has == nil {
 		return MCPProfile{}
@@ -89,15 +89,15 @@ type ProfileAdapterError struct {
 
 // Error implements error.
 func (e *ProfileAdapterError) Error() string {
-	return "catalogops: profile of type " + e.ProfileType +
+	return "catalogmcp: profile of type " + e.ProfileType +
 		" does not implement ForgeFeatureCarrier (FeatureSet() mcpforge.FeatureSet); " +
 		"adapt Has-style host profiles via ProfileFromHas before passing them " +
-		"to pinner.NewMCPCompilerForProfile, or every feature-gated description " +
+		"to catalogmcp.NewCompilerForProfile, or every feature-gated description " +
 		"segment is omitted"
 }
 
 // AdaptProfile is the explicit adapter at the any-typed boundary (the value
-// handed to pinner.NewMCPCompilerForProfile). Accepted shapes:
+// handed to catalogmcp.NewCompilerForProfile). Accepted shapes:
 //
 //   - nil → (MCPProfile{}, nil): intentionally profile-less; the base
 //     description resolves with feature segments omitted.
@@ -130,7 +130,7 @@ var (
 // raised while a description resolver adapted an any-typed profile. A nil
 // result means no non-nil, non-carrier profile has been seen. Consumer
 // integration code (e.g. a CLI compiling its startup surface) can call this
-// after pinner.NewMCPCompilerForProfile(...).Compile to assert its profile
+// after catalogmcp.NewCompilerForProfile(...).Compile to assert its profile
 // adaptation is wired: behind this function sits the only path where an
 // unknown profile shape degrades to a featureless description.
 func ProfileAdapterGap() error {

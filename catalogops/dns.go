@@ -11,7 +11,7 @@ import (
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	"go.lumeweb.com/pinner/core/dns"
 	"go.lumeweb.com/pinner/dnsutil"
@@ -86,8 +86,8 @@ type DNSRecordDeleteResult struct {
 // DNSOperations returns the catalog operations for the DNS domain (the
 // existing `dns` command tree: zones + records CRUD), each driving the core
 // DNS Service.
-func DNSOperations(d DNSDeps) []pinner.Operation {
-	return []pinner.Operation{
+func DNSOperations(d DNSDeps) []opmesh.Operation {
+	return []opmesh.Operation{
 		dnsZonesList(d),
 		dnsZonesCreate(d),
 		dnsZonesGet(d),
@@ -104,18 +104,18 @@ func DNSOperations(d DNSDeps) []pinner.Operation {
 // ---- Zones ----
 
 // dnsZonesList is the `dns zones list` operation.
-func dnsZonesList(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsZonesList(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_zones_list",
 		Title:       "List DNS zones",
 		Summary:     "List all DNS zones",
 		Description: "List all DNS zones for the authenticated user. Returns each zone's ID, domain, status, optional PowerDNS zone ID and created timestamp.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args:        pinner.ListArgs(),
+		Args:        opmesh.ListArgs(),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
 			if svcErr != nil {
@@ -128,7 +128,7 @@ func dnsZonesList(d DNSDeps) pinner.Operation {
 			if err != nil {
 				return nil, fmt.Errorf("failed to list zones: %w", err)
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			items := slicePage(zones, page.Start, page.Limit)
 			headers := []string{"ID", "DOMAIN", "STATUS", "POWERDNS ZONE ID", "CREATED"}
 			rows := make([][]string, 0, len(items))
@@ -151,20 +151,20 @@ func dnsZonesList(d DNSDeps) pinner.Operation {
 
 // dnsZonesCreate is the `dns zones create` operation. Splits the
 // comma-separated nameservers and validates the domain before creating.
-func dnsZonesCreate(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsZonesCreate(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_zones_create",
 		Title:       "Create a DNS zone",
 		Summary:     "Create a new DNS zone",
 		Description: "Create a new DNS zone for a domain (the container that holds that domain's DNS records). Requires a domain; optionally supply nameservers as a comma-separated list. Returns the created zone including its numeric ID and PowerDNS zone ID.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain to create the zone for"},
-			{Name: "nameservers", Type: pinner.ArgTypeString, Help: "Comma-separated list of custom nameservers"},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain to create the zone for"},
+			{Name: "nameservers", Type: opmesh.ArgTypeString, Help: "Comma-separated list of custom nameservers"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -174,11 +174,11 @@ func dnsZonesCreate(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domain := pinner.StrArg(input, "domain", "")
+			domain := opmesh.StrArg(input, "domain", "")
 			if err := validateDomain(domain); err != nil {
 				return nil, err
 			}
-			nameservers := parseCommaSeparated(pinner.StrArg(input, "nameservers", ""))
+			nameservers := parseCommaSeparated(opmesh.StrArg(input, "nameservers", ""))
 			zone, err := svc.CreateZone(ctx, domain, nameservers)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create zone: %w", err)
@@ -193,19 +193,19 @@ func dnsZonesCreate(d DNSDeps) pinner.Operation {
 // The positional <domain> may be a domain name or a numeric zone ID; both are
 // resolved to a full ZoneResponse via resolveZoneByArg (read-only ListZones
 // + GetZone).
-func dnsZonesGet(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsZonesGet(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_zones_get",
 		Title:       "Get a DNS zone",
 		Summary:     "Get a DNS zone by domain or ID",
 		Description: "Get details of one DNS zone, selected by domain name or numeric zone ID. Returns the zone's ID, domain, status, PowerDNS zone ID and created/updated timestamps. This returns the zone header only.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -215,7 +215,7 @@ func dnsZonesGet(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
@@ -233,23 +233,23 @@ func dnsZonesGet(d DNSDeps) pinner.Operation {
 // Destructive and irreversible. Confirmation is enforced here (the confirm
 // arg, mapped from the CLI's --force); the handler resolves the domain/ID to
 // a numeric zone ID and deletes it, returning a confirmation result.
-func dnsZonesDelete(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsZonesDelete(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_zones_delete",
 		Title:       "Delete a DNS zone",
 		Summary:     "Delete a DNS zone",
 		Description: "Delete a DNS zone and the records inside it, selected by domain name or numeric zone ID. DESTRUCTIVE and irreversible: there is no undo, and every record in the zone is removed. Does NOT remove the domain's website binding.",
 		Category:    "core",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive delete", AgentHelp: "Must be true to delete the zone; this is destructive and cannot be undone."},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive delete"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("dns_zones_delete: confirmation is required to delete a zone")
 			}
 			svc, svcErr := d.service(input)
@@ -259,7 +259,7 @@ func dnsZonesDelete(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
@@ -277,19 +277,19 @@ func dnsZonesDelete(d DNSDeps) pinner.Operation {
 
 // dnsZonesValidate is the `dns zones validate` operation (nameserver
 // delegation check).
-func dnsZonesValidate(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsZonesValidate(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_zones_validate",
 		Title:       "Validate DNS zone",
 		Summary:     "Validate DNS zone nameserver delegation",
 		Description: "Validate that a DNS zone's nameservers are properly delegated (point to the expected Pinner.xyz nameservers). Selects the zone by domain name or numeric ID.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -299,7 +299,7 @@ func dnsZonesValidate(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
@@ -320,19 +320,19 @@ func dnsZonesValidate(d DNSDeps) pinner.Operation {
 
 // dnsRecordsList is the `dns records list` operation. Resolves the zone by
 // domain/ID.
-func dnsRecordsList(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsRecordsList(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_records_list",
 		Title:       "List DNS records",
 		Summary:     "List DNS records for a zone",
 		Description: "List all DNS records for a zone, given the zone's domain (or numeric ID). Returns each record's name/type/content/TTL and disabled state.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: append(pinner.ListArgs(),
-			pinner.OperationArg{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -342,7 +342,7 @@ func dnsRecordsList(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
@@ -354,7 +354,7 @@ func dnsRecordsList(d DNSDeps) pinner.Operation {
 			if err != nil {
 				return nil, fmt.Errorf("failed to list records: %w", err)
 			}
-			page := pinner.ParseList(input)
+			page := opmesh.ParseList(input)
 			items := slicePage(records, page.Start, page.Limit)
 			headers := []string{"ID", "NAME", "TYPE", "CONTENT", "TTL", "STATUS"}
 			rows := make([][]string, 0, len(items))
@@ -381,29 +381,29 @@ func dnsRecordsList(d DNSDeps) pinner.Operation {
 // dnsRecordsCreate is the `dns records create` operation. --name is optional
 // (apex when empty or "@"), --ttl defaults to 3600, and the record
 // type/content are validated before create.
-func dnsRecordsCreate(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsRecordsCreate(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_records_create",
 		Title:       "Create a DNS record",
 		Summary:     "Create a DNS record",
 		Description: "Create a DNS record (A/AAAA/CNAME/MX/NS/TXT/SRV/CAA/PTR/SOA) in the specified zone. name is optional (omit or use @ for the apex); type and content are required; ttl defaults to 3600. Returns the created record.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "Record name (omit or use @ for apex)"},
-			{Name: "type", Type: pinner.ArgTypeString, Required: true, Enum: []string{"A", "AAAA", "CNAME", "MX", "NS", "TXT", "SRV", "CAA", "PTR", "SOA"}, Help: "Record type (A, AAAA, CNAME, MX, NS, TXT, SRV, CAA, PTR, SOA)"},
-			{Name: "content", Type: pinner.ArgTypeString, Required: true, Help: "Record content (IP, domain, or text)"},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "Record name (omit or use @ for apex)"},
+			{Name: "type", Type: opmesh.ArgTypeString, Required: true, Enum: []string{"A", "AAAA", "CNAME", "MX", "NS", "TXT", "SRV", "CAA", "PTR", "SOA"}, Help: "Record type (A, AAAA, CNAME, MX, NS, TXT, SRV, CAA, PTR, SOA)"},
+			{Name: "content", Type: opmesh.ArgTypeString, Required: true, Help: "Record content (IP, domain, or text)"},
 			// priority is a nullable int: absent (nil) when --priority is
 			// omitted, so a bare MX host falls through to DefaultMXPriority.
 			// An explicit value (including 0) is honored; out-of-range values
 			// are rejected in the handler.
-			{Name: "priority", Type: pinner.ArgTypeNullableInt, Help: "MX record priority (used only for MX; overrides any priority embedded in content; defaults to 10)"},
-			{Name: "ttl", Type: pinner.ArgTypeInt, Default: "3600", Help: "TTL in seconds (default 3600)"},
-			{Name: "disabled", Type: pinner.ArgTypeBool, Default: "false", Help: "Disable the record"},
+			{Name: "priority", Type: opmesh.ArgTypeNullableInt, Help: "MX record priority (used only for MX; overrides any priority embedded in content; defaults to 10)"},
+			{Name: "ttl", Type: opmesh.ArgTypeInt, Default: "3600", Help: "TTL in seconds (default 3600)"},
+			{Name: "disabled", Type: opmesh.ArgTypeBool, Default: "false", Help: "Disable the record"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -413,13 +413,13 @@ func dnsRecordsCreate(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
-			name := pinner.StrArg(input, "name", "")
-			recordType := strings.ToUpper(pinner.StrArg(input, "type", ""))
-			content := pinner.StrArg(input, "content", "")
+			name := opmesh.StrArg(input, "name", "")
+			recordType := strings.ToUpper(opmesh.StrArg(input, "type", ""))
+			content := opmesh.StrArg(input, "content", "")
 
 			if err := validateDNSRecord(recordType, content); err != nil {
 				return nil, err
@@ -435,7 +435,7 @@ func dnsRecordsCreate(d DNSDeps) pinner.Operation {
 			// must be in [0,65535] and is used verbatim.
 			if recordType == "MX" {
 				var priority *int
-				if p := pinner.IntArgPtr(input, "priority"); p != nil {
+				if p := opmesh.IntArgPtr(input, "priority"); p != nil {
 					if *p < 0 || *p > 65535 {
 						return nil, fmt.Errorf("MX priority must be an integer between 0 and 65535")
 					}
@@ -444,11 +444,11 @@ func dnsRecordsCreate(d DNSDeps) pinner.Operation {
 				content = dnsutil.NormalizeMXContent(content, priority)
 			}
 
-			ttlVal := pinner.IntArg(input, "ttl", 3600)
+			ttlVal := opmesh.IntArg(input, "ttl", 3600)
 			if ttlVal == 0 {
 				ttlVal = 3600
 			}
-			disabled := pinner.BoolArg(input, "disabled", false)
+			disabled := opmesh.BoolArg(input, "disabled", false)
 
 			record := ipfs.RecordRequest{
 				Name:     name,
@@ -473,21 +473,21 @@ func dnsRecordsCreate(d DNSDeps) pinner.Operation {
 
 // dnsRecordsGet is the `dns records get` operation. Identified by zone
 // (positional domain/ID) + --name + --type.
-func dnsRecordsGet(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsRecordsGet(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_records_get",
 		Title:       "Get a DNS record",
 		Summary:     "Get a DNS record",
 		Description: "Get one DNS record, uniquely identified by the zone's domain plus name (label, or @ for apex) and type. Returns the record's content, TTL and disabled state.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Record name (or @ for apex)"},
-			{Name: "type", Type: pinner.ArgTypeString, Required: true, Help: "Record type"},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Record name (or @ for apex)"},
+			{Name: "type", Type: opmesh.ArgTypeString, Required: true, Help: "Record type"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -497,12 +497,12 @@ func dnsRecordsGet(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
-			name := pinner.StrArg(input, "name", "")
-			recordType := strings.ToUpper(pinner.StrArg(input, "type", ""))
+			name := opmesh.StrArg(input, "name", "")
+			recordType := strings.ToUpper(opmesh.StrArg(input, "type", ""))
 			if name == "" || recordType == "" {
 				return nil, fmt.Errorf("record name (--name) and type (--type) are required")
 			}
@@ -522,24 +522,24 @@ func dnsRecordsGet(d DNSDeps) pinner.Operation {
 // dnsRecordsUpdate is the `dns records update` operation. Identified by zone
 // + --name + --type; changes --content/--ttl/--disabled; fields not provided
 // are left unchanged.
-func dnsRecordsUpdate(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsRecordsUpdate(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_records_update",
 		Title:       "Update a DNS record",
 		Summary:     "Update a DNS record",
 		Description: "Update an existing DNS record, identified by the zone's domain plus name and type. Change its content, ttl, or disabled state. ttl and disabled are optional: when omitted they are left unchanged. content is required (the API updates content). Returns the updated record.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
-			{Name: "name", Type: pinner.ArgTypeString, Required: true, Help: "Record name (or @ for apex)"},
-			{Name: "type", Type: pinner.ArgTypeString, Required: true, Help: "Record type"},
-			{Name: "content", Type: pinner.ArgTypeString, Required: true, Help: "New record content"},
-			{Name: "ttl", Type: pinner.ArgTypeInt, Help: "New TTL in seconds (omit to leave unchanged)"},
-			{Name: "disabled", Type: pinner.ArgTypeBool, Help: "New disabled state (omit to leave unchanged)"},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Record name (or @ for apex)"},
+			{Name: "type", Type: opmesh.ArgTypeString, Required: true, Help: "Record type"},
+			{Name: "content", Type: opmesh.ArgTypeString, Required: true, Help: "New record content"},
+			{Name: "ttl", Type: opmesh.ArgTypeInt, Help: "New TTL in seconds (omit to leave unchanged)"},
+			{Name: "disabled", Type: opmesh.ArgTypeBool, Help: "New disabled state (omit to leave unchanged)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -549,13 +549,13 @@ func dnsRecordsUpdate(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
-			name := pinner.StrArg(input, "name", "")
-			recordType := strings.ToUpper(pinner.StrArg(input, "type", ""))
-			content := pinner.StrArg(input, "content", "")
+			name := opmesh.StrArg(input, "name", "")
+			recordType := strings.ToUpper(opmesh.StrArg(input, "type", ""))
+			content := opmesh.StrArg(input, "content", "")
 
 			if err := validateDNSRecord(recordType, content); err != nil {
 				return nil, err
@@ -576,7 +576,7 @@ func dnsRecordsUpdate(d DNSDeps) pinner.Operation {
 				Ttl:      nil,
 				Disabled: nil,
 			}
-			if ttlVal := pinner.IntArg(input, "ttl", 0); ttlVal > 0 {
+			if ttlVal := opmesh.IntArg(input, "ttl", 0); ttlVal > 0 {
 				record.Ttl = &ttlVal
 			}
 			if raw, ok := input["disabled"]; ok {
@@ -601,27 +601,27 @@ func dnsRecordsUpdate(d DNSDeps) pinner.Operation {
 // dnsRecordsDelete is the `dns records delete` operation. Identified by zone
 // + --name + --type. Destructive; the handler enforces the confirmation gate
 // locally so all callers are covered.
-func dnsRecordsDelete(d DNSDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func dnsRecordsDelete(d DNSDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "dns_records_delete",
 		Title:       "Delete a DNS record",
 		Summary:     "Delete a DNS record",
 		Description: "Delete a DNS record from a zone. DESTRUCTIVE and irreversible. Provide --id (shown by 'pinner dns records list') to remove a single record; provide --name and --type to remove the whole RRSet for that name+type, optionally restricted to one value with --content. Exactly one of (--id) or (--name and --type) must be given.",
 		Category:    "core",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "zone", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID", PositionalOnly: true},
-			{Name: "id", Type: pinner.ArgTypeString, Help: "Record id (from 'pinner dns records list') to delete that single record"},
-			{Name: "name", Type: pinner.ArgTypeString, Help: "Record name (or @ for apex)"},
-			{Name: "type", Type: pinner.ArgTypeString, Help: "Record type"},
-			{Name: "content", Type: pinner.ArgTypeString, Help: "With --name/--type: delete only the record with this exact content value; omit to delete the whole RRSet"},
-			{Name: "confirm", Type: pinner.ArgTypeBool, Required: true, Help: "Confirm the destructive operation", AgentHelp: "Must be true to delete the record; this is destructive and cannot be undone."},
+		Args: []opmesh.OperationArg{
+			{Name: "zone", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or numeric zone ID"},
+			{Name: "id", Type: opmesh.ArgTypeString, Help: "Record id (from 'pinner dns records list') to delete that single record"},
+			{Name: "name", Type: opmesh.ArgTypeString, Help: "Record name (or @ for apex)"},
+			{Name: "type", Type: opmesh.ArgTypeString, Help: "Record type"},
+			{Name: "content", Type: opmesh.ArgTypeString, Help: "With --name/--type: delete only the record with this exact content value; omit to delete the whole RRSet"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, Required: true, Help: "Confirm the destructive operation"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("dns_records_delete: confirmation is required to delete a record")
 			}
 			svc, svcErr := d.service(input)
@@ -631,7 +631,7 @@ func dnsRecordsDelete(d DNSDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			arg := pinner.StrArg(input, "zone", "")
+			arg := opmesh.StrArg(input, "zone", "")
 			if arg == "" {
 				return nil, fmt.Errorf("domain or zone ID is required")
 			}
@@ -648,11 +648,11 @@ func dnsRecordsDelete(d DNSDeps) pinner.Operation {
 				name, recordType, content string
 				byID                      bool
 			)
-			if id := pinner.StrArg(input, "id", ""); id != "" {
+			if id := opmesh.StrArg(input, "id", ""); id != "" {
 				byID = true
 			} else {
-				name = pinner.StrArg(input, "name", "")
-				recordType = strings.ToUpper(pinner.StrArg(input, "type", ""))
+				name = opmesh.StrArg(input, "name", "")
+				recordType = strings.ToUpper(opmesh.StrArg(input, "type", ""))
 				if name == "" || recordType == "" {
 					return nil, fmt.Errorf("provide --id to delete a single record, or --name and --type to delete by record name")
 				}
@@ -663,7 +663,7 @@ func dnsRecordsDelete(d DNSDeps) pinner.Operation {
 				if name == "@" {
 					name = ""
 				}
-				content = pinner.StrArg(input, "content", "")
+				content = opmesh.StrArg(input, "content", "")
 			}
 
 			// Whole-RRSet delete: matches every record for the name+type.
@@ -682,7 +682,7 @@ func dnsRecordsDelete(d DNSDeps) pinner.Operation {
 				return nil, fmt.Errorf("failed to list records to resolve target: %w", err)
 			}
 			if byID {
-				id := pinner.StrArg(input, "id", "")
+				id := opmesh.StrArg(input, "id", "")
 				rec := findRecordByID(records, id)
 				if rec == nil {
 					return nil, fmt.Errorf("no record with id %q found in zone %s (run 'pinner dns records list' to see ids)", id, zoneID)
@@ -698,7 +698,7 @@ func dnsRecordsDelete(d DNSDeps) pinner.Operation {
 			}
 			res := &DNSRecordDeleteResult{ZoneID: zoneID, Name: match.Name, Type: match.Type, Content: match.Content}
 			if byID {
-				res.ID = pinner.StrArg(input, "id", "")
+				res.ID = opmesh.StrArg(input, "id", "")
 			}
 			return res, nil
 		}),

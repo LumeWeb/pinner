@@ -9,25 +9,25 @@ import (
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
 
-	"go.lumeweb.com/pinner"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/websites"
 )
 
 // websitesDomainsList is the `websites domains list` operation. Returns
 // []ipfs.DomainResponse.
-func websitesDomainsList(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsList(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_list",
 		Title:       "List domains of a website",
 		Summary:     "List all domains bound to a website",
 		Description: "List every domain binding on a website, selected by domain name or numeric ID: each binding's ID, domain, namespace, status, DNS-hosting flag, zone name and delegation. Requires exactly one website selector.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<website>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Required: true, Help: "Website ID or domain to list domains for"},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Required: true, Help: "Website ID or domain to list domains for"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -53,25 +53,25 @@ func websitesDomainsList(d WebsitesDeps) pinner.Operation {
 // The website may be given explicitly (ID or domain) or auto-selected when
 // exactly one website exists. Auto-selection mirrors the legacy CLI
 // resolveAddTarget behaviour.
-func websitesDomainsAdd(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsAdd(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_add",
 		Title:       "Bind a domain to a website",
 		Summary:     "Add a domain to a website",
 		Description: "Bind a domain to a website under a namespace (icann or hns, default icann). The website may be given as an ID or domain, or auto-selected when the account has exactly one website. Returns the bound domain object including its numeric binding ID, status and DNS-hosting flag.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "[<website>] <domain>",
-		Args: []pinner.OperationArg{
-			{Name: "website", Type: pinner.ArgTypeString, Required: false, Help: "Website ID or domain to bind the domain to; auto-selected if exactly one website", AgentHelp: "The website (ID or domain) to bind the domain to. Omit to auto-select when the account has exactly one website."},
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain to bind"},
-			{Name: "namespace", Type: pinner.ArgTypeString, Default: "icann", Sources: []string{"PINNER_DOMAIN_NAMESPACE"}, Help: "Domain namespace: icann or hns"},
-			{Name: "platform-domain", Type: pinner.ArgTypeString, Required: false, Help: "Platform (free-subdomain) root domain to claim a subdomain under, e.g. pinned.site"},
-			{Name: "platform-namespace", Type: pinner.ArgTypeString, Required: false, Help: "Namespace within the platform domain to claim under"},
-			{Name: "generate", Type: pinner.ArgTypeBool, Default: "false", Required: false, Help: "Ask the platform to auto-generate a subdomain label instead of supplying one"},
-			{Name: "label", Type: pinner.ArgTypeString, Required: false, Help: "Explicit subdomain label to claim under a platform domain"},
+		Args: []opmesh.OperationArg{
+			{Name: "website", Type: opmesh.ArgTypeString, Required: false, Help: "Website ID or domain to bind the domain to; auto-selected if exactly one website"},
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain to bind"},
+			{Name: "namespace", Type: opmesh.ArgTypeString, Default: "icann", Help: "Domain namespace: icann or hns"},
+			{Name: "platform-domain", Type: opmesh.ArgTypeString, Required: false, Help: "Platform (free-subdomain) root domain to claim a subdomain under, e.g. pinned.site"},
+			{Name: "platform-namespace", Type: opmesh.ArgTypeString, Required: false, Help: "Namespace within the platform domain to claim under"},
+			{Name: "generate", Type: opmesh.ArgTypeBool, Default: "false", Required: false, Help: "Ask the platform to auto-generate a subdomain label instead of supplying one"},
+			{Name: "label", Type: opmesh.ArgTypeString, Required: false, Help: "Explicit subdomain label to claim under a platform domain"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -81,12 +81,12 @@ func websitesDomainsAdd(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domain := pinner.StrArg(input, "domain", "")
+			domain := opmesh.StrArg(input, "domain", "")
 			if domain == "" {
 				return nil, fmt.Errorf("websites_domains_add: domain is required")
 			}
 
-			websiteArg := pinner.StrArg(input, "website", "")
+			websiteArg := opmesh.StrArg(input, "website", "")
 			var websiteID string
 			if websiteArg == "" {
 				// Auto-select when there is exactly one website.
@@ -110,7 +110,7 @@ func websitesDomainsAdd(d WebsitesDeps) pinner.Operation {
 				websiteID = id
 			}
 
-			namespace := pinner.StrArg(input, "namespace", "icann")
+			namespace := opmesh.StrArg(input, "namespace", "icann")
 			if namespace != "icann" && namespace != "hns" {
 				return nil, fmt.Errorf("websites_domains_add: invalid namespace %q: must be 'icann' or 'hns'", namespace)
 			}
@@ -122,17 +122,17 @@ func websitesDomainsAdd(d WebsitesDeps) pinner.Operation {
 			// supplied, pass the optional platform fields through so the portal
 			// can mint a subdomain at bind time (label provided explicitly, or
 			// auto-generated via generate).
-			if pd := pinner.StrArg(input, "platform-domain", ""); pd != "" {
+			if pd := opmesh.StrArg(input, "platform-domain", ""); pd != "" {
 				req.PlatformDomain = &pd
 			}
-			if pns := pinner.StrArg(input, "platform-namespace", ""); pns != "" {
+			if pns := opmesh.StrArg(input, "platform-namespace", ""); pns != "" {
 				req.PlatformNamespace = &pns
 			}
-			if pinner.BoolArg(input, "generate", false) {
+			if opmesh.BoolArg(input, "generate", false) {
 				g := true
 				req.Generate = &g
 			}
-			if label := pinner.StrArg(input, "label", ""); label != "" {
+			if label := opmesh.StrArg(input, "label", ""); label != "" {
 				req.Label = &label
 			}
 			// *ipfs.DomainResponse
@@ -175,19 +175,19 @@ func resolvePair(enable, disable *bool) (on bool, off bool, conflict bool) {
 // websitesDomainsRemove is the `websites domains rm` operation. The core
 // UnbindDomain returns no data; the handler returns a
 // WebsiteDomainsRemoveResult carrying the deleted binding ID.
-func websitesDomainsRemove(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsRemove(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_remove",
 		Title:       "Remove a domain binding",
 		Summary:     "Unbind a domain from its website",
 		Description: "Remove a domain binding from its website. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns a deleted/domain_id result confirming the removal.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or binding ID to remove"},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to remove"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -197,7 +197,7 @@ func websitesDomainsRemove(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domainArg := pinner.StrArg(input, "domain", "")
+			domainArg := opmesh.StrArg(input, "domain", "")
 			if domainArg == "" {
 				return nil, fmt.Errorf("websites_domains_remove: domain is required")
 			}
@@ -215,19 +215,19 @@ func websitesDomainsRemove(d WebsitesDeps) pinner.Operation {
 
 // websitesDomainsVerify is the `websites domains verify` operation. Returns
 // *ipfs.DomainResponse.
-func websitesDomainsVerify(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsVerify(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_verify",
 		Title:       "Verify a domain binding",
 		Summary:     "Verify a domain's DNS delegation",
 		Description: "Verify that a bound domain's DNS delegation is correctly configured. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the domain's status and delegation after verification.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or binding ID to verify"},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to verify"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -237,7 +237,7 @@ func websitesDomainsVerify(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domainArg := pinner.StrArg(input, "domain", "")
+			domainArg := opmesh.StrArg(input, "domain", "")
 			if domainArg == "" {
 				return nil, fmt.Errorf("websites_domains_verify: domain is required")
 			}
@@ -253,19 +253,19 @@ func websitesDomainsVerify(d WebsitesDeps) pinner.Operation {
 
 // websitesDomainsDNSRequirements is the `websites domains dns-requirements`
 // operation. Returns *ipfs.DomainResponse.
-func websitesDomainsDNSRequirements(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsDNSRequirements(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_dns_requirements",
 		Title:       "DNS requirements for a domain",
 		Summary:     "Show DNS records needed to complete domain delegation",
 		Description: "Show the DNS records a user must publish to complete delegation for a bound domain. For HNS namespaces this is the delegation bundle (parent NS/GLUE/DS and authoritative NS/TLSA). The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically.",
 		Category:    "core",
-		Safety:      pinner.SafetyRead,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyRead,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or binding ID to get DNS requirements for"},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to get DNS requirements for"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -275,7 +275,7 @@ func websitesDomainsDNSRequirements(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domainArg := pinner.StrArg(input, "domain", "")
+			domainArg := opmesh.StrArg(input, "domain", "")
 			if domainArg == "" {
 				return nil, fmt.Errorf("websites_domains_dns_requirements: domain is required")
 			}
@@ -291,19 +291,19 @@ func websitesDomainsDNSRequirements(d WebsitesDeps) pinner.Operation {
 
 // websitesDomainsDANERepublish is the `websites domains dane republish`
 // operation. Returns *ipfs.DomainDANERepublishResponse.
-func websitesDomainsDANERepublish(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsDANERepublish(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_dane_republish",
 		Title:       "Republish DANE records",
 		Summary:     "Force re-publication of a domain's DANE TLSA record",
 		Description: "Force re-publication of a bound domain's DANE records (the _443._tcp TLSA RRset) into the managed authoritative zone, to recover a TLSA that was deleted or missing and not re-published by certificate renewal. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the republished record's status and TLSA value.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or binding ID to republish DANE for"},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to republish DANE for"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -313,7 +313,7 @@ func websitesDomainsDANERepublish(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domainArg := pinner.StrArg(input, "domain", "")
+			domainArg := opmesh.StrArg(input, "domain", "")
 			if domainArg == "" {
 				return nil, fmt.Errorf("websites_domains_dane_republish: domain is required")
 			}
@@ -333,23 +333,23 @@ func websitesDomainsDANERepublish(d WebsitesDeps) pinner.Operation {
 // (its NS record points at one), so the portal
 // deletes its managed PowerDNS zone/DNSSEC and switches ownership verification
 // to the TXT token. One-way; DANE/SSL state is retained.
-func websitesDomainsConvertOnChain(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsConvertOnChain(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_convert_onchain",
 		Title:       "Convert a domain to on-chain managed",
 		Summary:     "Reclassify a bound HNS domain as on-chain managed",
 		Description: "Reclassify a bound HNS domain as on-chain managed (status onchain_managed): the name's DNS is served by an external contract on the Handshake chain, so Pinner deletes its managed zone and DNSSEC and verifies ownership via a TXT token instead of delegation. DANE/SSL state is retained. ONE-WAY and irreversible as a hosting change: requires confirm=true. Only applies to HNS-namespace bindings; the backend refuses an already on-chain, ineligible, or zone-sharing binding. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the updated domain object (status onchain_managed, delegation null).",
 		Category:    "core",
-		Safety:      pinner.SafetyDestructive,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyDestructive,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or binding ID to convert to on-chain managed"},
-			{Name: "confirm", Type: pinner.ArgTypeBool, AgentRequired: true, Help: "Confirm the one-way conversion (deletes Pinner's managed zone/DNSSEC for the binding)", AgentHelp: "Must be true to convert the domain to on-chain managed; this drops Pinner's managed zone/DNSSEC and is one-way. Only a human sets this on confirmation; a model alone cannot confirm a destructive operation."},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to convert to on-chain managed"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, AgentRequired: true, Help: "Confirm the one-way conversion (deletes Pinner's managed zone/DNSSEC for the binding)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
-			if !pinner.BoolArg(input, "confirm", false) {
+			if !opmesh.BoolArg(input, "confirm", false) {
 				return nil, fmt.Errorf("websites_domains_convert_onchain: confirmation is required — the conversion deletes Pinner's managed zone/DNSSEC for the binding and is one-way")
 			}
 			svc, svcErr := d.service(input)
@@ -359,7 +359,7 @@ func websitesDomainsConvertOnChain(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domainArg := pinner.StrArg(input, "domain", "")
+			domainArg := opmesh.StrArg(input, "domain", "")
 			if domainArg == "" {
 				return nil, fmt.Errorf("websites_domains_convert_onchain: domain is required")
 			}
@@ -378,23 +378,23 @@ func websitesDomainsConvertOnChain(d WebsitesDeps) pinner.Operation {
 //
 // Each field has a positive and negative control flag; when neither is set the
 // field is left nil on the request so the server leaves it unchanged.
-func websitesDomainsUpdate(d WebsitesDeps) pinner.Operation {
-	return pinner.NewOperation(pinner.OperationSpec{
+func websitesDomainsUpdate(d WebsitesDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "websites_domains_update",
 		Title:       "Update a domain binding",
 		Summary:     "Update DNS hosting / primary flags on a domain binding",
 		Description: "Update a bound domain's per-domain DNS control: enable or disable portal-managed DNS hosting (dns_hosting / no_dns_hosting) and promote or demote the binding as primary (primary / no_primary). Only the flags set are sent; unset fields are left unchanged. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the updated domain object.",
 		Category:    "core",
-		Safety:      pinner.SafetyMutate,
-		Interaction: pinner.InteractionAgentSafe,
-		Visibility:  pinner.VisibilityBoth,
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
-		Args: []pinner.OperationArg{
-			{Name: "domain", Type: pinner.ArgTypeString, Required: true, Help: "Domain name or binding ID to update"},
-			{Name: "dns-hosting", Type: pinner.ArgTypeNullableBool, Help: "Enable portal-managed DNS hosting for this binding"},
-			{Name: "no-dns-hosting", Type: pinner.ArgTypeNullableBool, Help: "Disable portal-managed DNS hosting for this binding"},
-			{Name: "primary", Type: pinner.ArgTypeNullableBool, Help: "Promote this binding to primary"},
-			{Name: "no-primary", Type: pinner.ArgTypeNullableBool, Help: "Demote this binding from primary"},
+		Args: []opmesh.OperationArg{
+			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to update"},
+			{Name: "dns-hosting", Type: opmesh.ArgTypeNullableBool, Help: "Enable portal-managed DNS hosting for this binding"},
+			{Name: "no-dns-hosting", Type: opmesh.ArgTypeNullableBool, Help: "Disable portal-managed DNS hosting for this binding"},
+			{Name: "primary", Type: opmesh.ArgTypeNullableBool, Help: "Promote this binding to primary"},
+			{Name: "no-primary", Type: opmesh.ArgTypeNullableBool, Help: "Demote this binding from primary"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -404,7 +404,7 @@ func websitesDomainsUpdate(d WebsitesDeps) pinner.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domainArg := pinner.StrArg(input, "domain", "")
+			domainArg := opmesh.StrArg(input, "domain", "")
 			if domainArg == "" {
 				return nil, fmt.Errorf("websites_domains_update: domain is required")
 			}
@@ -414,10 +414,10 @@ func websitesDomainsUpdate(d WebsitesDeps) pinner.Operation {
 			// explicit false on an enable form (e.g. --dns-hosting=false) means
 			// the user wants to turn that setting off, so it maps to the
 			// corresponding disable — no silent no-op.
-			dnsHosting := pinner.BoolArgPtr(input, "dns-hosting")
-			noDNSHosting := pinner.BoolArgPtr(input, "no-dns-hosting")
-			primary := pinner.BoolArgPtr(input, "primary")
-			noPrimary := pinner.BoolArgPtr(input, "no-primary")
+			dnsHosting := opmesh.BoolArgPtr(input, "dns-hosting")
+			noDNSHosting := opmesh.BoolArgPtr(input, "no-dns-hosting")
+			primary := opmesh.BoolArgPtr(input, "primary")
+			noPrimary := opmesh.BoolArgPtr(input, "no-primary")
 
 			// Resolve to two tri-state outcomes: enable(P) / disable(N) each a
 			// (*bool, present). Both forms present is a conflict.
