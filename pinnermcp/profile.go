@@ -2,7 +2,6 @@ package pinnermcp
 
 import (
 	"fmt"
-	"reflect"
 
 	"go.lumeweb.com/canimcp"
 	"go.lumeweb.com/mcpforge"
@@ -300,16 +299,7 @@ type catalogmcpForgeCarrier interface {
 // method may be unsafe on a nil receiver (mirrors isNilCatalog's handling of
 // typed-nil catalogs).
 func isNilCarrier(p any) bool {
-	if p == nil {
-		return true
-	}
-	v := reflect.ValueOf(p)
-	switch v.Kind() {
-	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
-		return v.IsNil()
-	default:
-		return false
-	}
+	return isNilValue(p)
 }
 
 // profileFromRequest extracts the HostProfile for a per-request tool

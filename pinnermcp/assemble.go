@@ -2,7 +2,6 @@ package pinnermcp
 
 import (
 	"fmt"
-	"reflect"
 
 	"go.lumeweb.com/opmesh"
 
@@ -204,21 +203,11 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 }
 
 // isNilCatalog reports whether cat is a nil interface or an interface holding
-// a typed nil (nil pointer/map/... value). A plain `cat == nil` comparison
-// misses the typed-nil shape: an interface variable carrying a nil concrete
-// value is non-nil as an interface yet unusable, so the assembly must treat it
-// as the absent catalog it effectively is.
+// a typed nil (nil pointer/map/... value). An interface variable carrying a
+// nil concrete value is non-nil as an interface yet unusable, so the assembly
+// must treat it as the absent catalog it effectively is.
 func isNilCatalog(cat opmesh.Catalog) bool {
-	if cat == nil {
-		return true
-	}
-	v := reflect.ValueOf(cat)
-	switch v.Kind() {
-	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
-		return v.IsNil()
-	default:
-		return false
-	}
+	return isNilValue(cat)
 }
 
 // resolveCatalog resolves the operation catalog for the assembly: a
