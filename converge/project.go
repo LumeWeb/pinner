@@ -223,8 +223,10 @@ func ProjectArgType(a pinner.ArgType) opmesh.ArgType {
 }
 
 // RegisterAll projects and registers each operation into an opmesh.Catalog,
-// returning the first registration error. A nil catalog or nil operation
-// element is a wiring bug and is reported as an error rather than a panic.
+// returning the first registration error. A nil catalog is a wiring bug and
+// is reported as ErrNilCatalog rather than a panic; nil operation elements
+// are intentionally skipped, consistent with ProjectAll, which also drops
+// nils.
 func RegisterAll(cat opmesh.Catalog, ops ...pinner.Operation) error {
 	if cat == nil {
 		return ErrNilCatalog
