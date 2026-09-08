@@ -127,13 +127,15 @@ func (s *launchdService) refreshPlist() error {
 		return err
 	}
 	cfg := s.cfg
-	if cfg.EnvFile != "" {
-		env, lerr := LoadEnvironment(cfg.EnvFile)
-		if lerr != nil {
-			return fmt.Errorf("load service environment %q: %w", cfg.EnvFile, lerr)
-		}
-		cfg.EnvVars = env
+	// MERGE, don't replace: start from the caller's EnvVars and overlay the
+	// env file's values (which win on collision), mirroring the Windows
+	// backend. Replacing wholesale would silently drop caller-provided
+	// variables when an EnvFile is configured.
+	envVars, lerr := mergedEnvVars(cfg)
+	if lerr != nil {
+		return lerr
 	}
+	cfg.EnvVars = envVars
 	if err := s.cfg.WriteFile(plistPath, []byte(renderLaunchdPlist(cfg, plistPath)), 0600); err != nil {
 		return fmt.Errorf("write LaunchAgent plist: %w", err)
 	}

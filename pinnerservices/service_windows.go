@@ -339,20 +339,7 @@ func printNewEvents(out string) int {
 // EnvironmentFile=. The env file wins on a key collision (it is the secret
 // source), matching the other backends. An absent env file is tolerated.
 func (s *windowsService) mergedEnvVars() (map[string]string, error) {
-	envVars := make(map[string]string, len(s.cfg.EnvVars))
-	for k, v := range s.cfg.EnvVars {
-		envVars[k] = v
-	}
-	if s.cfg.EnvFile != "" {
-		env, err := LoadEnvironment(s.cfg.EnvFile)
-		if err != nil {
-			return nil, fmt.Errorf("load service environment %q: %w", s.cfg.EnvFile, err)
-		}
-		for k, v := range env {
-			envVars[k] = v
-		}
-	}
-	return envVars, nil
+	return mergedEnvVars(s.cfg)
 }
 
 // setEnvInRegistry loads the service env file and writes its KEY=*** pairs as

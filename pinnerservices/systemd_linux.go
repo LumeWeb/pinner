@@ -106,7 +106,13 @@ func (s *systemdService) Install(ctx context.Context) error {
 }
 
 func (s *systemdService) Uninstall(ctx context.Context) error {
-	if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil {
+	// The unit file may already be gone (a second uninstall, or a retry after
+	// a partial failure elsewhere); `systemctl disable` then fails with a
+	// "does not exist"/"not loaded" flavor of error. Tolerate that as a no-op
+	// so Uninstall stays idempotent, mirroring the launchd backend's
+	// isNotInstalledRun tolerance. RemoveFile below remains the actual
+	// cleanup, and any other disable failure still propagates.
+	if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil && !unitAbsentError(err) {
 		return fmt.Errorf("disable systemd user service: %w", err)
 	}
 	unitPath := s.unitPath()
@@ -304,8 +310,23 @@ func systemdEscape(value string) string {
 	if value == "" {
 		return `""`
 	}
-	if strings.IndexFunc(value, func(r rune) bool { return strings.ContainsRune(" \t\"'\\", r) }) == -1 {
+	if strings.IndexFunc(value, func(r rune) bool { return strings.ContainsRune(" \t\"'\\$", r) }) == -1 {
 		return value
 	}
-	return `"` + strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`) + `"`
+	return `"` + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`), `$`, `$$`) + `"`
+}
+
+// unitAbsentError reports whether a systemctl run error reflects a unit that
+// does not exist, so it can be treated as a successful no-op (keeping
+// Uninstall idempotent when the unit file is already gone). systemd reports
+// "Failed to disable unit: Unit file <unit> does not exist." and, for the
+// --now stop of an already-gone unit, "Unit <unit> not loaded.".
+func unitAbsentError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "does not exist") ||
+		strings.Contains(msg, "no such file") ||
+		strings.Contains(msg, "not loaded")
 }

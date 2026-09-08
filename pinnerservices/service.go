@@ -3,6 +3,7 @@ package pinnerservices
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 )
 
@@ -81,4 +82,27 @@ type Config struct {
 	WriteFile  func(string, []byte, os.FileMode) error
 	RemoveFile func(string) error
 	MkdirAll   func(string, os.FileMode) error
+}
+
+// mergedEnvVars returns the union of Config.EnvVars and the EnvFile's values,
+// used by backends that resolve the environment at install time. It starts
+// from a copy of Config.EnvVars (so the caller's map is never mutated) and
+// overlays the env file's values, which win on a key collision (the env file
+// is the secret source), matching the systemd renderer's behavior of emitting
+// both Environment= and EnvironmentFile=. An absent env file is tolerated.
+func mergedEnvVars(cfg Config) (map[string]string, error) {
+	envVars := make(map[string]string, len(cfg.EnvVars))
+	for k, v := range cfg.EnvVars {
+		envVars[k] = v
+	}
+	if cfg.EnvFile != "" {
+		env, err := LoadEnvironment(cfg.EnvFile)
+		if err != nil {
+			return nil, fmt.Errorf("load service environment %q: %w", cfg.EnvFile, err)
+		}
+		for k, v := range env {
+			envVars[k] = v
+		}
+	}
+	return envVars, nil
 }
