@@ -2,6 +2,7 @@ package pinnermcp
 
 import (
 	"fmt"
+	"reflect"
 
 	"go.lumeweb.com/canimcp"
 	"go.lumeweb.com/mcpforge"
@@ -241,6 +242,14 @@ func AdaptHostProfile(p any) (HostProfile, error) {
 		if c, ok := p.(catalogmcpForgeCarrier); ok {
 			// Covers any mcpforge.FeatureCarrier, including the zero-config
 			// HostProfile and catalogmcp.MCPProfile / ProfileFromHas shapes.
+			if isNilCarrier(p) {
+				// A typed-nil carrier (an interface holding a nil pointer/
+				// map/... implementing FeatureSet) reads as intentionally
+				// profile-less, matching the nil *canimcp.Profile and
+				// *model.Profile branches. Calling FeatureSet() on a nil
+				// receiver whose implementation dereferences it would panic.
+				return HostProfile{}, nil
+			}
 			if hp, ok := p.(HostProfile); ok {
 				return hp.CloneFeatures(), nil
 			}
@@ -282,6 +291,25 @@ func AdaptHostProfile(p any) (HostProfile, error) {
 // catalogmcp's aliasing shape.)
 type catalogmcpForgeCarrier interface {
 	FeatureSet() mcpforge.FeatureSet
+}
+
+// isNilCarrier reports whether p is a nil interface or an interface holding
+// a typed nil (nil pointer/map/... value). A plain `p == nil` comparison
+// misses the typed-nil shape: an interface variable carrying a nil concrete
+// value still matches the catalogmcpForgeCarrier assertion but the carrier
+// method may be unsafe on a nil receiver (mirrors isNilCatalog's handling of
+// typed-nil catalogs).
+func isNilCarrier(p any) bool {
+	if p == nil {
+		return true
+	}
+	v := reflect.ValueOf(p)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 // profileFromRequest extracts the HostProfile for a per-request tool

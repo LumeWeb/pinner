@@ -228,6 +228,42 @@ func TestAssembleRejectsTypedNilCatalog(t *testing.T) {
 	require.Contains(t, err.Error(), "no operation catalog")
 }
 
+// --- Finding: typed-nil forge feature carrier must not panic in adaptation ---
+
+// panickyCarrier implements catalogmcpForgeCarrier with a FeatureSet that
+// dereferences its receiver. Calling it on a nil pointer panics, so any test
+// reaching it through a typed-nil profile fails loudly instead of silently
+// passing (the guard must route the typed-nil away from the method call).
+type panickyCarrier struct{ features mcpforge.FeatureSet }
+
+func (c *panickyCarrier) FeatureSet() mcpforge.FeatureSet { return c.features }
+
+// TestAssembleAdaptsTypedNilCarrier pins the typed-nil guard for the forge
+// feature-carrier path of AdaptHostProfile: a Config.Profile holding a nil
+// *panickyCarrier matches the carrier assertion, so without the guard
+// FeatureSet() runs on a nil receiver and panics. The documented profile-less
+// result (HostProfile{}, nil) must be returned instead. The full Assemble path
+// is exercised to catch a re-introduction of the panic through assembly.
+func TestAssembleAdaptsTypedNilCarrier(t *testing.T) {
+	typedNil := reflect.Zero(reflect.TypeOf(&panickyCarrier{})).Interface()
+
+	require.True(t, isNilCarrier(typedNil), "typed-nil carrier must read as nil")
+	require.False(t, isNilCarrier(&panickyCarrier{}), "live carrier must not read as nil")
+
+	require.NotPanics(t, func() {
+		hp, err := AdaptHostProfile(typedNil)
+		require.NoError(t, err, "typed-nil carrier adapts to the profile-less result")
+		require.Equal(t, HostProfile{}, hp, "identical to the nil-profile result")
+	})
+
+	// The assembly path must not panic either; the typed-nil carrier is
+	// treated as intentionally profile-less (like a nil *canimcp.Profile).
+	require.NotPanics(t, func() {
+		_, err := Assemble(Config{Catalog: testCatalog(), Profile: typedNil})
+		require.NoError(t, err, "typed-nil carrier profile assembles as profile-less")
+	})
+}
+
 // TestTransportStartupFeatures pins the effective-feature fallback per
 // transport: mechanism-only for stdio/HTTP, mechanism + ChatGPT host caps for
 // the embedded OpenAI tunnel — matching pinner-cli's effectiveFeaturesFor.
