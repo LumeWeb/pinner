@@ -1,0 +1,21 @@
+include-auto-generated: true
+template: testify
+template-data:
+  unroll-variadic: true
+filename: "{{.InterfaceName}}.go"
+packages:
+  go.lumeweb.com/pinner/core/config:
+    config:
+      dir: ./core/config/mocks
+      pkgname: mocks
+    interfaces:
+      Manager:
+        config:
+          filename: Manager.go
+  go.lumeweb.com/pinner/core/vault:
+    config:
+      pkgname: vault
+    interfaces:
+      VaultService:
+        config:
+          filename: mock_VaultService.go
