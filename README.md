@@ -62,6 +62,27 @@ It contains:
   It imports no CLI formatter, command framework, or MCP SDK package — tool
   descriptors and vault handling stay in pinner-cli per the package-boundaries
   doc.
+- **`pinnermcp`** — the Pinner MCP PRESENTATION layer over the kernels above:
+  `Assemble(Config) (*Server, error)` builds the complete, instance-scoped MCP
+  presentation from a `Config` (surface, hosted flag, platform profile,
+  transfer wiring, resource providers — no package globals, per fitness rule
+  13): the catalog tool surface compiled via
+  `catalogmcp.NewCompilerForProfile` and projected onto `model.ToolDescriptor`
+  with safety-derived wire hints, curated stamping, and environment
+  carve-out skips; the curated tools/list names (`CuratedToolNames`); the
+  surface-gated prompt set (the embedded `prompttemplates/` —
+  `website-onboarding`, `website-update`, `setup`, `ens-publish`); the
+  `pinner://` resource descriptors with injected `ResourceProviders` (account,
+  vault, DNS/website wizard status); the honest capabilities report
+  (`CurrentCapabilities` + `NewCapabilitiesDescriptor`); the host-aware agent
+  guide (`BuildAgentGuide` / `AgentGuideDescriptor`); and the transfer-tool
+  descriptor halves for `upload_file` / `upload_data` / `download_file`
+  (`NewUploadFileDescriptor` / `DataURIUploadDescriptor` /
+  `NewDownloadFileDescriptor`) whose executor halves are injected as function
+  types via `TransferDeps` (the coordinators stay with the composition root).
+  Server orchestration (protocol wiring, dispatch, transports) stays with the
+  composition root, which dispatches through `Server.Catalog().Invoke`. The
+  package imports no CLI framework, terminal-UI library, or MCP SDK.
 - **`core/`** — the service layer the operations run against (auth, config,
   dns, ipns, uploads, download, pinning, vault, websites, ...), built on
   [portal-sdk](https://pkg.go.dev/go.lumeweb.com/portal-sdk) and

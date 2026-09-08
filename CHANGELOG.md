@@ -22,6 +22,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- new `pinnermcp` subpackage: the Pinner MCP PRESENTATION layer over
+  `pinnerops` + `catalogmcp` (prompts, resources, curated tool names,
+  capabilities, agent guide, transfer-tool descriptors), dependent only on
+  the plane libraries (mcpplane, canimcp, mcpforge, opmesh) and this module —
+  no CLI framework, terminal-UI library, or MCP SDK imports. `Assemble(Config)`
+  is the single construction seam producing an instance-scoped `Server`
+  (fitness rule 13: surface, hosted flag, platform profile, transfer wiring,
+  and resource providers are all Config fields; the historic pinner-cli
+  package-global setters are superseded, with no equivalent setters). It
+  compiles the catalog tool surface via `catalogmcp.NewCompilerForProfile`
+  and projects it to `model.ToolDescriptor` presentations (`CompileCatalog`,
+  safety-derived wire hints, curated stamping via `CuratedToolNames`,
+  `catalogmeta.EnvironmentOf` carve-out skips), plus the direct-only tools
+  outside the catalog: agent_guide (`BuildAgentGuide`/`AgentGuideDescriptor`
+  with host-profile fragments), the honest capabilities report
+  (`CurrentCapabilities`/`NewCapabilitiesDescriptor` matched to the tools/list
+  registration flags), and the transfer-tool descriptor halves
+  (`NewUploadFileDescriptor`/`DataURIUploadDescriptor`/
+  `NewDownloadFileDescriptor`) with executor/coordinator function types
+  injected via `TransferDeps`. The surface-gated prompt set renders the
+  embedded `prompttemplates/` (`website-onboarding`, `website-update`,
+  `setup`, `ens-publish`) and the `pinner://` resources flow through the
+  injected `ResourceProviders` (zero value = descriptors with a clear
+  "provider not configured" read failure, matching the source's nil-provider
+  handling). There is deliberately no AppRegistry field: mcpplane.apps sits
+  behind the MCP SDK, so the Apps registry remains a composition-root seam.
+  Server orchestration (protocol wiring, dispatch, transports) stays with the
+  composition root, which dispatches through `Server.Catalog().Invoke`.
 - new `pinnertransfer` subpackage: the Pinner/IPFS upload & download
   EXECUTORS over [go.lumeweb.com/mcpplane/transfer](https://pkg.go.dev/go.lumeweb.com/mcpplane/transfer)
   (per the package-boundaries doc §4) — the stream→upload executor

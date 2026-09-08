@@ -1,0 +1,398 @@
+package pinnermcp
+
+import (
+	"context"
+
+	"github.com/samber/lo"
+	"go.lumeweb.com/canimcp"
+	"go.lumeweb.com/mcpforge"
+	"go.lumeweb.com/mcpplane/ieo"
+	"go.lumeweb.com/mcpplane/model"
+	"go.lumeweb.com/mcpplane/toolargs"
+	"go.lumeweb.com/mcpplane/transfer"
+)
+
+// FileInputCapability enumera the ways a host can hand a file to Pinner.
+type FileInputCapability string
+
+const (
+	// Source modes (mirrors transfer.FileSourceMode) advertised against the
+	// running transport; see transfer.UploadSource. Only the modes the
+	// transport supports are listed in CapabilityReport.SourceModes.
+	CapabilityLocalPath FileInputCapability = "path" // co-located stdio
+	CapabilityMint      FileInputCapability = "mint" // HTTP / real tunnel
+	CapabilityRelayURL  FileInputCapability = "url"  // openai tunnel
+	CapabilityDataURI   FileInputCapability = "data" // openai tunnel
+	// CapabilityDraftXFile: draft x-mcp-file metadata is exposed on tools.
+	CapabilityDraftXFile FileInputCapability = "x-mcp-file"
+)
+
+// UploadToolCapability enumerates the top-level upload tools registered on a
+// host. Unlike SourceModes (which list only what upload_file's source.mode
+// accepts), these are the actual tools bytes can be passed through, including
+// the separate relay tools a profile gates on.
+type UploadToolCapability string
+
+const (
+	UploadToolFile UploadToolCapability = "upload_file" // primary tool (mint/path/url-data source)
+	UploadToolURL  UploadToolCapability = "upload_url"  // server-fetch a public HTTPS URL
+	UploadToolData UploadToolCapability = "upload_data" // inline RFC 2397 data: URI
+)
+
+// FileOutputCapability enumerates the ways a host can receive a downloaded
+// file's bytes (the sink side, mirror of FileInputCapability).
+type FileOutputCapability string
+
+const (
+	// Sink modes (mirror transfer.DownloadSink) advertised against the running
+	// transport; see sinkModesFor.
+	CapabilitySinkLocal FileOutputCapability = "local" // host local write, every transport
+	CapabilitySinkDrop  FileOutputCapability = "drop"  // one-time GET filedrop, reachable HTTP mux
+)
+
+// CapabilityReport describes which file-input and file-output (download) modes
+// the running server offers.
+//
+// Transport is the transport decision made at registration (stdio/http/openai).
+// SourceModes lists the transfer.UploadSource modes valid for that transport —
+// a host reads this to know the exact source voice each upload tool expects.
+// DownloadSinkModes lists the transfer.DownloadSink modes valid for that
+// transport — a host reads this to know where a download tool can land its
+// bytes.
+type CapabilityReport struct {
+	// Transport is the active MCP transport: "stdio", "http", or "openai".
+	Transport transfer.TransportKind `json:"transport"`
+	// SourceModes are the valid UploadSource mode values for the `source`
+	// argument of upload tools, e.g. ["path"] for stdio, ["mint"] for http,
+	// ["url","data"] for openai. They describe ONLY what upload_file /
+	// vault_put_file's source.mode accepts on this transport — they are NOT
+	// the full set of ways bytes can enter Pinner. A host may also expose the
+	// separate top-level relay tools upload_url (server-fetch a public HTTPS
+	// URL) and upload_data (inline RFC 2397 data: URI); their presence is not
+	// reflected here. A mode is never a claim that upload_file has a `file`
+	// argument (see HostFileInput).
+	SourceModes []FileInputCapability `json:"source_modes"`
+	// UploadTools are the top-level upload tools registered on this host, in
+	// the order a model should try them for the byte routes they serve
+	// (upload_file, then any relay tools the profile registers). It complements
+	// SourceModes: SourceModes lists only what upload_file/vault_put_file's
+	// source.mode accepts; UploadTools lists every way bytes can enter Pinner,
+	// including the separate upload_url / upload_data relay tools.
+	UploadTools []UploadToolCapability `json:"upload_tools,omitempty"`
+	// DownloadSinkModes are the valid DownloadSink mode values for Transport.
+	// Host-local write ("local") is always offered because the server's disk is
+	// always local to it; "drop" (filedrop GET) is added only when a reachable
+	// HTTP mux exists (HTTP / real tunnel, not the embedded OpenAI tunnel).
+	DownloadSinkModes []FileOutputCapability `json:"download_sink_modes"`
+	// DownloadFile is true when the unified download_file tool is registered.
+	DownloadFile bool `json:"download_file"`
+	// VaultGetFile is true when the unified vault_get_file tool is registered.
+	VaultGetFile bool `json:"vault_get_file"`
+	// UploadFile is true when the unified upload_file tool is registered.
+	UploadFile bool `json:"upload_file"`
+	// VaultPutFile is true when the unified vault_put_file tool is registered.
+	VaultPutFile bool `json:"vault_put_file"`
+	// DraftXFile reflects whether draft x-mcp-file metadata is exposed.
+	DraftXFile bool `json:"draft_x_mcp_file"`
+	// RelayMaxBytes is the server cap for relayed (url/data/file-object) bytes.
+	RelayMaxBytes int64 `json:"relay_max_bytes"`
+
+	// HostFileInput is true when an upload tool exposes a top-level `file`
+	// argument (OpenAI/ChatGPT file reference) — file bytes are fetched by the
+	// server, never by the agent. This is independent of SourceModes.
+	HostFileInput bool `json:"host_file_input"`
+	// HostFileInputPreferred is true when the host file input is the preferred
+	// upload route over raw source modes (i.e. when a file argument exists).
+	HostFileInputPreferred bool `json:"host_file_input_preferred"`
+	// FileInputPolicy is a machine-readable invariant the agent MUST follow
+	// when deciding how to pass file bytes. "host_file_first" means: when a
+	// host file exists (user-uploaded attachment or assistant-generated local
+	// file), always pass it through the `file` parameter; never base64-encode,
+	// create a data URI, mint a presigned URL, or manually construct the
+	// download_url object. Empty when no upload/vault tool is registered.
+	FileInputPolicy string `json:"file_input_policy,omitempty"`
+}
+
+// sourceModesFor returns the UploadSource modes valid for the transport, in a
+// stable order. It derives from transfer.SourceModeEnumValues — the same source
+// of truth used to rewrite the published upload/vault tool schemas — so the
+// advertised capabilities report can never drift from the enum a client is
+// allowed to pass. The FileInputCapability names intentionally equal the
+// FileSourceMode strings they mirror.
+func sourceModesFor(t canimcp.TransportKind) []FileInputCapability {
+	values := transfer.SourceModeEnumValues(transfer.TransportKind(t))
+	if len(values) == 0 {
+		return nil
+	}
+	return lo.Map(values, func(v string, _ int) FileInputCapability {
+		return FileInputCapability(v)
+	})
+}
+
+// sinkModesFor returns the DownloadSink modes valid for the transport. It is
+// derived from the same reachability decision the download tool registration
+// enforces, so the report cannot drift from what the download tools accept:
+// host-local write is always present (the server's disk is local on every
+// transport), and the filedrop GET sink is added only when a drop coordinator
+// is wired AND the transport has a reachable HTTP mux (not the embedded OpenAI
+// tunnel).
+func sinkModesFor(dropWired, tunnelOpenAI bool) []FileOutputCapability {
+	modes := []FileOutputCapability{CapabilitySinkLocal}
+	if dropWired && !tunnelOpenAI {
+		modes = append(modes, CapabilitySinkDrop)
+	}
+	return modes
+}
+
+// CurrentCapabilities reports the file-input and file-output capabilities of
+// this server. The transport is derived from the registration decision
+// (coLocated/tunnelOpenAI); SourceModes lists the source voices an upload tool
+// actually accepts on that transport, and DownloadSinkModes lists the sinks a
+// download tool actually accepts. A mode is only advertised when a backing tool
+// is registered — a consumer must never see a mode whose tool would fail at
+// invocation time.
+func CurrentCapabilities(coLocated, tunnelOpenAI, uploadFile, vaultPutFile, downloadFile, vaultGetFile, dropWired, draftXFile bool, maxBytes int64) CapabilityReport {
+	transport := UploadFileTransport(coLocated, tunnelOpenAI)
+	var sourceModes []FileInputCapability
+	if uploadFile || vaultPutFile {
+		sourceModes = sourceModesFor(transport)
+	}
+	var sinkModes []FileOutputCapability
+	if downloadFile || vaultGetFile {
+		sinkModes = sinkModesFor(dropWired, tunnelOpenAI)
+	}
+	hfi := uploadFile || vaultPutFile
+	policy := ""
+	if hfi {
+		policy = "host_file_first"
+	}
+	return CapabilityReport{
+		Transport:              transfer.TransportKind(transport),
+		SourceModes:            sourceModes,
+		DownloadSinkModes:      sinkModes,
+		DownloadFile:           downloadFile,
+		VaultGetFile:           vaultGetFile,
+		UploadFile:             uploadFile,
+		VaultPutFile:           vaultPutFile,
+		DraftXFile:             draftXFile,
+		RelayMaxBytes:          ieo.EffectiveRelayMaxBytes(maxBytes),
+		HostFileInput:          hfi,
+		HostFileInputPreferred: hfi,
+		FileInputPolicy:        policy,
+	}
+}
+
+// capabilitiesLeadIn is the profile-adapted capabilities description body: the
+// intro, the "host file first" routing clause, and the download-sink copy. It
+// deliberately does NOT name any source.mode=mint completion contract — that
+// copy is tool-scoped in capabilityDescriptionFor so it can respect
+// registration-time wiring (upload_file mints poll upload_status;
+// vault_put_file mints non-blocking with no poll). The "host file first"
+// clause is gated on FeatFileHostInput (only OpenAI/ChatGPT hosts can build a
+// {download_url, file_id} file object). Resolving against the calling profile
+// prevents the description from promising a `file` parameter a host (e.g.
+// Grok) cannot fill.
+var capabilitiesLeadIn = mcpforge.Static[HostProfile](
+	"Report the running MCP transport and which file-input source modes, upload tools, and file-output sink modes this Pinner MCP server accepts. Read all three fields to pick the right byte route without probing tool descriptions: source_modes lists the source.mode values upload_file/vault_put_file accept on this transport (they are NOT the whole upload surface); upload_tools lists every upload tool registered on this host (upload_file plus any separate relay tools present); download_sink_modes lists the sinks download_file/vault_get_file accept.",
+).
+	When(FeatFileHostInput,
+		"The upload_file/vault_put_file tools take a transport-scoped `source` whose legal modes are exactly the values in `source_modes`, OR a host-provided `file` argument when available.",
+	).
+	WhenSentence(FeatFileHostInput,
+		"A host-provided file (a temporary download_url + file_id object) is always preferred when available, regardless of source_modes.",
+	).
+	WhenSentence(FeatFileHostInput,
+		"file_input_policy=host_file_first is a machine-readable invariant: when set, an agent MUST pass any file already supplied or created by the host through the file parameter (user-uploaded attachments AND assistant-generated sandbox files) and must NOT base64-encode, create a data URI, or mint a presigned URL when file can be used.",
+	).
+	Unless(FeatFileHostInput,
+		"This client has no `file` parameter it can fill: call upload_file/vault_put_file with a transport-scoped source.",
+	).
+	StaticSentence("download_file/vault_get_file take a sink: local writes to a path on the MCP server's own disk (not visible to a remote agent)").
+	WhenSentence(FeatSinkDrop,
+		"or drop returns a one-time filedrop link to pull from out of band.",
+	)
+
+// capabilitiesByteChooser is the upload byte-route chooser surfaced when
+// upload_file is wired. It names upload_file and the optional upload_url /
+// upload_data relay tools, so it must never render when no IPFS upload tool is
+// available (vault-only wiring) — that gating happens in
+// capabilityDescriptionFor. The mint item is upload_file-specific, so its
+// PUT + upload_status tail is correct here and never implies vault mints poll.
+var capabilitiesByteChooser = mcpforge.List[HostProfile](mcpforge.ListNumbered).
+	Intro("Pick the byte route in this order:").
+	ItemWhen(FeatSourceMint, "a file the agent can read locally → upload_file(source.mode=mint), then the host transfers the bytes, then poll upload_status").
+	ItemWhen(FeatSourceURL, "bytes already at a public HTTPS URL → upload_url (server fetch; do not download then re-upload)").
+	ItemWhen(FeatSourceData, "only raw bytes, no file, no URL → upload_data (an RFC 2397 data: URI) — last resort; never base64-encode a real file")
+
+// mintUploadCompletion is the upload_file(source.mode=mint) completion contract.
+// It is emitted only when upload_file is registered.
+const mintUploadCompletion = "upload_file(source.mode=mint) is asynchronous: it returns a url + upload_handle but has NOT stored bytes — transfer the agent-local file to the returned url, then poll upload_status until it reports completed (the returned CID is already pinned, so pins_add is unnecessary)."
+
+// mintVaultCompletion is the vault_put_file(source.mode=mint, vault_path=...)
+// completion contract. It is emitted only when vault_put_file is registered.
+// The PUT response is the completed vault write and there is NO upload_status
+// poll: upload_status tracks upload_file's IPFS uploads, not vault writes.
+const mintVaultCompletion = "vault_put_file(source.mode=mint, vault_path=...) is non-blocking: it returns a one-time presigned upload url bound to vault_path — transfer the agent-local file to it and the upload returns quickly after staging the bytes locally (status: staged). The file is immediately readable from this instance; durability on Sia (upload + pin) happens in the background, or via the vault_flush tool (itself non-blocking — returns an accepted job { job_id, profile, path? }), so poll vault_flush_status(job_id) or vault_stat until status: durable when durability is needed before sharing. If a file stays non-durable across polls, read vault_stat's flush_attempts and flush_error to tell a failing flush (a flushing file: rising attempts, no error; a failed file: attempts + a non-empty error; a staged file that never started: zero attempts, no error). There is no upload_status to poll (upload_status tracks upload_file's IPFS uploads, not vault writes)."
+
+// uploadToolsFor lists the upload tools actually registered on THIS server, in
+// chooser order: upload_file first, then the relay tools. It gates each tool
+// on the EXACT condition the transfer-tool registration uses — the executor
+// must be wired AND the registration-time effective feature set must declare
+// the feature (relayURLWired&&FeatSourceURL / dataURIWired&&FeatSourceData) —
+// so the capabilities JSON never advertises a tool that was not registered.
+// feats is the registration-time effective feature set, NOT the per-request
+// wire profile, so a startup server that registered no relay tools for a host
+// never claims them even if a later request detects that host.
+func uploadToolsFor(feats mcpforge.FeatureSet, uploadFile, relayURLWired, dataURIWired bool) []UploadToolCapability {
+	var out []UploadToolCapability
+	if uploadFile {
+		out = append(out, UploadToolFile)
+	}
+	if relayURLWired && feats.Has(FeatSourceURL) {
+		out = append(out, UploadToolURL)
+	}
+	if dataURIWired && feats.Has(FeatSourceData) {
+		out = append(out, UploadToolData)
+	}
+	return out
+}
+
+// capabilitiesDescriptionFor resolves the capabilities description against
+// profile, clearing FeatFileHostInput when no file-capable upload/vault tool is
+// wired so the advertised prose matches the report's host_file_input. The
+// description is gated on the same combined condition as the report (client can
+// build the file object AND a tool is wired), keeping the startup description
+// consistent with the handler's per-request report.
+//
+// The source.mode=mint completion contract is TOOL-SCOPED and respects
+// registration-time wiring:
+//   - upload_file(source.mode=mint) is asynchronous: <host PUT> then poll
+//     upload_status — the byte-route chooser and this clause render only when
+//     upload_file is actually wired.
+//   - vault_put_file(source.mode=mint, vault_path=...) is non-blocking: the PUT
+//     stages bytes locally (status: staged) and returns; durability happens in
+//     the background or via vault_flush, and there is no upload_status poll —
+//     that clause renders only when vault_put_file is actually wired.
+//
+// Neither tool's clause names the other, so a single sentence can never be
+// read as "every mint operation polls upload_status", and an unwired tool is
+// never advertised.
+func capabilitiesDescriptionFor(profile HostProfile, uploadFile, vaultPutFile, downloadFile, vaultGetFile bool) string {
+	profile = profile.CloneFeatures()
+	if !(uploadFile || vaultPutFile) {
+		delete(profile.Features, FeatFileHostInput)
+	}
+	if !(downloadFile || vaultGetFile) {
+		delete(profile.Features, FeatSinkDrop)
+	}
+	// Clone before composing: capabilitiesLeadIn is a shared package-level
+	// builder and the List/WhenSentence calls below append to its segment
+	// slice. Without Clone, append() would reuse spare capacity in the
+	// global's backing array, letting concurrent resolution calls race on
+	// the same indices. Clone copies the slice so each call grows its own
+	// array.
+	desc := capabilitiesLeadIn.Clone()
+	if uploadFile {
+		desc = desc.List(capabilitiesByteChooser).WhenSentence(FeatSourceMint, mintUploadCompletion)
+	}
+	if vaultPutFile {
+		desc = desc.WhenSentence(FeatSourceMint, mintVaultCompletion)
+	}
+	return desc.Resolve(profile)
+}
+
+// CapabilityWiring snapshots the registration-time transfer-tool wiring of the
+// assembled server. It is the de-globalized replacement for the source's
+// descriptor-side helper functions that read transport flags from package
+// state: everything the capabilities descriptor must know about which tools
+// were actually registered, captured once at assembly.
+type CapabilityWiring struct {
+	// CoLocated / TunnelOpenAI are the wiring flags that classify the
+	// transport (stdio / HTTP / OpenAI tunnel).
+	CoLocated bool
+	// TunnelOpenAI is the embedded OpenAI tunnel component of the transport.
+	TunnelOpenAI bool
+	// UploadFile / VaultPutFile report whether the file-capable upload tools
+	// are registered; DownloadFile / VaultGetFile whether the download tools
+	// are.
+	UploadFile   bool
+	VaultPutFile bool
+	DownloadFile bool
+	VaultGetFile bool
+	// DropWired reports whether the filedrop (sink=drop) coordinator is wired.
+	DropWired bool
+	// RelayURLWired / DataURIWired report whether the upload_url /
+	// upload_data relay tools are registered. They gate the advertised
+	// UploadTools on the registration-time RelayFeatures feature set.
+	RelayURLWired bool
+	DataURIWired  bool
+	// DraftXFile reflects registration x-mcp-file exposure (upload_data wired).
+	DraftXFile bool
+	// RelayMaxBytes is the server relay cap threaded into the report.
+	RelayMaxBytes int64
+	// RelayFeatures is the registration-time effective feature set that
+	// decided which relay tools registered.
+	RelayFeatures mcpforge.FeatureSet
+}
+
+// reportFor computes the honest startup-time CapabilityReport for this wiring:
+// every capability the report advertises must be backed by a registered tool.
+func (w CapabilityWiring) reportFor() CapabilityReport {
+	report := CurrentCapabilities(w.CoLocated, w.TunnelOpenAI, w.UploadFile, w.VaultPutFile, w.DownloadFile, w.VaultGetFile, w.DropWired, w.DraftXFile, w.RelayMaxBytes)
+	report.UploadTools = uploadToolsFor(w.RelayFeatures, report.UploadFile, w.RelayURLWired, w.DataURIWired)
+	return report
+}
+
+// NewCapabilitiesDescriptor returns a tool descriptor advertising the running
+// transport and the file-input source modes / file-output sink modes available.
+// It is cheap and safe to expose directly, and is the feature-detection hook
+// for hosts that stage on draft MCP file metadata.
+//
+// The baked tools/list description is resolved for the startup transport's
+// wiring-derived profile (ACROSS the wiring passed in wiring), and the handler
+// re-derives the report per request: draft_x_mcp_file reports whether the
+// CALLING client can speak the SEP-2356 x-mcp-file metadata — a per-host
+// capability, not a wiring fact. host_file_input is only honest when the
+// calling client can build the `file` {download_url, file_id} object AND a
+// file-capable upload/vault tool is actually wired. upload_tools reflects THIS
+// server's registered tools, gated on the registration-time RelayFeatures —
+// never the per-request wire profile.
+func NewCapabilitiesDescriptor(wiring CapabilityWiring) model.ToolDescriptor {
+	startupProfile := profileForTransport(UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI)).CloneFeatures()
+	return model.ToolDescriptor{
+		Name:          "capabilities",
+		Title:         "Pinner file-input/output capabilities",
+		Description:   capabilitiesDescriptionFor(startupProfile, wiring.UploadFile, wiring.VaultPutFile, wiring.DownloadFile, wiring.VaultGetFile),
+		Category:      model.CategoryCore,
+		OpenWorldHint: false, // pure local capability report; changes no state
+		InputSchema:   inputSchemaFor[noInput](),
+		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
+			w := wiring
+			// draft_x_mcp_file reports whether the CALLING client can speak the
+			// SEP-2356 x-mcp-file metadata — it is a per-host capability, not a
+			// wiring fact. The registration-time draftXFile flag reflects that
+			// an upload_data tool is wired (for some other host); a host whose
+			// profile does not declare FeatXMcpFile (e.g. Grok) must see false
+			// so the report never advertises a draft it cannot read.
+			if request.Caps != nil && request.Caps.Profile != nil && !request.Caps.Profile.Has(model.Feature(FeatXMcpFile)) {
+				w.DraftXFile = false
+			}
+			// host_file_input is only honest when the calling client can build
+			// the `file` {download_url, file_id} object (ChatGPT/OpenAI) AND a
+			// file-capable upload/vault tool is wired; reportFor computes the
+			// baseline wiring report and the flags below are then re-gated on
+			// the calling client.
+			report := w.reportFor()
+			canHostFile := request.Caps != nil && request.Caps.Profile != nil && request.Caps.Profile.Has(model.Feature(FeatFileHostInput))
+			report.HostFileInput = canHostFile && (report.UploadFile || report.VaultPutFile)
+			report.HostFileInputPreferred = report.HostFileInput
+			if !report.HostFileInput {
+				report.FileInputPolicy = ""
+			}
+			// Text carries the same canonical JSON as StructuredContent so a
+			// text-only MCP client still sees the source/sink mode data instead
+			// of an unhelpful stub ("Pinner capabilities.").
+			return model.ToolResult{StructuredContent: report, Text: toolargs.ResultJSONText(report)}, nil
+		},
+	}
+}
