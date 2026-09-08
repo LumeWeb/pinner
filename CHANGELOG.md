@@ -13,3 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pinner-cli: the typed operation-descriptor registry and the Pinner domain
   operation providers (account, admin, apikeys, auth, dns, ens, ipns, list,
   meta, operations, pins, vault, websites) plus their core service layer.
+- new `pinnerservices` subpackage: the OS service-management machinery
+  (thin install/start/stop/status/connect adapter over systemd user units,
+  launchd LaunchAgents, and the Windows SCM) extracted from pinner-cli's
+  `internal/service`. Includes the KEY=VALUE service environment file
+  helpers (`ParseEnvironment`/`LoadEnvironment`/`WriteEnvironment`) and the
+  backend-independent `Status` report. Behavior is unchanged from the
+  original; no pterm/urfave/MCP/pinner-cli dependencies.

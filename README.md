@@ -19,6 +19,13 @@ It contains:
   [portal-sdk](https://pkg.go.dev/go.lumeweb.com/portal-sdk) and
   [ipfs-sdk](https://pkg.go.dev/go.lumeweb.com/ipfs-sdk).
 - **`dnsutil`** — shared, dependency-free DNS validators.
+- **`pinnerservices`** — the OS service-management machinery: install, start,
+  stop, and status-report a configured process as an OS service (daemon).
+  Thin lifecycle adapters over systemd per-user units (Linux), launchd
+  LaunchAgents (macOS), and the Windows Service Control Manager (Windows),
+  selected automatically by probe; plus the 0600 KEY=VALUE service
+  environment-file helpers all backends share. It never runs the process
+  in-process — it always points at an external executable.
 
 The module carries **no terminal-UI, CLI-framework, or MCP-SDK imports**:
 pterm/urfave rendering and the MCP-server bindings stay in pinner-cli, which
@@ -73,6 +80,30 @@ if err != nil {
     panic(err)
 }
 _ = tools // hand []pinner.ToolDescriptor to your MCP server
+```
+
+Install and run a built binary as an OS service (backend picked automatically
+per platform — systemd user unit, launchd LaunchAgent, or Windows SCM):
+
+```go
+import "go.lumeweb.com/pinner/pinnerservices"
+
+svc, err := pinnerservices.New(pinnerservices.Config{
+	Name:        "pinner-mcp",
+	Description: "Pinner MCP service",
+	ExecPath:    "/usr/local/bin/pinner",
+	Arguments:   []string{"mcp", "serve"},
+	UserMode:    true,
+	EnvFile:     "/home/alice/.config/pinner/mcp.env",
+})
+if err != nil {
+	// no supported init system on this host
+	return err
+}
+if err := svc.Install(ctx); err != nil {
+	return err // registers and enables the service
+}
+return svc.Start(ctx)
 ```
 
 ## License
