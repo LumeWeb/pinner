@@ -1,0 +1,24 @@
+package canvas
+
+// AuthSSOAppForm renders the visible "Sign In" view body: a start button, the
+// approval URL readout (deep-linked to the human), and a live status line that
+// polls the app-only auth_sso_status helper until done. The document <head>
+// (the composition root's injected theme stylesheet) and the ESM module
+// <script> (bundle "auth-sso" — appsassets/dist/auth-sso.js — resolved through
+// the Renderer's asset source) are supplied by Renderer.RenderDoc, so this
+// templ authors only the app-specific markup.
+//
+// Ported unchanged from pinner-cli internal/mcpapp auth_sso_app.templ: the
+// element ids and classes below are the hooks the "auth-sso" JS bundle
+// queries; do not rename them without rebuilding the bundle.
+templ AuthSSOAppForm() {
+	<div class="app-shell">
+		<h1 class="app-title">Sign In</h1>
+		<button id="sso-start" type="button" class="btn-primary">Start sign-in</button>
+		<div class="card">
+			Approval: <a id="sso-url" href="#" target="_blank" rel="noopener" class="muted underline underline-offset-2">pending</a>
+		</div>
+		<button id="sso-revoke" type="button" class="btn-secondary" hidden>Revoke &amp; start a new sign-in</button>
+		<div id="sso-status" class="status"></div>
+	</div>
+}
