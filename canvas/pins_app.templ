@@ -1,0 +1,30 @@
+package canvas
+
+// PinCreateAppForm renders the visible "Create a Pin" view body: the CID/name
+// form, the live status line, and the result readout. The document <head>
+// (the composition root's injected theme stylesheet) and the ESM module
+// <script> (bundle "pin" — appsassets/dist/pin.js — resolved through the
+// Renderer's asset source) are supplied by Renderer.RenderDoc, so this
+// templ authors only the app-specific markup.
+//
+// Ported unchanged from pinner-cli internal/mcpapp pins_app.templ: the
+// element ids and classes below are the hooks the "pin" JS bundle queries;
+// do not rename them without rebuilding the bundle.
+templ PinCreateAppForm() {
+	<div class="app-shell">
+		<h1 class="app-title">Create a Pin</h1>
+		<form id="pin-form" class="mt-2">
+			<label for="cid" class="form-label">CID</label>
+			<input id="cid" name="cid" class="form-input" placeholder="bafy..." autocomplete="off" spellcheck="false"/>
+			<label for="name" class="form-label">Name (optional)</label>
+			<input id="name" name="name" class="form-input" placeholder="my-file" autocomplete="off"/>
+			<button type="submit" class="btn-primary">Pin</button>
+		</form>
+		<div id="pin-status" class="status"></div>
+		<div class="card">
+			CID: <code id="out-cid" class="mono text-accent">—</code>
+			<br/>
+			Status: <code id="out-status" class="mono text-accent">—</code>
+		</div>
+	</div>
+}

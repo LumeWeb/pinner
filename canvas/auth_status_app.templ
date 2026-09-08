@@ -1,0 +1,25 @@
+package canvas
+
+// AuthStatusAppForm renders the visible "Account" view body: a status line, an
+// authenticated/not-authenticated outcome label, and the account message. The
+// refresh is wired by the auth-status ESM bundle. The document <head> (the
+// composition root's injected theme stylesheet) and the ESM module <script>
+// (bundle "auth-status" — appsassets/dist/auth-status.js — resolved through
+// the Renderer's asset source) are supplied by Renderer.RenderDoc, so this
+// templ authors only the app-specific markup.
+//
+// Ported unchanged from pinner-cli internal/mcpapp auth_status_app.templ: the
+// element ids and classes below are the hooks the "auth-status" JS bundle
+// queries; do not rename them without rebuilding the bundle.
+templ AuthStatusAppForm() {
+	<div class="app-shell">
+		<h1 class="app-title">Account</h1>
+		<div id="authstatus-status" class="status"></div>
+		<div class="card">
+			<strong id="authstatus-outcome">—</strong>
+			<br/>
+			<span id="authstatus-message" class="muted"></span>
+		</div>
+		<button type="button" id="authstatus-refresh" class="btn-primary" disabled>Refresh</button>
+	</div>
+}

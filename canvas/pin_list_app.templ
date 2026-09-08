@@ -1,0 +1,34 @@
+package canvas
+
+// PinListAppForm renders the visible "Pin list" view body: a status line, a
+// count summary, a refresh button, and the pin table. The table rows and the
+// refresh are wired by the pin-list ESM bundle. The document <head> (the
+// composition root's injected theme stylesheet) and the ESM module <script>
+// (bundle "pin-list" — appsassets/dist/pin-list.js — resolved through the
+// Renderer's asset source) are supplied by Renderer.RenderDoc, so this templ
+// authors only the app-specific markup.
+//
+// Ported unchanged from pinner-cli internal/mcpapp pin_list_app.templ: the
+// element ids and classes below are the hooks the "pin-list" JS bundle
+// queries; do not rename them without rebuilding the bundle.
+templ PinListAppForm() {
+	<div class="app-shell">
+		<h1 class="app-title">Pins</h1>
+		<div id="pinlist-status" class="status"></div>
+		<div class="browser-bar justify-between">
+			<span id="pinlist-count" class="browser-path"></span>
+			<button type="button" id="pinlist-refresh" class="btn-primary !mt-0" disabled>Refresh</button>
+		</div>
+		<table class="table mt-4">
+			<thead>
+				<tr>
+					<th class="table-head">Name</th>
+					<th class="table-head">Status</th>
+					<th class="table-head">Created</th>
+				</tr>
+			</thead>
+			<tbody id="pinlist-table"></tbody>
+		</table>
+		<p id="pinlist-empty" class="browser-empty" hidden></p>
+	</div>
+}
