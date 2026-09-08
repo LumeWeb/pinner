@@ -50,8 +50,9 @@ func TestRenderSystemdUnitEmitsEnvVars(t *testing.T) {
 		EnvVars:   map[string]string{"INLINE_VAR": token, "VAR": "a b"},
 	})
 	// The rendered unit escapes every env value through systemdEscape (a value
-	// containing a space, quote, backslash or $ must appear in its quoted,
-	// doubled-dollar form), so the assertion must compare against the escaped
+	// containing a space, quote, backslash or $ must appear quoted, with any
+	// literal $ passed through VERBATIM — systemd does no $-expansion in
+	// Environment=), so the assertion must compare against the escaped
 	// rendering, not the raw fixture. This keeps the test deterministic no
 	// matter what MCP_AUTH_TOKEN is set to.
 	require.Contains(t, unit, "Environment=INLINE_VAR="+systemdEscape(token))
@@ -147,19 +148,55 @@ func TestSystemdServiceInstallAndUninstall(t *testing.T) {
 	}, calls)
 }
 
-func TestSystemdEscapeEscapesDollar(t *testing.T) {
-	// Regression: systemd expands $VAR / ${VAR} in ExecStart, so a literal $
-	// in an ExecPath or argument must be escaped as $$ and must also force
-	// quoting, otherwise a $-containing path breaks (or executes) at runtime.
+func TestSystemdEscapeKeepsDollarLiteral(t *testing.T) {
+	// Regression (PR #10 review): systemd performs NO variable expansion and
+	// NO $$-collapse inside Environment= assignments (verified on systemd 255),
+	// so systemdEscape must pass a literal $ through untouched — doubling it
+	// would deliver "$$" to the process (mangling bcrypt hashes, passwords).
+	// A $ still forces quoting, like space, tab, quote and backslash.
 	require.Equal(t, `/opt/bin/pinner`, systemdEscape(`/opt/bin/pinner`))
 	require.Equal(t, `""`, systemdEscape(""))
 	require.Equal(t, `"a b"`, systemdEscape("a b"))
 	require.Equal(t, `"say \"hi\""`, systemdEscape(`say "hi"`))
 	require.Equal(t, `"C:\\path"`, systemdEscape(`C:\path`))
+	// Literal dollars pass through verbatim; the value is only quoted.
+	require.Equal(t, `"p$w0rd"`, systemdEscape("p$w0rd"))
+	require.Equal(t, `"p$ w0rd"`, systemdEscape("p$ w0rd"))
+	require.Equal(t, `"C:\\path$x"`, systemdEscape(`C:\path$x`))
+}
+
+func TestExecEscapeEscapesDollar(t *testing.T) {
+	// Regression: systemd expands $VAR / ${VAR} in the ExecStart command line,
+	// so a literal $ in an ExecPath or argument must be escaped as $$ and must
+	// also force quoting, otherwise a $-containing path breaks (or executes)
+	// at runtime.
+	require.Equal(t, `/opt/bin/pinner`, execEscape(`/opt/bin/pinner`))
+	require.Equal(t, `""`, execEscape(""))
+	require.Equal(t, `"a b"`, execEscape("a b"))
+	require.Equal(t, `"say \"hi\""`, execEscape(`say "hi"`))
+	require.Equal(t, `"C:\\path"`, execEscape(`C:\path`))
 	// Literal dollars are doubled and the value is quoted.
-	require.Equal(t, `"p$$w0rd"`, systemdEscape("p$w0rd"))
-	require.Equal(t, `"p$$ w0rd"`, systemdEscape("p$ w0rd"))
-	require.Equal(t, `"C:\\path$$x"`, systemdEscape(`C:\path$x`))
+	require.Equal(t, `"p$$w0rd"`, execEscape("p$w0rd"))
+	require.Equal(t, `"p$$ w0rd"`, execEscape("p$ w0rd"))
+	require.Equal(t, `"C:\\path$$x"`, execEscape(`C:\path$x`))
+}
+
+func TestRenderSystemdUnitDollarHandling(t *testing.T) {
+	// Regression (PR #10): the ExecStart $-escaping must NOT leak into
+	// Environment= lines. systemd does no $-expansion there, so an env value
+	// like "p$w0rd" (or a bcrypt hash "$2a$10$...") must be delivered
+	// verbatim, while a $ EXECSTART argument must be doubled to $$ (which
+	// collapses back to a single $ at runtime).
+	unit := renderSystemdUnit(Config{
+		Name:      "pinner-mcp",
+		ExecPath:  "/opt/bin/pinner",
+		Arguments: []string{"--hash", "$2a$10$abc"},
+		EnvVars:   map[string]string{"PW": "p$w0rd"},
+	})
+	require.Contains(t, unit, `Environment=PW="p$w0rd"`)
+	// No doubled dollar anywhere in the env value (only the ExecStart arg has $$).
+	require.NotContains(t, unit, "p$$w0rd")
+	require.Contains(t, unit, `ExecStart=/opt/bin/pinner --hash "$$2a$$10$$abc"`)
 }
 
 // fakeExitError fabricates a systemctl exit status without spawning a child

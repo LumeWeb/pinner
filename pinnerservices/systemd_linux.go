@@ -319,9 +319,13 @@ func renderSystemdUnit(cfg Config) string {
 	}
 	fmt.Fprintf(&b, "[Unit]\nDescription=%s\nAfter=network-online.target\nWants=network-online.target\n\n", systemdEscape(desc))
 	b.WriteString("[Service]\nType=simple\n")
-	fmt.Fprintf(&b, "ExecStart=%s", systemdEscape(cfg.ExecPath))
+	// systemd expands $VAR/${VAR} and collapses $$ to a literal $ on the
+	// ExecStart= command line, so path/argument tokens must go through
+	// execEscape (which doubles literal $). Environment= (below) gets NO such
+	// expansion, so its values must keep a literal $ verbatim (systemdEscape).
+	fmt.Fprintf(&b, "ExecStart=%s", execEscape(cfg.ExecPath))
 	for _, arg := range cfg.Arguments {
-		fmt.Fprintf(&b, " %s", systemdEscape(arg))
+		fmt.Fprintf(&b, " %s", execEscape(arg))
 	}
 	b.WriteString("\nRestart=on-failure\nRestartSec=5\nNoNewPrivileges=true\nPrivateTmp=true\nUMask=0077\n")
 	// Secrets normally live in the 0600 EnvironmentFile referenced here, never
@@ -331,12 +335,21 @@ func renderSystemdUnit(cfg Config) string {
 		fmt.Fprintf(&b, "EnvironmentFile=%s\n", systemdEscape(cfg.EnvFile))
 	}
 	for k, v := range cfg.EnvVars {
+		// systemd performs NO $-expansion and NO $$-collapse in Environment=
+		// values (quoted or unquoted), so a literal $ must be passed through
+		// untouched — systemdEscape (unlike execEscape) never doubles $.
 		fmt.Fprintf(&b, "Environment=%s=%s\n", k, systemdEscape(v))
 	}
 	b.WriteString("\n[Install]\nWantedBy=default.target\n")
 	return b.String()
 }
 
+// systemdEscape quotes a value for use in a plain string assignment in a
+// systemd unit (Description=, Environment=, EnvironmentFile=). systemd does
+// NOT perform variable expansion or $$-collapse in these assignments (verified
+// on systemd 255), so a literal $ must be delivered verbatim — doubling it
+// would reach the process as "$$" (mangling e.g. bcrypt hashes and passwords
+// containing $). A $ still forces quoting, like the other metacharacters.
 func systemdEscape(value string) string {
 	if value == "" {
 		return `""`
@@ -344,5 +357,13 @@ func systemdEscape(value string) string {
 	if strings.IndexFunc(value, func(r rune) bool { return strings.ContainsRune(" \t\"'\\$", r) }) == -1 {
 		return value
 	}
-	return `"` + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`), `$`, `$$`) + `"`
+	return `"` + strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`) + `"`
+}
+
+// execEscape quotes a value for use as an ExecStart= path or argument token.
+// In the command line, systemd expands $VAR/${VAR} and collapses $$ to a
+// literal $, so a literal dollar must be doubled to $$ (which then also forces
+// quoting, like the other metacharacters).
+func execEscape(value string) string {
+	return systemdEscape(strings.ReplaceAll(value, `$`, `$$`))
 }

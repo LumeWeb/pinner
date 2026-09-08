@@ -10,7 +10,14 @@
 // backend — and its per-OS file split (systemd on Linux, launchd on macOS,
 // Windows SCM), but reimplement it minimal and self-contained rather than
 // depending on the library. It was extracted from pinner-cli's
-// internal/service package; its behavior is intentionally unchanged.
+// internal/service package. The port is faithful overall, with a few
+// intentional behavior changes: uninstall is idempotent when systemd no
+// longer knows the unit (keyed on the exit code of a `systemctl status`
+// probe), mergedConfig env vars from Config.EnvVars and an env file are
+// merged (the env file wins) instead of the env file fully replacing them,
+// and literal dollars in ExecStart paths/arguments are escaped as $$ (no
+// such escaping is applied to Environment= values, where systemd performs
+// no $-expansion).
 //
 // The package knows nothing about CLI frameworks, terminal rendering, or MCP:
 // it exposes only the generic lifecycle surface (Service, System, Config,
