@@ -62,7 +62,9 @@ func (m *mcpCompiler) Compile(cat opmesh.Catalog) ([]opmesh.ToolDescriptor, erro
 			continue
 		}
 		desc.Description = fallbackDescription(op.Description(), TargetsOf(op.Name()), m.profile)
-		applyAgentArgHelp(op, &desc)
+		if err := applyAgentArgHelp(op, &desc); err != nil {
+			return nil, fmt.Errorf("catalogmcp: op %s: %w", op.Name(), err)
+		}
 		tools = append(tools, desc)
 	}
 	return tools, nil
@@ -83,17 +85,22 @@ func (m *mcpCompiler) Compile(cat opmesh.Catalog) ([]opmesh.ToolDescriptor, erro
 // as {"type":"object","properties":{argName:{...},"required":[...]}, so each
 // property object is mutated in place under its arg name and the schema is
 // re-marshaled back into the descriptor.
-func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) {
+//
+// A malformed InputSchema is reported, not swallowed: the helper exists to
+// restore agent-critical AgentHelp, so silently dropping it on a decode or
+// encode failure would return tools that look complete but lack the
+// guidance (see TestCompilerPropagatesMalformedInputSchema).
+func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) error {
 	if desc == nil || len(desc.InputSchema) == 0 {
-		return
+		return nil
 	}
 	var schema map[string]any
 	if err := json.Unmarshal(desc.InputSchema, &schema); err != nil {
-		return
+		return fmt.Errorf("decode InputSchema: %w", err)
 	}
 	props, ok := schema["properties"].(map[string]any)
 	if !ok {
-		return
+		return nil
 	}
 	for _, arg := range op.Args() {
 		// RawSchema args keep the author-provided property object verbatim,
@@ -113,9 +120,10 @@ func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) {
 	}
 	out, err := json.Marshal(schema)
 	if err != nil {
-		return
+		return fmt.Errorf("encode InputSchema: %w", err)
 	}
 	desc.InputSchema = out
+	return nil
 }
 
 // fallbackDescription returns the fallback target's Description from targets
