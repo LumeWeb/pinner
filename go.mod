@@ -13,6 +13,7 @@ require (
 	go.lumeweb.com/configmanager v0.3.30
 	go.lumeweb.com/ipfs-sdk v0.1.97
 	go.lumeweb.com/ipfs-sdk/dnsname v0.1.64
+	go.lumeweb.com/opmesh v0.0.0-20260907112428-ade506e64ae9
 	go.lumeweb.com/portal-sdk v0.1.72
 	go.lumeweb.com/queryutil v0.3.19
 	go.sia.tech/core v0.21.7
