@@ -106,18 +106,19 @@ func (s *systemdService) Install(ctx context.Context) error {
 }
 
 func (s *systemdService) Uninstall(ctx context.Context) error {
-	// Idempotent uninstall: a second Uninstall (or a retry after a partial
-	// failure) finds the unit file already gone. systemctl disable --now then
-	// fails with a locale-translatable "unit file does not exist" message, so
-	// do not parse its stderr — key the decision off the unit file's presence
-	// on disk. If the file is absent there is nothing to disable or stop.
 	unitPath := s.unitPath()
-	if _, err := os.Stat(unitPath); err == nil {
-		if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil {
+	// Always attempt to disable and stop: a unit may still be loaded and
+	// enabled even when our computed unitPath is absent (manually removed
+	// file, or systemd resolving the unit from another source). On failure,
+	// treat an already-uninstalled state as a no-op keyed on the filesystem
+	// (the unit file is gone) rather than on systemctl's locale-translatable
+	// stderr.
+	if err := s.run(ctx, "disable", "--now", s.unitName()); err != nil {
+		if _, statErr := os.Stat(unitPath); statErr != nil && errors.Is(statErr, os.ErrNotExist) {
+			// unit absent -> idempotent no-op; fall through to cleanup
+		} else {
 			return fmt.Errorf("disable systemd user service: %w", err)
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("stat systemd unit file %q: %w", unitPath, err)
 	}
 	if unitPath != "" {
 		if err := s.cfg.RemoveFile(unitPath); err != nil && !os.IsNotExist(err) {

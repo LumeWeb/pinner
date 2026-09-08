@@ -102,9 +102,9 @@ func TestSystemdServiceInstallAndUninstall(t *testing.T) {
 	var calls [][]string
 	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: unitPath}
 	// MkdirAll, WriteFile, and RemoveFile perform the real filesystem
-	// operations (inside the temp dir): Uninstall keys the disable decision
-	// off the unit file's presence on disk, so Install must actually create
-	// the unit file for the disable path to be exercised.
+	// operations (inside the temp dir): Install must actually create the unit
+	// file so Uninstall's disable (which always runs) still succeeds and the
+	// RemoveFile cleanup is exercised on a real file.
 	cfg.MkdirAll = func(path string, mode os.FileMode) error {
 		require.Equal(t, filepath.Dir(unitPath), path)
 		require.Equal(t, os.FileMode(0700), mode)
@@ -158,15 +158,20 @@ func TestSystemdEscapeEscapesDollar(t *testing.T) {
 
 func TestSystemdServiceUninstallIdempotentWhenUnitAbsent(t *testing.T) {
 	// Regression: Uninstall must be idempotent when the unit file is already
-	// gone (a second uninstall, or a retry after a partial failure).
-	// systemctl disable --now's absent-unit failure is locale-translatable,
-	// so the decision is keyed off the filesystem: with no unit file on disk
-	// the disable call is skipped entirely and cleanup proceeds.
+	// gone (a second uninstall, a retry after a partial failure, or a unit
+	// resolved from another path). disable --now is ALWAYS attempted — a unit
+	// may still be loaded/enabled without the file at our unitPath — and its
+	// absent-unit failure (which is locale-translatable) is tolerated as a
+	// no-op keyed on the filesystem: the unit file does not exist on disk.
+	// Cleanup (RemoveFile + daemon-reload) still proceeds.
 	var calls [][]string
 	var removed []string
 	cfg := Config{Name: "pinner-mcp", UserMode: true, ServiceFile: filepath.Join(t.TempDir(), "pinner-mcp.service")}
 	cfg.Runner = func(_ context.Context, command string, args ...string) error {
 		calls = append(calls, append([]string{command}, args...))
+		if slices.Contains(args, "disable") {
+			return errors.New("Failed to disable unit: Unit pinner-mcp.service does not exist")
+		}
 		return nil
 	}
 	cfg.RemoveFile = func(path string) error {
@@ -178,6 +183,7 @@ func TestSystemdServiceUninstallIdempotentWhenUnitAbsent(t *testing.T) {
 	require.NoError(t, svc.Uninstall(context.Background()))
 	require.Equal(t, []string{cfg.ServiceFile}, removed)
 	require.Equal(t, [][]string{
+		{"systemctl", "--user", "disable", "--now", "pinner-mcp.service"},
 		{"systemctl", "--user", "daemon-reload"},
 	}, calls)
 }
