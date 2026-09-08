@@ -248,7 +248,7 @@ func TestAdminPlatformDomainsBindForwardsWebsiteID(t *testing.T) {
 			gotReq = req
 			r := &admin.RootDomain{}
 			r.Id = 9
-			r.Domain = "opmesh.site"
+			r.Domain = "pinner.site"
 			return r, nil
 		},
 	}
@@ -260,7 +260,7 @@ func TestAdminPlatformDomainsBindForwardsWebsiteID(t *testing.T) {
 	if gotID != "3" || gotReq == nil || gotReq.WebsiteId != 42 {
 		t.Fatalf("bind forwarded wrong args: id=%q req=%+v", gotID, gotReq)
 	}
-	if root, ok := res.(*admin.RootDomain); !ok || root.Domain != "opmesh.site" {
+	if root, ok := res.(*admin.RootDomain); !ok || root.Domain != "pinner.site" {
 		t.Fatalf("unexpected bind result %T", res)
 	}
 }

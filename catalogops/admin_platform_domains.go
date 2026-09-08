@@ -191,7 +191,7 @@ func adminPlatformDomainsBind(d AdminDeps) opmesh.Operation {
 		Name:        OpAdminPlatformDomainsBind,
 		Title:       "Bind a website to a platform domain",
 		Summary:     "Bind an operator-owned website to a platform domain",
-		Description: "Bind an operator-owned website directly to the root apex of a platform domain (e.g. opmesh.site). The platform root's DNS zone is auto-created on first use. Requires admin privileges.",
+		Description: "Bind an operator-owned website directly to the root apex of a platform domain (e.g. pinner.site). The platform root's DNS zone is auto-created on first use. Requires admin privileges.",
 		Category:    "admin",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,

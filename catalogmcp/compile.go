@@ -1,9 +1,11 @@
 package catalogmcp
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"go.lumeweb.com/opmesh"
+	"go.lumeweb.com/pinner/catalogmeta"
 )
 
 // Compiler maps an opmesh.Catalog onto the MCP tool surface. T is the element
@@ -60,9 +62,60 @@ func (m *mcpCompiler) Compile(cat opmesh.Catalog) ([]opmesh.ToolDescriptor, erro
 			continue
 		}
 		desc.Description = fallbackDescription(op.Description(), TargetsOf(op.Name()), m.profile)
+		applyAgentArgHelp(op, &desc)
 		tools = append(tools, desc)
 	}
 	return tools, nil
+}
+
+// applyAgentArgHelp re-applies the frontend metadata's AgentHelp onto the
+// descriptor's InputSchema property descriptions. opmesh builds every arg's
+// property description from the generic a.Help alone (it deliberately owns no
+// audience-specific fields), preserving AgentHelp on the operations would
+// silently drop the agent-critical prose (e.g. vault_share_accept.share_url's
+// "pass the URL through unchanged" guidance). Mirroring the pre-migration
+// compiler's precedence: AgentHelp wins when declared; the plain Help already
+// emitted by the registry stays as the fallback otherwise. RawSchema args are
+// skipped — as before the migration, the author-supplied raw schema (and its
+// own description) wins verbatim.
+//
+// The InputSchema is round-tripped as a generic JSON object: opmesh emits it
+// as {"type":"object","properties":{argName:{...},"required":[...]}, so each
+// property object is mutated in place under its arg name and the schema is
+// re-marshaled back into the descriptor.
+func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) {
+	if desc == nil || len(desc.InputSchema) == 0 {
+		return
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(desc.InputSchema, &schema); err != nil {
+		return
+	}
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		return
+	}
+	for _, arg := range op.Args() {
+		// RawSchema args keep the author-provided property object verbatim,
+		// including its description (pre-migration behavior).
+		if len(arg.RawSchema) > 0 {
+			continue
+		}
+		meta := catalogmeta.ArgFrontendForArg(op.Name(), arg.Name)
+		if meta == nil || meta.AgentHelp == "" {
+			continue
+		}
+		p, ok := props[arg.Name].(map[string]any)
+		if !ok {
+			continue
+		}
+		p["description"] = meta.AgentHelp
+	}
+	out, err := json.Marshal(schema)
+	if err != nil {
+		return
+	}
+	desc.InputSchema = out
 }
 
 // fallbackDescription returns the fallback target's Description from targets
