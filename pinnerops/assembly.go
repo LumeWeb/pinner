@@ -75,13 +75,19 @@ var _ CredentialResolver = ConfigCredentialResolver{}
 // "service unavailable" error rather than panicking, so the bundle can be added
 // incrementally.
 type CatalogDepsBundle struct {
-	// CfgMgr returns a live config manager for the current invocation.
+	// CfgMgr returns a live config manager for the current invocation. It is
+	// not read by AssembleCatalogOps directly; the product wiring layer uses
+	// it to build the per-domain deps below (e.g. AuthDeps/ApiKeysDeps that
+	// need a live config accessor), resolved per invocation so a global/test
+	// override stays live.
 	CfgMgr func() config.Manager
 
 	// CredentialResolver resolves the Portal API token for the authenticated
-	// request. When nil, the CLI/local default (read the bearer token from
-	// config) is used. A hosted server sets this to map a Portal-authenticated
-	// user onto a Portal API JWT.
+	// request. It is a wiring-layer input, not read by AssembleCatalogOps
+	// directly: the product wiring threads it into the per-domain deps that
+	// need it (e.g. AuthDeps.CredentialResolver, whose handlers surface
+	// needs_auth). When nil the CLI/local default (read the bearer token from
+	// config) is used; a hosted server supplies a Portal-auth mapping.
 	CredentialResolver CredentialResolver
 
 	Auth       catalogops.AuthDeps
