@@ -130,6 +130,15 @@ func (m *mcpCompiler) Compile(cat opmesh.Catalog) ([]opmesh.ToolDescriptor, erro
 // restore agent-critical AgentHelp, so silently dropping it on a decode or
 // encode failure would return tools that look complete but lack the
 // guidance (see TestCompilerPropagatesMalformedInputSchema).
+// applyAgentArgHelp also restores the pre-migration requiredness projection on
+// the agent surface: the original compiler's schema emitted requiredArgNames
+// PLUS every AgentRequired arg unconditionally (even when defaulted), while
+// opmesh's inputSchemaFromArgs deliberately excludes AgentRequired (agent
+// dispatch layers enforce it themselves). Without that, ops like pins_add
+// (cids) and the confirmation ops (confirm) would be advertised in tools/list
+// without their agent-mandatory args in "required". AgentRequired args that
+// are already required, or that use a RawSchema (whose author schema wins
+// verbatim), are left untouched.
 func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) error {
 	if desc == nil || len(desc.InputSchema) == 0 {
 		return nil
@@ -142,12 +151,20 @@ func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) error {
 	if !ok {
 		return nil
 	}
+	var agentRequired []string
 	for _, arg := range op.Args() {
 		// RawSchema args keep the author-provided property object verbatim,
-		// including its description (pre-migration behavior).
+		// including its description and own requiredness (pre-migration
+		// behavior).
 		if len(arg.RawSchema) > 0 {
 			continue
 		}
+		if arg.AgentRequired {
+			agentRequired = append(agentRequired, arg.Name)
+		}
+	}
+	addRequired(schema, agentRequired)
+	for _, arg := range op.Args() {
 		meta := catalogmeta.ArgFrontendForArg(op.Name(), arg.Name)
 		if meta == nil || meta.AgentHelp == "" {
 			continue
@@ -164,6 +181,31 @@ func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) error {
 	}
 	desc.InputSchema = out
 	return nil
+}
+
+// addRequired merges the given arg names into the schema's top-level
+// "required" array without dropping existing entries. Names already present
+// are skipped; the merge is deterministic (declaration-order categories first,
+// then the added names in catalog declaration order), so recompiling the same
+// catalog yields byte-identical schema JSON.
+func addRequired(schema map[string]any, names []string) {
+	existing := map[string]bool{}
+	required, _ := schema["required"].([]any)
+	for _, r := range required {
+		if s, ok := r.(string); ok {
+			existing[s] = true
+		}
+	}
+	for _, name := range names {
+		if !existing[name] {
+			required = append(required, name)
+			existing[name] = true
+		}
+	}
+	if len(required) == 0 {
+		return
+	}
+	schema["required"] = required
 }
 
 // fallbackDescription returns the fallback target's Description from targets

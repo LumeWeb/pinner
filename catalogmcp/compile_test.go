@@ -18,7 +18,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.lumeweb.com/opmesh"
+	"go.lumeweb.com/pinner/catalogops"
 )
+
+// requiredArgs unmarshals a descriptor's InputSchema and returns its
+// top-level "required" array (nil when absent).
+func requiredArgs(t *testing.T, schema json.RawMessage) []string {
+	t.Helper()
+	var parsed struct {
+		Required []string `json:"required"`
+	}
+	require.NoError(t, json.Unmarshal(schema, &parsed))
+	return parsed.Required
+}
 
 // agentHelpFixtureCatalog builds a one-operation catalog whose args exercise
 // both sides of the description precedence: "cids" pins the real pins_add
@@ -102,4 +114,78 @@ func TestCompilerAppliesAgentHelpToArgSchemas(t *testing.T) {
 			require.Equal(t, "generic human help for all", got)
 		})
 	}
+}
+
+// agentRequiredFixtureCatalog builds a catalog from the REAL catalogops pins
+// and IPNS domain providers (nil deps: registration and compilation never run
+// the handlers). pins_add exercises an AgentRequired arg without a declared
+// Required flag (cids); ipns_keys_delete exercises an AgentRequired arg WITH a
+// Default (confirm) plus a plain Required arg (id).
+func agentRequiredFixtureCatalog(t *testing.T) opmesh.Catalog {
+	t.Helper()
+	cat := opmesh.NewCatalog()
+	ops := append(
+		catalogops.PinsOperations(catalogops.PinsDeps{}),
+		catalogops.IPNSOperations(catalogops.IPNSDeps{})...,
+	)
+	for _, op := range ops {
+		require.NoError(t, cat.Add(op))
+	}
+	return cat
+}
+
+// requiredOf returns the compiled descriptor for the named operation.
+func requiredOf(t *testing.T, tools []opmesh.ToolDescriptor, id string) opmesh.ToolDescriptor {
+	t.Helper()
+	for _, tool := range tools {
+		if tool.Name == id {
+			return tool
+		}
+	}
+	t.Fatalf("compiled tools contain no descriptor for %q", id)
+	return opmesh.ToolDescriptor{}
+}
+
+// TestCompilerIncludesAgentRequiredArgsInSchemaRequired pins the
+// pre-migration requiredness projection: the compiled MCP InputSchema's
+// "required" array must include every AgentRequired arg, not just the
+// Registry-Required args opmesh's schema builder emits. The original compiler
+// advertised pins_add.cids and the confirm-Gated destructive args as required;
+// opmesh deliberately excludes AgentRequired (agent dispatch layers enforce it
+// themselves), so the compiler re-adds it. Args that are neither Required nor
+// AgentRequired must stay optional.
+func TestCompilerIncludesAgentRequiredArgsInSchemaRequired(t *testing.T) {
+	cat := agentRequiredFixtureCatalog(t)
+
+	tools, err := NewCompiler().Compile(cat)
+	require.NoError(t, err)
+
+	// pins_add: "cids" is AgentRequired-only (opmesh omits it); the optional
+	// defaulted args must not be pulled into "required".
+	pinsAdd := requiredOf(t, tools, "pins_add")
+	reqs := requiredArgs(t, pinsAdd.InputSchema)
+	require.Contains(t, reqs, "cids",
+		"pins_add AgentRequired arg cids must appear in the compiled schema's required array")
+	require.NotContains(t, reqs, "name",
+		"optional args must remain out of required")
+	require.NotContains(t, reqs, "wait",
+		"defaulted non-required args must remain out of required")
+
+	// ipns_keys_delete: the plain Required arg keeps its requiredness and the
+	// AgentRequired-with-Default confirm arg gains it.
+	ipnsDelete := requiredOf(t, tools, "ipns_keys_delete")
+	reqs = requiredArgs(t, ipnsDelete.InputSchema)
+	require.Contains(t, reqs, "id",
+		"plain Required args must stay in required")
+	require.Contains(t, reqs, "confirm",
+		"AgentRequired arg with a Default (confirm) must appear in required")
+
+	// AgentHelp property descriptions set by the same pass must survive:
+	// pins_add.cids carries the catalogmeta AgentHelp.
+	got, ok := propertyDescription(t, pinsAdd.InputSchema, "cids")
+	require.True(t, ok, "cids property missing from InputSchema")
+	require.Equal(t,
+		"One or more concrete CIDs to pin. This field is required; supply the values here.",
+		got,
+		"requiredness restoration must not drop the AgentHelp description")
 }
