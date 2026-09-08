@@ -70,6 +70,24 @@ func readFS(fsys fs.FS) (map[string]string, error) {
 	return out, err
 }
 
+// TestStreamUploadCapsBufferedBody pins the hard buffer cap: a single-file
+// (archive_mode=preserve) stream larger than maxBytes must fail during
+// buffering — via the same size-limited writer the download path uses —
+// instead of buffering in full and reaching the upload service.
+func TestStreamUploadCapsBufferedBody(t *testing.T) {
+	svc := &capturingUploadService{result: &uploads.UploadResult{CID: "bafyfile"}}
+	handler := StreamUpload(svc, 32)
+
+	payload := bytes.Repeat([]byte("a"), 128)
+	_, err := handler(context.Background(), bytes.NewReader(payload), int64(len(payload)), "big.bin", false, string(ArchivePreserve), false)
+	if err == nil {
+		t.Fatal("stream exceeding maxBytes must abort during buffering")
+	}
+	if len(svc.snap) != 0 {
+		t.Fatalf("over-cap upload must never reach the upload service; got %d calls", len(svc.snap))
+	}
+}
+
 func TestStreamUploadSingleFile(t *testing.T) {
 	svc := &capturingUploadService{result: &uploads.UploadResult{CID: "bafyfile"}}
 	handler := StreamUpload(svc, 0)

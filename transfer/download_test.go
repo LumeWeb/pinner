@@ -67,6 +67,20 @@ func TestResolveLocalOutputPath(t *testing.T) {
 	got, err = ResolveLocalOutputPath(root, ".", "f.pdf")
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(root, "f.pdf"), got)
+	// A trailing separator ("reports/") is a directory destination: the
+	// source-derived name is appended inside it, not collapsed onto a
+	// same-named file at the root.
+	got, err = ResolveLocalOutputPath(root, "reports/", "f.pdf")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, "reports", "f.pdf"), got)
+	// Nested trailing-separator directories expand the same way.
+	got, err = ResolveLocalOutputPath(root, "a/b/", "f.pdf")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, "a", "b", "f.pdf"), got)
+	// A path without a trailing separator stays a file destination.
+	got, err = ResolveLocalOutputPath(root, "reports", "f.pdf")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, "reports"), got)
 }
 
 func TestResolveLocalOutputPathRejectsEscape(t *testing.T) {
@@ -74,6 +88,7 @@ func TestResolveLocalOutputPathRejectsEscape(t *testing.T) {
 	attempts := []string{
 		"../escape.txt",        // parent traversal
 		"sub/../../escape.txt", // deeper traversal
+		"../evil/",             // parent traversal via trailing-separator directory
 		"/etc/passwd",          // absolute path
 		"/etc/passwd/",         // trailing-separator absolute path
 		"\\etc\\evil",          // Windows-root-relative path — never a valid relative target
