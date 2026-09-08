@@ -724,6 +724,8 @@ go.lumeweb.com/ipfs-sdk/dnsname v0.1.64 h1:RTBD+zoXHOYYKreNRoQhyLLKKWp/VgYfr7qoj
 go.lumeweb.com/ipfs-sdk/dnsname v0.1.64/go.mod h1:1++6EWMiG/BC5UQjlIobId2YcWDVHjHEhdsEzeISKpQ=
 go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e h1:WhMvV/09YjOymmN0+cPI1kGinVV66j+gK9gfiKfQoUw=
 go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e/go.mod h1:qgdO7w6I7jB6BWpjA6uTp3Lv8Bgtd8VxuSZ+ZJJVCqM=
+go.lumeweb.com/opmesh v0.0.0-20260907112428-ade506e64ae9 h1:kb2adBZ8Ed11yuXoQw2I8LfmbPjpPkc0NPwyShKJ5KE=
+go.lumeweb.com/opmesh v0.0.0-20260907112428-ade506e64ae9/go.mod h1:DbO27Lr6pBSzC+HogQMNNVEZMvkAHYwckL7i79aTETM=
 go.lumeweb.com/portal v0.4.2-0.20251225165008-2bdb358c492d h1:8CS/LtrLQYsPhQGqmmKSXH7wNtpg/VfKA2gdnFh2gf8=
 go.lumeweb.com/portal v0.4.2-0.20251225165008-2bdb358c492d/go.mod h1:JV4koLIz/pzCp30Zx2P/VaTV81Dn1YCsgz9o3UDODzk=
 go.lumeweb.com/portal-middleware v0.3.4 h1:A9/Ipo3giX449CCgbKGco97IqDxFG7Z1ppmM1IQBeDQ=

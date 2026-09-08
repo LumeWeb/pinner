@@ -22,6 +22,16 @@ It contains:
   drops `EnvCLIOnly`/`EnvLocalOnly` operations from a Portal-embedded assembly —
   and produces one runnable `pinner.Catalog`. Also carries the frontend-free
   `CredentialResolver` seam (with the config-backed `ConfigCredentialResolver`).
+- **`converge`** — the opmesh convergence seam: a total, panic-free projection
+  of this module's (frontend-ful) `pinner.Operation` metadata onto the
+  frontend-clean operation model of
+  [go.lumeweb.com/opmesh](https://pkg.go.dev/go.lumeweb.com/opmesh) — stable
+  operation IDs, typed args with codecs/defaults/enums, read/mutate/destructive
+  effect classification, actor interaction/visibility policy, and handler
+  dispatch through a real `opmesh.Catalog`. Frontend-only metadata
+  (`Environment`, `MCPTargets`/`Target`/`DescFunc`, arg `AgentHelp`/`AgentOnly`/
+  `PositionalOnly`/`Sources`) is intentionally NOT projected — it stays behind
+  for the CLI/MCP boundary adapters.
 - **`core/`** — the service layer the operations run against (auth, config,
   dns, ipns, pinning, vault, websites, ...), built on
   [portal-sdk](https://pkg.go.dev/go.lumeweb.com/portal-sdk) and
@@ -136,6 +146,29 @@ bundle := &pinnerops.CatalogDepsBundle{
 cat, err := pinnerops.AssembleCatalogOps(bundle, pinnerops.FullSurface, false)
 if err != nil {
     panic(err)
+}
+```
+
+Project the assembled (or any) operations onto the frontend-clean
+[go.lumeweb.com/opmesh](https://pkg.go.dev/go.lumeweb.com/opmesh) operation
+model — register, discover, normalize, and dispatch them through an
+`opmesh.Catalog` while the CLI/MCP metadata stays behind in this module:
+
+```go
+import (
+    "go.lumeweb.com/opmesh"
+    "go.lumeweb.com/pinner/converge"
+)
+
+ops := catalogops.OperationsOperations(catalogops.OperationsDeps{Service: svc})
+opCat := opmesh.NewCatalog()
+if err := converge.RegisterAll(opCat, ops...); err != nil {
+    return err // projected under the same stable operation IDs
+}
+
+// discovery against the opmesh model (same titles, inputs, effect classes)
+if desc, ok := opCat.Describe("operations_list", opmesh.ActorModel); ok {
+    _ = desc // opmesh.ToolDescriptor with input schema
 }
 ```
 

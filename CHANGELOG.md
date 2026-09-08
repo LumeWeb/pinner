@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- new `converge` subpackage: the FIRST STEP of opmesh convergence — a total,
+  panic-free PROJECTION SEAM from this module's frontend-ful
+  `pinner.Operation` model onto the frontend-clean operation model of
+  [go.lumeweb.com/opmesh](https://go.lumeweb.com/opmesh), now a direct
+  dependency (`Project`/`ProjectSpec`/`ProjectAll`/`ProjectArgs` plus the
+  enum converters and `RegisterAll` into a real `opmesh.Catalog`). The
+  projection carries exactly the opmesh-owned vocabulary — stable operation
+  IDs, typed args (codecs, defaults, enums, flexible IDs, selection groups,
+  raw schemas, sensitivity), read/mutate/destructive effect classification,
+  actor interaction/visibility policy, and handler dispatch — and drops the
+  frontend-only fields (`Environment`, `MCPTargets`/`Target`/`DescFunc`,
+  arg `AgentHelp`/`AgentOnly`/`PositionalOnly`/`Sources`) for the CLI/MCP
+  boundary adapters. No existing behavior changed; the root `pinner`,
+  `catalogops`, `pinnerops`, and `pinnerservices` packages are untouched.
+
 - initial extraction of the pinner operation set (pinnerops role) from
   pinner-cli: the typed operation-descriptor registry and the Pinner domain
   operation providers (account, admin, apikeys, auth, dns, ens, ipns, list,
