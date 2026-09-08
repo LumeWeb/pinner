@@ -29,18 +29,6 @@ import (
 // pinnertransfer.IPFSDownloadHandler) and the wireable coordinator pointers
 // (*transfer.Upload, *transfer.Download).
 
-// inputSchemaFor marshals a reflected argument schema into the json.RawMessage
-// tool schemas expect. Reflection only fails on un-marshalable structs; a bad
-// struct tag falls back to an empty object schema so registration cannot
-// crash, mirroring the source ToolSchemaFor contract.
-func inputSchemaFor[T any]() json.RawMessage {
-	raw, err := json.Marshal(toolargs.SchemaFor[T]())
-	if err != nil {
-		return json.RawMessage(`{"type":"object","properties":{}}`)
-	}
-	return raw
-}
-
 // UploadFileInput is the typed argument shape for the unified upload_file tool.
 // Exactly one byte source must be provided per invocation: either the
 // OpenAI/host-provided `file` reference (a generated artifact the host hands
@@ -227,11 +215,30 @@ func resolveDescription(targets []mcpforge.Target[HostProfile], ctx HostProfile)
 	return mcpforge.ResolveDescription(targets, ctx)
 }
 
+// uploadFileResolutionProfile composes the HostProfile the upload_file
+// description resolves against: the transport's generic mechanism profile with
+// the registration-time effective feature set overlaid. The original resolved
+// against hostenv.ProfileForTransport(transport) — which for the embedded
+// OpenAI tunnel carries FeatFileHostInput — so the host-file handoff guidance
+// the input schema and ChatGPT metadata advertise also appears in the prose.
+// Overriding with the effective features keeps the advertised description,
+// schema, and Meta derived from ONE source of truth: whatever feature set
+// shaped the schema also shapes the description.
+func uploadFileResolutionProfile(features mcpforge.FeatureSet, t canimcp.TransportKind) HostProfile {
+	profile := profileForTransport(t).CloneFeatures()
+	for f, on := range features {
+		profile.Features[f] = on
+	}
+	return profile
+}
+
 // uploadFileDescription resolves the tool description from the vendored
-// feature-keyed targets. The transport determines which features the platform
-// has, and the forge picks the most specific matching target.
-func uploadFileDescription(t canimcp.TransportKind) string {
-	profile := profileForTransport(t)
+// feature-keyed targets against the transport's mechanism profile overlaid
+// with the registration-time effective feature set (see
+// uploadFileResolutionProfile). The forge picks the most specific matching
+// target.
+func uploadFileDescription(features mcpforge.FeatureSet, t canimcp.TransportKind) string {
+	profile := uploadFileResolutionProfile(features, t)
 	desc, ok := resolveDescription(uploadFileTargets, profile)
 	if !ok {
 		panic(fmt.Sprintf("pinnermcp: upload_file has no matching description target for transport %q", t))
@@ -516,9 +523,15 @@ func NewUploadFileDescriptor(features mcpforge.FeatureSet, coLocated, tunnelOpen
 		meta = transfer.ChatGPTFileMeta()
 	}
 	return model.ToolDescriptor{
-		Name:          "upload_file",
-		Title:         "Upload a file to Pinner",
-		Description:   uploadFileDescription(transport),
+		Name:  "upload_file",
+		Title: "Upload a file to Pinner",
+		// The description resolves against the transport's mechanism profile
+		// overlaid with the SAME effective feature set the schema below is
+		// compiled from — so when the profile carries FeatFileHostInput (the
+		// OpenAI tunnel, or any host with the file handoff), the description
+		// includes the host-file instructions the `file` schema property and
+		// ChatGPT metadata advertise, never a schema/prose disagreement.
+		Description:   uploadFileDescription(features, transport),
 		Category:      model.CategoryCore,
 		OpenWorldHint: true, // submits content to the Pinner/IPFS network
 		// The input schema is compiled from the profile's feature set: the
@@ -727,7 +740,7 @@ func DataURIUploadDescriptor(handler transfer.UploadHandler, maxBytes int64) mod
 		Description:   dataURIUploadDescription,
 		Category:      model.CategoryCore,
 		OpenWorldHint: true, // submits content to the Pinner/IPFS network
-		InputSchema:   inputSchemaFor[DataURIUploadInput](),
+		InputSchema:   toolargs.ToolSchemaFor[DataURIUploadInput](),
 		// x-mcp-file marks the "file" property as a file-valued input per the
 		// draft spec; the descriptor's Meta map carries it without a typed
 		// field.
@@ -790,7 +803,7 @@ func NewDownloadFileDescriptor(ipfsFn pinnertransfer.IPFSDownloadHandler, hd *tr
 		// transport (drop only when a reachable HTTP mux exists on a non-OpenAI
 		// tunnel), matching capabilities().download_sink_modes so the published
 		// schema never contradicts the advertised sinks.
-		InputSchema: transfer.RewriteSinkEnum(inputSchemaFor[DownloadFileInput](), hd != nil, tunnelOpenAI),
+		InputSchema: transfer.RewriteSinkEnum(toolargs.ToolSchemaFor[DownloadFileInput](), hd != nil, tunnelOpenAI),
 		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
 			in, err := toolargs.DecodeToolArgs[DownloadFileInput](request)
 			if err != nil {

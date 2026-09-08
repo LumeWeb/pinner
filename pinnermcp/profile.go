@@ -163,6 +163,43 @@ func profileForTransport(t canimcp.TransportKind) HostProfile {
 	}
 }
 
+// openAITunnelHostFeatures returns the host-capability features the original
+// pinner-cli ProfileOpenAITunnel declared on top of the transport mechanism
+// set: the ChatGPT file-reference handoff (FeatFileHostInput), the draft
+// x-mcp-file metadata (FeatXMcpFile), MCP Apps (FeatMCPApps), and elicitation
+// (FeatElicitation). These are host capabilities, not transport mechanisms,
+// but the embedded OpenAI tunnel is the one transport whose startup-effective
+// profile is host-specific (it only ever serves ChatGPT/OpenAI hosts), so the
+// original effectiveFeaturesFor startup fallback derived these caps straight
+// from ProfileForTransport(TransportOpenAI). Any assembly-time fallback that
+// composes the tunnel's effective features must merge them in — a tunnel that
+// publishes only the mechanism set (no host-file schema property, no ChatGPT
+// metadata, no host-file description segments) is the pinner-cli regression
+// class this helper exists to prevent.
+func openAITunnelHostFeatures() mcpforge.FeatureSet {
+	return mcpforge.FeatureSet{
+		FeatFileHostInput: true,
+		FeatXMcpFile:      true,
+		FeatMCPApps:       true,
+		FeatElicitation:   true,
+	}
+}
+
+// transportStartupFeatures returns the registration-time fallback feature set
+// for a transport when the wiring carries no explicit RelayFeatures. It is the
+// transport's mechanism set, with the OpenAI tunnel's ChatGPT host
+// capabilities merged in — exactly what pinner-cli's effectiveFeaturesFor
+// derived from ProfileForTransport(UploadFileTransport(...)) at startup.
+func transportStartupFeatures(t canimcp.TransportKind) mcpforge.FeatureSet {
+	features := transportFeaturesFor(t).Clone()
+	if t == canimcp.TransportOpenAI {
+		for f, on := range openAITunnelHostFeatures() {
+			features[f] = on
+		}
+	}
+	return features
+}
+
 // ---
 // Profile adaptation across the module boundary.
 // ---

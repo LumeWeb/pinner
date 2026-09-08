@@ -32,8 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and resource providers are all Config fields; the historic pinner-cli
   package-global setters are superseded, with no equivalent setters). It
   compiles the catalog tool surface via `catalogmcp.NewCompilerForProfile`
-  and projects it to `model.ToolDescriptor` presentations (`CompileCatalog`,
-  safety-derived wire hints, curated stamping via `CuratedToolNames`,
+  and projects it to `model.ToolDescriptor` presentations (safety-derived wire
+  hints, curated stamping via `CuratedToolNames`,
   `catalogmeta.EnvironmentOf` carve-out skips), plus the direct-only tools
   outside the catalog: agent_guide (`BuildAgentGuide`/`AgentGuideDescriptor`
   with host-profile fragments), the honest capabilities report

@@ -2,6 +2,7 @@ package pinnermcp
 
 import (
 	"fmt"
+	"reflect"
 
 	"go.lumeweb.com/opmesh"
 
@@ -30,17 +31,32 @@ import (
 // never calls a CLI service factory — every dependency is explicit, per
 // Stage 5 of the package-boundaries overhaul.
 func Assemble(cfg Config) (*Server, error) {
-	profile, err := AdaptHostProfile(cfg.Profile)
+	// The configured profile is adapted EXACTLY ONCE, here, and the resulting
+	// HostProfile flows to both the direct presentation (this Server) and the
+	// catalog compiler below. Errors propagate loudly — an un-adaptable
+	// profile is the assembly mistake it is, never a silently featureless
+	// description surface (see ProfileAdapterError).
+	profile, err := HostProfileOf(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("pinnermcp: assemble: %w", err)
 	}
+	// Hosted is server-construction-time state (Config.Hosted), so the
+	// normalized profile carries it, keeping one consistent platform context
+	// across the assembly even when the wire profile reported itself
+	// unhosted. The direct presentation consumes Config.Hosted directly for
+	// its hosted gating (AgentGuideDescriptor's hosted notices) and the
+	// prompt/resource sets gate on the Surface; the compiled catalog surface
+	// gates on feature sets rather than the hosted predicate. The overlay
+	// exists so anything resolving HostProfile.Hosted (e.g. the HostedIs
+	// predicate fragments) reads the single explicit setting.
+	profile.Hosted = cfg.Hosted
 
 	cat, err := resolveCatalog(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	presentations, err := populateCatalogSurface(cat, compileProfile(cfg))
+	presentations, err := populateCatalogSurface(cat, profile)
 	if err != nil {
 		return nil, fmt.Errorf("pinnermcp: assemble: %w", err)
 	}
@@ -122,6 +138,23 @@ func (s *Server) Hosted() bool { return s.config.Hosted }
 func (s *Server) buildDirectTools() []model.ToolDescriptor {
 	wiring := s.config.Transfer
 
+	// The registration-time effective feature set, derived ONCE and shared by
+	// every consumer: the capabilities report AND the upload_file descriptor.
+	// With no explicit RelayFeatures it falls back to the transport's
+	// startup-effective set — the same fallback pinner-cli's
+	// effectiveFeaturesFor applied. For the embedded OpenAI tunnel that set
+	// carries the ChatGPT host capabilities (FeatFileHostInput, FeatXMcpFile,
+	// FeatMCPApps, FeatElicitation) merged into the mechanism set, so a
+	// tunnel assembled with RelayFeatures unset publishes the FULL surface
+	// (host-file schema property, ChatGPT metadata, host-file description
+	// segments, relay-tool registration honesty) instead of silently
+	// degrading to the mechanism-only shape. Deriving it once here keeps the
+	// registered tools and the advertised capabilities from ever disagreeing.
+	features := wiring.RelayFeatures
+	if features == nil {
+		features = transportStartupFeatures(UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI))
+	}
+
 	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.Surface, s.config.Hosted)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{
 		CoLocated:     wiring.CoLocated,
@@ -135,14 +168,10 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		DataURIWired:  wiring.DataURIWired,
 		DraftXFile:    wiring.DataURIWired,
 		RelayMaxBytes: wiring.MaxRelayBytes,
-		RelayFeatures: wiring.RelayFeatures,
+		RelayFeatures: features,
 	}))
 
 	if wiring.UploadFile {
-		features := wiring.RelayFeatures
-		if features == nil {
-			features = transportFeaturesFor(UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI))
-		}
 		direct = append(direct, NewUploadFileDescriptor(
 			features,
 			wiring.CoLocated,
@@ -154,7 +183,12 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 			wiring.MaxRelayBytes,
 		))
 	}
-	if wiring.DataURIWired {
+	// upload_data registers only when the wired flag AND the effective
+	// feature set both declare the data: URI relay (FeatSourceData) — the
+	// same combined condition pinner-cli's registration used, so a tool is
+	// never registered without the capabilities report advertising it (and
+	// vice versa).
+	if wiring.DataURIWired && features.Has(FeatSourceData) {
 		direct = append(direct, DataURIUploadDescriptor(wiring.Relay, wiring.MaxRelayBytes))
 	}
 	if wiring.DownloadFile {
@@ -169,11 +203,30 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 	return direct
 }
 
+// isNilCatalog reports whether cat is a nil interface or an interface holding
+// a typed nil (nil pointer/map/... value). A plain `cat == nil` comparison
+// misses the typed-nil shape: an interface variable carrying a nil concrete
+// value is non-nil as an interface yet unusable, so the assembly must treat it
+// as the absent catalog it effectively is.
+func isNilCatalog(cat opmesh.Catalog) bool {
+	if cat == nil {
+		return true
+	}
+	v := reflect.ValueOf(cat)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 // resolveCatalog resolves the operation catalog for the assembly: a
 // pre-assembled Catalog when configured, else pinnerops.AssembleCatalogOps
-// over the Deps bundle. A nil catalog (neither configured) is an error.
+// over the Deps bundle. A nil catalog (neither configured — including a
+// typed-nil Catalog interface) is an error.
 func resolveCatalog(cfg Config) (opmesh.Catalog, error) {
-	if cfg.Catalog != nil {
+	if !isNilCatalog(cfg.Catalog) {
 		return cfg.Catalog, nil
 	}
 	if cfg.Deps != nil {
@@ -184,23 +237,4 @@ func resolveCatalog(cfg Config) (opmesh.Catalog, error) {
 		return cat, nil
 	}
 	return nil, fmt.Errorf("pinnermcp: assemble: no operation catalog: set Config.Catalog or Config.Deps")
-}
-
-// compileProfile adapts the configured profile into the shape the catalogmcp
-// compiler consumes. A nil Config.Profile passes through as nil — the
-// documented profile-less case that makes the compiler fall back to the
-// operation's own description instead of resolving DescFunc targets. Any
-// configured shape is passed as the adapted HostProfile (Assemble validated
-// it already); HostProfile is an mcpforge FeatureCarrier, so the compiler's
-// resolvers adopt it directly without a second adaptation hop.
-func compileProfile(cfg Config) any {
-	if cfg.Profile == nil {
-		return nil
-	}
-	hp, err := AdaptHostProfile(cfg.Profile)
-	if err != nil {
-		// Unreachable: Assemble validated the same shape before calling.
-		return nil
-	}
-	return hp
 }

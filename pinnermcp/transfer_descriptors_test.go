@@ -71,15 +71,15 @@ func sinkEnumOf(t *testing.T, raw json.RawMessage) []string {
 // the comma-enum reflector pitfall must never publish a partial sink enum; the
 // enum follows the coordinator wiring, not the struct tag.
 func TestDownloadSinkSchemaEnum(t *testing.T) {
-	onHTTP := transfer.RewriteSinkEnum(inputSchemaFor[DownloadFileInput](), true, false)
+	onHTTP := transfer.RewriteSinkEnum(toolargs.ToolSchemaFor[DownloadFileInput](), true, false)
 	require.Equal(t, []string{"local", "drop"}, sinkEnumOf(t, onHTTP),
 		"HTTP transport with a filedrop coordinator must advertise local+drop")
 
-	onTunnel := transfer.RewriteSinkEnum(inputSchemaFor[DownloadFileInput](), true, true)
+	onTunnel := transfer.RewriteSinkEnum(toolargs.ToolSchemaFor[DownloadFileInput](), true, true)
 	require.Equal(t, []string{"local"}, sinkEnumOf(t, onTunnel),
 		"OpenAI tunnel (no reachable mux) must not advertise drop")
 
-	noDrop := transfer.RewriteSinkEnum(inputSchemaFor[DownloadFileInput](), false, false)
+	noDrop := transfer.RewriteSinkEnum(toolargs.ToolSchemaFor[DownloadFileInput](), false, false)
 	require.Equal(t, []string{"local"}, sinkEnumOf(t, noDrop),
 		"no filedrop coordinator wired -> local only")
 }
@@ -131,7 +131,7 @@ func TestUploadTitleAndAnnotations(t *testing.T) {
 // description against the fragments pinner-cli's toolforge uploadFileDesc
 // resolves for the same profiles.
 func TestUploadFileDescriptionPerProfile(t *testing.T) {
-	httpDesc := uploadFileDescription(canimcp.TransportHTTP)
+	httpDesc := uploadFileDescription(testProfileForTransport(canimcp.TransportHTTP), canimcp.TransportHTTP)
 	require.Contains(t, httpDesc, "Upload a file and pin it.")
 	require.Contains(t, httpDesc, "source.mode=mint")
 	require.Contains(t, httpDesc, "PUT your agent-local file to the returned url")
@@ -141,13 +141,26 @@ func TestUploadFileDescriptionPerProfile(t *testing.T) {
 	// A generic HTTP profile has no file-input handoff.
 	require.NotContains(t, httpDesc, "the OpenAI runtime converts it")
 
-	stdioDesc := uploadFileDescription(canimcp.TransportStdio)
+	stdioDesc := uploadFileDescription(testProfileForTransport(canimcp.TransportStdio), canimcp.TransportStdio)
 	require.Contains(t, stdioDesc, "source.mode=path with a host-side file/directory/archive path")
 	require.NotContains(t, stdioDesc, "source.mode=mint to get a one-time presigned")
 
-	tunnelDesc := uploadFileDescription(canimcp.TransportOpenAI)
+	// The OpenAI tunnel description resolves against the effective features
+	// including the ChatGPT host capabilities (the registry compiled the
+	// schema and ChatGPT metadata from the same set), so the host-file
+	// handoff instructions the `file` input enables MUST appear in the prose
+	// — not just the url/data relay segments.
+	tunnelDesc := uploadFileDescription(
+		transportStartupFeatures(canimcp.TransportOpenAI), canimcp.TransportOpenAI)
 	require.Contains(t, tunnelDesc, "source.mode=url (server-fetchable HTTPS URL) or source.mode=data")
 	require.Contains(t, tunnelDesc, "If the upload fails with 'context canceled', retry")
+	// Regression (host-file guidance on the tunnel): the FeatFileHostInput
+	// segments render exactly like pinner-cli's original
+	// ProfileForTransport(TransportOpenAI)-resolved description.
+	require.Contains(t, tunnelDesc, "the OpenAI runtime converts it",
+		"OpenAI tunnel description must carry the host-file handoff guidance")
+	require.Contains(t, tunnelDesc, "file=<host file> and archive_mode=convert",
+		"OpenAI tunnel description must carry the website-ZIP host-file route")
 }
 
 // TestDownloadFileDescriptionPerProfile pins the sink prose per wiring.

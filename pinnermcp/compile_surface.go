@@ -265,11 +265,12 @@ func isModelVisibleOnMCP(d opmesh.ToolDescriptor) bool {
 // required-arg enforcement hold there). tools/list prominence is decided by
 // stampCurated.
 //
-// profile must already be an adapted catalogmcp-compatible shape (see
-// compiledProfileFor) so the DescFunc-only fallback targets resolve against
-// it: a catalogmcp compiler built with a nil profile would collapse the
-// DSL-composed descriptions (e.g. websites_create's feature-gated guidance)
-// to the short CLI description.
+// profile must already be an adapted catalogmcp-compatible shape (Assemble
+// adapts Config.Profile exactly once via HostProfileOf/AdaptHostProfile and
+// passes the same HostProfile here and to the direct presentation) so the
+// DescFunc-only fallback targets resolve against it: a catalogmcp compiler
+// built with a nil profile would collapse the DSL-composed descriptions (e.g.
+// websites_create's feature-gated guidance) to the short CLI description.
 func populateCatalogSurface(cat opmesh.Catalog, profile any) ([]CatalogPresentation, error) {
 	if cat == nil {
 		return nil, errNilCatalog

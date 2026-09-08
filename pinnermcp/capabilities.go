@@ -358,14 +358,23 @@ func (w CapabilityWiring) reportFor() CapabilityReport {
 // server's registered tools, gated on the registration-time RelayFeatures —
 // never the per-request wire profile.
 func NewCapabilitiesDescriptor(wiring CapabilityWiring) model.ToolDescriptor {
-	startupProfile := profileForTransport(UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI)).CloneFeatures()
+	transport := UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI)
+	// The baked description resolves against the transport's startup-effective
+	// profile — the mechanism set with the embedded OpenAI tunnel's ChatGPT
+	// host capabilities merged in, via the SAME transportStartupFeatures
+	// derivation the upload-file fallback used — so a tunnel's tools/list
+	// description keeps the host-file-first routing copy a mechanism-only
+	// profile would drop, and the capability prose can never drift from the
+	// schema/description/metadata derivation.
+	startupProfile := profileForTransport(transport)
+	startupProfile.Features = transportStartupFeatures(transport)
 	return model.ToolDescriptor{
 		Name:          "capabilities",
 		Title:         "Pinner file-input/output capabilities",
 		Description:   capabilitiesDescriptionFor(startupProfile, wiring.UploadFile, wiring.VaultPutFile, wiring.DownloadFile, wiring.VaultGetFile),
 		Category:      model.CategoryCore,
 		OpenWorldHint: false, // pure local capability report; changes no state
-		InputSchema:   inputSchemaFor[noInput](),
+		InputSchema:   toolargs.ToolSchemaFor[noInput](),
 		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
 			w := wiring
 			// draft_x_mcp_file reports whether the CALLING client can speak the

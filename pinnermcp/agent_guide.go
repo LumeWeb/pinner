@@ -496,7 +496,7 @@ func AgentGuideDescriptor(surface pinnerops.Surface, hosted bool) model.ToolDesc
 		Description:   agentGuideDescription,
 		Category:      model.CategoryCore,
 		OpenWorldHint: false, // static local guidance payload; changes no state
-		InputSchema:   inputSchemaFor[noInput](),
+		InputSchema:   toolargs.ToolSchemaFor[noInput](),
 		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
 			profile := profileFromRequest(request)
 			profile.Hosted = hosted

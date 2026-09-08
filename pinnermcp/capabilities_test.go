@@ -8,8 +8,8 @@ import (
 
 	"go.lumeweb.com/canimcp"
 	"go.lumeweb.com/mcpforge"
-	"go.lumeweb.com/mcpplane/model"
 	"go.lumeweb.com/mcpplane/ieo"
+	"go.lumeweb.com/mcpplane/model"
 )
 
 // Characterization tests for the capabilities tool, pinned against

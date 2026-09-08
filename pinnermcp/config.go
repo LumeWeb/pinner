@@ -3,7 +3,6 @@ package pinnermcp
 import (
 	"go.lumeweb.com/opmesh"
 
-	"go.lumeweb.com/pinner/catalogmcp"
 	"go.lumeweb.com/pinner/pinnerops"
 )
 
@@ -54,7 +53,10 @@ type Config struct {
 	// Catalog, when set, is consumed as-is instead of assembling from Deps.
 	// It exists so a composition root that already owns an assembled
 	// opmesh.Catalog can bridge it without a second registration pass. When
-	// both Catalog and Deps are set, Catalog wins.
+	// both Catalog and Deps are set, Catalog wins. A typed-nil Catalog (an
+	// interface variable holding a nil concrete value) reads as UNSET — the
+	// Deps path applies, since a nil concrete catalog is not a usable
+	// registry.
 	Catalog opmesh.Catalog
 
 	// Transfer carries the transfer-tool wiring (executor fns and coordinator
@@ -76,35 +78,6 @@ type Config struct {
 	// registry stays a composition-root seam until the Apps registration spec
 	// is flattened; nothing in pinnermcp needs it (the guide references
 	// open_app as prose only).
-}
-
-// compileProfile returns the any-typed profile handed to
-// catalogmcp.NewCompilerForProfile. It is the adapted-shape pass-through: the
-// configured profile is adopted as-is (catalogmcp adapts ForgeFeatureCarrier
-// values and reports any other non-nil shape as a gap), so a Config that
-// carries a *canimcp.Profile must first be normalised via AdaptHostProfile by
-// Assemble — see compiledProfileFor.
-func compiledProfileFor(cfg Config) (any, error) {
-	if cfg.Profile == nil {
-		return nil, nil
-	}
-	hp, err := AdaptHostProfile(cfg.Profile)
-	if err != nil {
-		return nil, err
-	}
-	return hp, nil
-}
-
-// CompileCatalog compiles the configured catalog for the model surface using
-// the configured profile. It is the single place pinnermcp touches
-// catalogmcp's compiler, mirroring the de-globalized startup profile the
-// source derived from set-boxed transport flags.
-func CompileCatalog(cfg Config, cat opmesh.Catalog) ([]opmesh.ToolDescriptor, error) {
-	profile, err := compiledProfileFor(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return catalogmcp.NewCompilerForProfile(profile).Compile(cat)
 }
 
 // HostProfileOf resolves Config.Profile into a HostProfile for the direct
