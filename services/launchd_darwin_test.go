@@ -82,7 +82,8 @@ func TestLaunchdServiceLifecycleUsesLaunchctl(t *testing.T) {
 		if command == "load" {
 			loadCount++
 			// A job that is already registered reports "service already
-			// loaded"; Start tolerates it as an idempotent no-op.
+			// loaded"; Start tolerates it (then unloads and reloads so the
+			// refreshed plist is applied).
 			if loadCount == 2 {
 				return errors.New("LaunchAgent is already loaded")
 			}
@@ -107,7 +108,8 @@ func TestLaunchdServiceLifecycleUsesLaunchctl(t *testing.T) {
 	// 1. Start -> load.
 	require.NoError(t, svc.Start(context.Background()))
 
-	// 2. Start again -> load tolerates "already loaded" (idempotent).
+	// 2. Start again -> load reports "already loaded", so Start unloads and
+	// reloads to apply the refreshed plist (still idempotent).
 	require.NoError(t, svc.Start(context.Background()))
 
 	// 3. Stop -> unload.
@@ -130,7 +132,9 @@ func TestLaunchdServiceLifecycleUsesLaunchctl(t *testing.T) {
 
 	require.Equal(t, [][]string{
 		{"launchctl", "load", plist},        // 1 Start
-		{"launchctl", "load", plist},        // 2 Start, already-loaded tolerated
+		{"launchctl", "load", plist},        // 2 Start, already-loaded...
+		{"launchctl", "unload", plist},      // 2 Start: unload for reload
+		{"launchctl", "load", plist},        // 2 Start: reload refreshed plist
 		{"launchctl", "unload", plist},      // 3 Stop
 		{"launchctl", "unload", plist},      // 4 Restart -> Stop
 		{"launchctl", "load", plist},        // 4 Restart -> Start
@@ -208,6 +212,39 @@ func TestLaunchdServiceInstallAndUninstall(t *testing.T) {
 		{"launchctl", "load", plistPath},
 		{"launchctl", "unload", plistPath},
 	}, calls)
+}
+
+func TestLaunchdStartReloadsAlreadyLoadedJob(t *testing.T) {
+	// Regression (PR #32): when `launchctl load` reports "service already
+	// loaded", the legacy load does NOT re-read the plist for the running job,
+	// so treating it as a bare no-op meant a credential rotation was silently
+	// never applied. Start must instead unload, then reload, so the refreshed
+	// Environment actually reaches the running job.
+	var calls [][]string
+	cfg := Config{Name: "pinner-mcp", UserMode: true}
+	cfg.WriteFile = func(string, []byte, os.FileMode) error { return nil }
+	cfg.MkdirAll = func(string, os.FileMode) error { return nil }
+	cfg.RemoveFile = func(string) error { return nil }
+	cfg.Runner = func(_ context.Context, command string, args ...string) error {
+		calls = append(calls, append([]string{command}, args...))
+		if command == "load" && len(calls) == 1 {
+			return errors.New("LaunchAgent is already loaded")
+		}
+		return nil
+	}
+	svc := newLaunchdService(cfg)
+	require.NoError(t, svc.Start(context.Background()))
+
+	require.Equal(t, [][]string{
+		{"launchctl", "load", plistPathFor(t)},     // load: already loaded
+		{"launchctl", "unload", plistPathFor(t)},   // unload for reload
+		{"launchctl", "load", plistPathFor(t)},     // reload applies new env
+	}, calls)
+}
+
+func plistPathFor(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(homeDir(t), "Library", "LaunchAgents", "pinner-mcp.plist")
 }
 
 func TestLaunchdServiceStatusNotInstalled(t *testing.T) {

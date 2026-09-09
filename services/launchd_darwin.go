@@ -194,10 +194,21 @@ func (s *launchdService) Start(ctx context.Context) error {
 	}
 	// The kardianos/service pattern: `launchctl load` reads the (refreshed)
 	// plist and loads/starts the job. An already-registered job reports
-	// "service already loaded"; tolerate it as a no-op so start/restart stay
-	// idempotent.
-	if err := s.run(ctx, "load", plistPath); err != nil && !isAlreadyLoadedRun(err) {
-		return fmt.Errorf("load LaunchAgent: %w", err)
+	// "service already loaded"; but a legacy `load` does NOT re-read the plist
+	// for a job that is already loaded, so tolerating it as a no-op would
+	// silently skip applying the refreshed (rotated) credentials. Unload, then
+	// reload so the new Environment is actually picked up, keeping start/
+	// restart idempotent.
+	if err := s.run(ctx, "load", plistPath); err != nil {
+		if !isAlreadyLoadedRun(err) {
+			return fmt.Errorf("load LaunchAgent: %w", err)
+		}
+		if uerr := s.run(ctx, "unload", plistPath); uerr != nil && !isNotInstalledRun(uerr) {
+			return fmt.Errorf("unload LaunchAgent for reload: %w", uerr)
+		}
+		if lerr := s.run(ctx, "load", plistPath); lerr != nil && !isAlreadyLoadedRun(lerr) {
+			return fmt.Errorf("load LaunchAgent: %w", lerr)
+		}
 	}
 	return nil
 }
