@@ -181,6 +181,21 @@ func TestExecEscapeEscapesDollar(t *testing.T) {
 	require.Equal(t, `"C:\\path$$x"`, execEscape(`C:\path$x`))
 }
 
+func TestExecEscapeEscapesPercent(t *testing.T) {
+	// Regression (PR #32): systemd expands % specifiers (%U, %H, %i, %n, ...)
+	// in ExecStart= path and argument tokens, so a literal % must be doubled
+	// to %% (which collapses back to a single % at run time), mirroring the
+	// $ handling. "$" must still be doubled as before, and both together must
+	// each be doubled independently.
+	require.Equal(t, `/opt/bin/pinner`, execEscape(`/opt/bin/pinner`))
+	require.Equal(t, `%%`, execEscape(`%`))
+	// % does not trigger systemdEscape quoting (only $, whitespace, quotes and
+	// backslashes do), but the doubled %% still neutralizes specifier expansion.
+	require.Equal(t, `%%U`, execEscape(`%U`))
+	require.Equal(t, `/opt/%%user/pinner`, execEscape(`/opt/%user/pinner`))
+	require.Equal(t, `"p$$w%%rd"`, execEscape(`p$w%rd`))
+}
+
 func TestRenderSystemdUnitDollarHandling(t *testing.T) {
 	// Regression (PR #10): the ExecStart $-escaping must NOT leak into
 	// Environment= lines. systemd does no $-expansion there, so an env value

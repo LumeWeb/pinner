@@ -363,7 +363,10 @@ func systemdEscape(value string) string {
 // execEscape quotes a value for use as an ExecStart= path or argument token.
 // In the command line, systemd expands $VAR/${VAR} and collapses $$ to a
 // literal $, so a literal dollar must be doubled to $$ (which then also forces
-// quoting, like the other metacharacters).
+// quoting, like the other metacharacters). systemd likewise expands %
+// specifiers (%U, %H, %i, %n, ...) in ExecStart= tokens, so a literal % must
+// also be doubled to %% (which collapses back to a single % at run time),
+// otherwise a %-containing path or argument would be silently substituted.
 func execEscape(value string) string {
-	return systemdEscape(strings.ReplaceAll(value, `$`, `$$`))
+	return systemdEscape(strings.ReplaceAll(strings.ReplaceAll(value, `%`, `%%`), `$`, `$$`))
 }
