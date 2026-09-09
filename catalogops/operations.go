@@ -6,8 +6,10 @@ package catalogops
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.lumeweb.com/opmesh"
+	account "go.lumeweb.com/portal-sdk"
 	"go.lumeweb.com/pinner/core/operations"
 )
 
@@ -43,7 +45,7 @@ func operationsList(d OperationsDeps) opmesh.Operation {
 			opmesh.OperationArg{Name: "protocol", Type: opmesh.ArgTypeString, Help: "Filter by protocol (e.g. ipfs)"},
 			opmesh.OperationArg{Name: "cid", Type: opmesh.ArgTypeString, Help: "Filter by CID"},
 			opmesh.OperationArg{Name: "sort", Type: opmesh.ArgTypeString, Help: "Sort results (e.g. id:desc, started:asc). Defaults to id:desc."},
-			opmesh.OperationArg{Name: "watch", Type: opmesh.ArgTypeBool, Default: "false", Help: "Poll until the list settles"},
+			opmesh.OperationArg{Name: "watch", Type: opmesh.ArgTypeBool, Default: "false", Help: "Poll until all listed operations settle (bounded poll)"},
 		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc := d.Service(input)
@@ -54,7 +56,7 @@ func operationsList(d OperationsDeps) opmesh.Operation {
 				return nil, err
 			}
 			page := opmesh.ParseListPage(input, 10)
-			res, err := svc.List(ctx, operations.ListOptions{
+			opts := operations.ListOptions{
 				Search:          opmesh.SearchArg(input),
 				StatusFilters:   opmesh.StrSliceArg(input, "status"),
 				IncludeAll:      opmesh.BoolArg(input, "all", false),
@@ -64,13 +66,70 @@ func operationsList(d OperationsDeps) opmesh.Operation {
 				Sort:            opmesh.StrArg(input, "sort", ""),
 				Start:           page.Start,
 				Limit:           page.Limit,
-			})
+			}
+			if opmesh.BoolArg(input, "watch", false) {
+				// Watch keeps rows visible past settlement (the service skips
+				// the default active-status filter) so the settle check below
+				// can observe the terminal transition.
+				opts.IsWatch = true
+				return pollOperationsList(ctx, svc, opts)
+			}
+			res, err := svc.List(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
 			return newOperationsListResult(res), nil
 		}),
 	})
+}
+
+// Watch polling knobs. Vars (not consts) so tests can tighten the interval
+// and attempts without wall-clock-sensitive sleeps.
+var (
+	// operationsListWatchInterval is the delay between re-list attempts while
+	// watching the operations list for settlement.
+	operationsListWatchInterval = 2 * time.Second
+	// operationsListWatchAttempts bounds watch polling so operations that
+	// never settle cannot block an agent indefinitely (~5 minutes at the
+	// default interval).
+	operationsListWatchAttempts = 150
+)
+
+// allOperationsSettled reports whether every listed operation has reached a
+// terminal status (an empty list is trivially settled).
+func allOperationsSettled(res *operations.OperationsListResult) bool {
+	if res == nil {
+		return true
+	}
+	for _, op := range res.Operations {
+		if !account.OperationStatus(op.Status).IsSettled() {
+			return false
+		}
+	}
+	return true
+}
+
+// pollOperationsList re-lists until every returned operation has settled, the
+// bound expires, or the context is canceled — mirroring the CLI's
+// watch-on-list loop and honoring the documented `watch` contract.
+func pollOperationsList(ctx context.Context, svc operations.Service, opts operations.ListOptions) (any, error) {
+	for attempt := 0; attempt < operationsListWatchAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(operationsListWatchInterval):
+			}
+		}
+		res, err := svc.List(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		if allOperationsSettled(res) {
+			return newOperationsListResult(res), nil
+		}
+	}
+	return nil, fmt.Errorf("operations_list: timed out waiting for operations to settle")
 }
 
 // newOperationsListResult wraps the core operations list result into the
