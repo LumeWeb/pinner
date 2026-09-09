@@ -177,13 +177,17 @@ func TestIPNSService_WithAuthToken(t *testing.T) {
 }
 
 func TestResolveIPNSKeyID_NumericArg(t *testing.T) {
-	id, err := ResolveKeyID(context.Background(), nil, "42")
+	// Name lookup runs first; with no keys present, the numeric arg falls
+	// back to the parsed key ID.
+	sdkMock := &mockIPNSSDKService{}
+	id, err := ResolveKeyID(context.Background(), sdkMock, "42")
 	require.NoError(t, err)
 	assert.Equal(t, 42, id)
 }
 
 func TestResolveIPNSKeyID_NumericString(t *testing.T) {
-	id, err := ResolveKeyID(context.Background(), nil, "0")
+	sdkMock := &mockIPNSSDKService{}
+	id, err := ResolveKeyID(context.Background(), sdkMock, "0")
 	require.NoError(t, err)
 	assert.Equal(t, 0, id)
 }

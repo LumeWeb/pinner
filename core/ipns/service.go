@@ -210,11 +210,11 @@ type keyLister interface {
 	ListKeys(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error)
 }
 
+// ResolveKeyID resolves an IPNS key by NAME first, falling back to a numeric
+// key ID only when no key carries the arg as its name. Name-first matching is
+// required so that keys whose NAME is numeric (e.g. "123") resolve to their
+// actual key ID instead of being misread as a literal ID.
 func ResolveKeyID(ctx context.Context, svc keyLister, arg string) (int, error) {
-	if id, err := strconv.Atoi(arg); err == nil {
-		return id, nil
-	}
-
 	keys, err := svc.ListKeys(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to look up IPNS key by name: %w", err)
@@ -224,6 +224,10 @@ func ResolveKeyID(ctx context.Context, svc keyLister, arg string) (int, error) {
 		if k.Name == arg {
 			return k.Id, nil
 		}
+	}
+
+	if id, err := strconv.Atoi(arg); err == nil {
+		return id, nil
 	}
 
 	return 0, fmt.Errorf("IPNS key not found for name %q", arg)
