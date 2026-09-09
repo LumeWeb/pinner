@@ -253,7 +253,15 @@ func (s *windowsService) Logs(ctx context.Context, follow bool) error {
 			continue
 		}
 		consecFailures = 0
-		if newCursor := printNewEvents(out); newCursor > cursor {
+		// Advance the cursor to the newest id of the returned batch whenever
+		// the batch is non-empty — even when that id is LOWER than the prior
+		// cursor. The Application event log is circular: when it rolls over,
+		// EventRecordIDs restart below the previous cursor and a strict
+		// `newCursor > cursor` guard would leave the cursor pinned above every
+		// subsequent id, so the tail would silently emit nothing forever.
+		// Resetting to the newest id re-synchronizes after the rollover. An
+		// empty batch (newCursor == 0) keeps the cursor where it is.
+		if newCursor := printNewEvents(out); newCursor > 0 {
 			cursor = newCursor
 		}
 		select {

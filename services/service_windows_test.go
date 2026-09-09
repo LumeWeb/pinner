@@ -5,6 +5,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,6 +178,59 @@ func TestWindowsLogsRoutesThroughOutputRun(t *testing.T) {
 	require.Contains(t, a, "/f:text")
 	require.Contains(t, a, "/rd:true")
 	require.Contains(t, a, "/c:50")
+}
+
+func TestWindowsLogsFollowResetsCursorOnRollover(t *testing.T) {
+	// Regression (PR #32): the Application event log is circular; when it
+	// rolls over, EventRecordIDs restart at values LOWER than the prior
+	// cursor. The old `newCursor > cursor` guard left the cursor pinned above
+	// every subsequent id, so the tail silently emitted nothing while
+	// returning success. After a non-empty batch the follow cursor must reset
+	// to the batch's newest id — even when lower — so the next XPath query
+	// re-synchronizes against the new id space.
+	oldInterval, oldMax := eventPollInterval, maxEventPollFailures
+	eventPollInterval, maxEventPollFailures = time.Millisecond, 2
+	defer func() { eventPollInterval, maxEventPollFailures = oldInterval, oldMax }()
+
+	var queries []string
+	poll := 0
+	batches := []string{
+		winEventXML(500, "seed"),     // poll 1 (initial /c:50 cap): cursor -> 500
+		winEventXML(42, "post-roll"), // poll 2 (rollover): cursor must reset to 42
+	}
+	cfg := Config{Name: "pinner-mcp"}
+	cfg.OutputRun = func(_ context.Context, _ string, args ...string) (string, error) {
+		for _, a := range args {
+			if strings.HasPrefix(a, "/q:") {
+				queries = append(queries, a)
+			}
+		}
+		if poll >= len(batches) {
+			return "", nil
+		}
+		out := batches[poll]
+		poll++
+		return out, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	require.NoError(t, newWindowsService(cfg).Logs(ctx, true))
+
+	// Poll 1 seeds the cursor at 500; poll 2's rollover batch (newest id 42)
+	// must reset it, so the NEXT query boundary is EventRecordID > 42 (the
+	// lower, rolled-over id) rather than the stale 500.
+	require.Contains(t, queries[0], "EventRecordID > 0")
+	require.Contains(t, queries[1], "EventRecordID > 500")
+	require.Contains(t, queries[2], "EventRecordID > 42")
+	require.True(t, len(queries) > 2, "follow must have polled past the rollover batch")
+}
+
+// winEventXML builds one wevtutil /f:xml event block carrying the given
+// record id and single Data payload.
+func winEventXML(id int, msg string) string {
+	return fmt.Sprintf(
+		`<Event><System><EventRecordID>%d</EventRecordID></System><EventData><Data>%s</Data></EventData></Event>`,
+		id, msg)
 }
 
 func TestPrintNewEventsAdvancesCursorByID(t *testing.T) {
