@@ -15,6 +15,7 @@ require (
 	go.lumeweb.com/ipfs-content v0.1.18
 	go.lumeweb.com/ipfs-sdk v0.1.97
 	go.lumeweb.com/ipfs-sdk/dnsname v0.1.64
+	go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e
 	go.lumeweb.com/portal-sdk v0.1.72
 	go.lumeweb.com/queryutil v0.3.19
 	go.sia.tech/core v0.21.7
