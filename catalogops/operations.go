@@ -5,9 +5,11 @@ package catalogops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	"go.lumeweb.com/opmesh"
 	account "go.lumeweb.com/portal-sdk"
 	"go.lumeweb.com/pinner/core/operations"
@@ -109,6 +111,11 @@ func allOperationsSettled(res *operations.OperationsListResult) bool {
 	return true
 }
 
+// errWatchNotSettled is returned by the poll body while the operations list
+// still holds unsettled rows. It is the ONLY error the watch retries on —
+// anything else aborts the poll immediately.
+var errWatchNotSettled = errors.New("operations_list: operations have not settled yet")
+
 // pollOperationsList re-lists until every returned operation has settled, the
 // bound expires, or the context is canceled — mirroring the CLI's
 // watch-on-list loop and honoring the documented `watch` contract.
@@ -124,23 +131,39 @@ func pollOperationsList(ctx context.Context, svc operations.Service, opts operat
 	// pagination untouched.
 	opts.Limit = 0
 	opts.Start = 0
-	for attempt := 0; attempt < operationsListWatchAttempts; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(operationsListWatchInterval):
-			}
-		}
+
+	var result ListResult
+	// retry-go keeps polling only while the body reports errWatchNotSettled:
+	// the first attempt runs immediately (no initial delay), each subsequent
+	// attempt waits operationsListWatchInterval (FixedDelay, not the default
+	// exponential backoff — the watch contract is a fixed poll interval), the
+	// total number of List calls is bounded by operationsListWatchAttempts,
+	// and a canceled context surfaces instead of being retried or masked.
+	err := retry.New(
+		retry.Context(ctx),
+		retry.Attempts(uint(operationsListWatchAttempts)),
+		retry.Delay(operationsListWatchInterval),
+		retry.DelayType(retry.FixedDelay),
+		retry.RetryIf(func(err error) bool { return errors.Is(err, errWatchNotSettled) }),
+		retry.LastErrorOnly(true),
+	).Do(func() error {
 		res, err := svc.List(ctx, opts)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if allOperationsSettled(res) {
-			return newOperationsListResult(res), nil
+		if !allOperationsSettled(res) {
+			return errWatchNotSettled
 		}
+		result = newOperationsListResult(res)
+		return nil
+	})
+	if errors.Is(err, errWatchNotSettled) {
+		return nil, fmt.Errorf("operations_list: timed out waiting for operations to settle")
 	}
-	return nil, fmt.Errorf("operations_list: timed out waiting for operations to settle")
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // newOperationsListResult wraps the core operations list result into the
