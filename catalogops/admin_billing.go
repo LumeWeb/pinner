@@ -511,7 +511,7 @@ func adminBillingPriceLinesUpdate(d AdminDeps) opmesh.Operation {
 		Name:        "admin_billing_price_lines_update",
 		Title:       "Update a price line",
 		Summary:     "Update a billing price line",
-		Description: "Update a billing price line by ID. Requires admin privileges.",
+		Description: "Update a billing price line by ID. Only the fields provided are changed; others keep their current values. Requires admin privileges.",
 		Category:    "admin",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
@@ -521,8 +521,8 @@ func adminBillingPriceLinesUpdate(d AdminDeps) opmesh.Operation {
 			{Name: "id", Type: opmesh.ArgTypeString, Required: true, Help: "Price line ID"},
 			{Name: "name", Type: opmesh.ArgTypeString, Help: "Price line name"},
 			{Name: "description", Type: opmesh.ArgTypeString, Help: "Price line description"},
-			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark active"},
-			{Name: "is-default", Type: opmesh.ArgTypeBool, Help: "Mark default"},
+			{Name: "is-active", Type: opmesh.ArgTypeNullableBool, Help: "Mark active (omit to leave unchanged)"},
+			{Name: "is-default", Type: opmesh.ArgTypeNullableBool, Help: "Mark default (omit to leave unchanged)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -536,11 +536,31 @@ func adminBillingPriceLinesUpdate(d AdminDeps) opmesh.Operation {
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_price_lines_update: price line ID is required")
 			}
+			// Partial update: the SDK update request carries plain bools with
+			// no nullable semantics, so flags the caller omitted must be merged
+			// from the existing record instead of silently clobbering them to
+			// false (mirrors adminQuotaPlansUpdate).
+			existing, err := svc.GetPriceLine(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get existing price line: %w", err)
+			}
 			req := &admin.PriceLineUpdateRequest{
-				Name:        opmesh.StrArg(input, "name", ""),
-				Description: opmesh.StrArg(input, "description", ""),
-				IsActive:    opmesh.BoolArg(input, "is-active", false),
-				IsDefault:   opmesh.BoolArg(input, "is-default", false),
+				Name:        existing.Name,
+				Description: existing.Description,
+				IsActive:    existing.IsActive,
+				IsDefault:   existing.IsDefault,
+			}
+			if n := opmesh.StrArg(input, "name", ""); n != "" {
+				req.Name = n
+			}
+			if desc := opmesh.StrArg(input, "description", ""); desc != "" {
+				req.Description = desc
+			}
+			if v := opmesh.BoolArgPtr(input, "is-active"); v != nil {
+				req.IsActive = *v
+			}
+			if v := opmesh.BoolArgPtr(input, "is-default"); v != nil {
+				req.IsDefault = *v
 			}
 			return svc.UpdatePriceLine(ctx, id, req)
 		}),
@@ -804,7 +824,7 @@ func adminBillingPricingPlansUpdate(d AdminDeps) opmesh.Operation {
 		Name:        "admin_billing_pricing_plans_update",
 		Title:       "Update a pricing plan",
 		Summary:     "Update a billing pricing plan",
-		Description: "Update a billing pricing plan by ID. Requires admin privileges.",
+		Description: "Update a billing pricing plan by ID. Only the fields provided are changed; others keep their current values. Requires admin privileges.",
 		Category:    "admin",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
@@ -815,8 +835,8 @@ func adminBillingPricingPlansUpdate(d AdminDeps) opmesh.Operation {
 			{Name: "name", Type: opmesh.ArgTypeString, Help: "Plan name"},
 			{Name: "description", Type: opmesh.ArgTypeString, Help: "Plan description"},
 			{Name: "currency", Type: opmesh.ArgTypeString, Help: "Currency"},
-			{Name: "is-active", Type: opmesh.ArgTypeBool, Help: "Mark active"},
-			{Name: "is-public", Type: opmesh.ArgTypeBool, Help: "Mark public"},
+			{Name: "is-active", Type: opmesh.ArgTypeNullableBool, Help: "Mark active (omit to leave unchanged)"},
+			{Name: "is-public", Type: opmesh.ArgTypeNullableBool, Help: "Mark public (omit to leave unchanged)"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.billing()
@@ -830,12 +850,35 @@ func adminBillingPricingPlansUpdate(d AdminDeps) opmesh.Operation {
 			if id == "" {
 				return nil, fmt.Errorf("admin_billing_pricing_plans_update: plan ID is required")
 			}
+			// Partial update: the SDK update request carries plain bools with
+			// no nullable semantics, so flags the caller omitted must be merged
+			// from the existing record instead of silently clobbering them to
+			// false (mirrors adminQuotaPlansUpdate).
+			existing, err := svc.GetPricingPlan(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get existing pricing plan: %w", err)
+			}
 			req := &admin.PricingPlanUpdateRequest{
-				Name:        opmesh.StrArg(input, "name", ""),
-				Description: opmesh.StrArg(input, "description", ""),
-				Currency:    opmesh.StrArg(input, "currency", ""),
-				IsActive:    opmesh.BoolArg(input, "is-active", false),
-				IsPublic:    opmesh.BoolArg(input, "is-public", false),
+				Name:        existing.Name,
+				Description: existing.Description,
+				Currency:    existing.Currency,
+				IsActive:    existing.IsActive,
+				IsPublic:    existing.IsPublic,
+			}
+			if n := opmesh.StrArg(input, "name", ""); n != "" {
+				req.Name = n
+			}
+			if desc := opmesh.StrArg(input, "description", ""); desc != "" {
+				req.Description = desc
+			}
+			if cur := opmesh.StrArg(input, "currency", ""); cur != "" {
+				req.Currency = cur
+			}
+			if v := opmesh.BoolArgPtr(input, "is-active"); v != nil {
+				req.IsActive = *v
+			}
+			if v := opmesh.BoolArgPtr(input, "is-public"); v != nil {
+				req.IsPublic = *v
 			}
 			return svc.UpdatePricingPlan(ctx, id, req)
 		}),
