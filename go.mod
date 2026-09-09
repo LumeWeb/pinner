@@ -7,4 +7,7 @@ require (
 	go.lumeweb.com/ipfs-sdk/dnsname v0.1.64
 )
 
-require go.yaml.in/yaml/v3 v3.0.5 // indirect
+require (
+	go.lumeweb.com/opmesh v0.0.0-20260907112428-ade506e64ae9
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
+)
