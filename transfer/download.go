@@ -233,26 +233,78 @@ func ensureRealPathInsideRoot(root, dest string) error {
 	if err != nil {
 		return fmt.Errorf("download output path %q cannot be resolved inside the configured download root %q: %w", dest, root, err)
 	}
-	relFromRoot, err := filepath.Rel(realRoot, realDest)
-	if err != nil || relFromRoot == ".." || strings.HasPrefix(relFromRoot, ".."+string(filepath.Separator)) || filepath.IsAbs(relFromRoot) {
+	if realPathEscapesRoot(realRoot, realDest) {
 		return fmt.Errorf("download output path %q resolves outside the configured download root %q via a symbolic link", dest, root)
 	}
 	return nil
 }
 
+// realPathEscapesRoot is the shared confinement check over two ALREADY-RESOLVED
+// real paths: candidate escapes when the relative path from root climbs out
+// (".." or a ".."-prefixed ancestor walk) or is absolute. It is shared by the
+// resolution-time check (ensureRealPathInsideRoot) and the write-path checks in
+// WriteLocalDownload so no containment comparison can drift between the two
+// enforcement points.
+func realPathEscapesRoot(realRoot, realCandidate string) bool {
+	relFromRoot, err := filepath.Rel(realRoot, realCandidate)
+	return err != nil || relFromRoot == ".." || strings.HasPrefix(relFromRoot, ".."+string(filepath.Separator)) || filepath.IsAbs(relFromRoot)
+}
+
 // WriteLocalDownload streams the source bytes to a host-side output path
-// atomically: it writes to a temp file in the destination directory, then
-// renames onto the final path only after the stream succeeds, so a failed or
-// interrupted download never leaves a truncated file as if it were complete.
-// The destination directory is created if missing. An existing destination is
-// overwritten by the rename (the caller is expected to gate on --force-style
-// semantics at the tool boundary if desired).
-func WriteLocalDownload(ctx context.Context, outputPath string, maxBytes int64, resolve func(ctx context.Context, w io.Writer) error) (int64, error) {
+// atomically and CONFINED to downloadRoot: it writes to a temp file in the
+// destination directory, then renames onto the final path only after the
+// stream succeeds, so a failed or interrupted download never leaves a
+// truncated file as if it were complete. The destination directory is created
+// if missing. An existing destination is overwritten by the rename (the caller
+// is expected to gate on --force-style semantics at the tool boundary if
+// desired).
+//
+// Security invariant (the write-half of ResolveLocalOutputPath's confinement):
+// the downloadRoot is REQUIRED for direct callers too. After the destination
+// directory is created, both the root and the destination directory are
+// resolved to their real filesystem locations (every component exists by then,
+// so the resolution is complete) and the destination directory must resolve
+// inside the root. The temp file is created inside the fully-resolved real
+// directory — not the caller-supplied lexical path — so a symlink in the
+// destination's ancestry cannot redirect the streaming write out of the root.
+//
+// Because a co-resident attacker can swap the destination directory for a
+// symlink to outside the root WHILE the download streams (a TOCTOU window the
+// resolution-time checks cannot cover), the directory is re-validated
+// immediately before the atomic rename: it must still resolve to the same real
+// directory and remain confined; the temp is removed and the download fails
+// loudly on any violation. Both sides of the final rename share that identical
+// resolved parent, so no further component of the final path is resolved
+// through the filesystem. As a detective control, after a successful rename
+// the final file is re-checked once against the root: if it resolves outside,
+// the file is removed and an error reported — a violated containment is never
+// reported as a successful download.
+func WriteLocalDownload(ctx context.Context, downloadRoot, outputPath string, maxBytes int64, resolve func(ctx context.Context, w io.Writer) error) (int64, error) {
+	root := filepath.Clean(downloadRoot)
+	if root == "" || root == "." {
+		return 0, fmt.Errorf("download root is required to confine the download")
+	}
 	dir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return 0, fmt.Errorf("create destination directory: %w", err)
 	}
-	tmp, err := os.CreateTemp(dir, ".pinner-dl-*")
+	// Resolve the root and the destination directory AFTER MkdirAll, so every
+	// component exists and both sides of the containment comparison are fully
+	// symbolic-link-resolved (no unresolved tail to re-append).
+	realRoot, err := resolveRealPath(root)
+	if err != nil {
+		return 0, fmt.Errorf("cannot resolve the download root %q: %w", root, err)
+	}
+	realDir, err := resolveRealPath(dir)
+	if err != nil {
+		return 0, fmt.Errorf("destination directory %q cannot be resolved inside the download root %q: %w", dir, root, err)
+	}
+	if realPathEscapesRoot(realRoot, realDir) {
+		return 0, fmt.Errorf("destination directory %q resolves outside the download root %q via a symbolic link", dir, root)
+	}
+	// The temp file is created inside the fully RESOLVED real directory, so a
+	// symlinked destination path cannot redirect the temp write out of the root.
+	tmp, err := os.CreateTemp(realDir, ".pinner-dl-*")
 	if err != nil {
 		return 0, fmt.Errorf("create temp download file: %w", err)
 	}
@@ -273,10 +325,62 @@ func WriteLocalDownload(ctx context.Context, outputPath string, maxBytes int64, 
 	if err := tmp.Close(); err != nil {
 		return 0, err
 	}
-	if err := os.Rename(tmpPath, outputPath); err != nil {
+	// TOCTOU guard: a co-resident attacker can swap the destination directory
+	// for a symlink to outside the root WHILE the download streams.
+	// Re-validate immediately before the rename: the destination path must
+	// still resolve to the same real directory, confined within the root. On
+	// any violation the temp is removed (defer) and the download fails loudly —
+	// nothing is finalized through the swapped-out path.
+	current, sealErr := filepath.EvalSymlinks(dir)
+	if sealErr != nil {
+		removeAbandonedTemp(realRoot, tmpPath)
+		return 0, fmt.Errorf("destination directory %q changed during the download and can no longer be resolved inside the download root %q: %w", dir, root, sealErr)
+	}
+	if current != realDir || realPathEscapesRoot(realRoot, current) {
+		removeAbandonedTemp(realRoot, tmpPath)
+		return 0, fmt.Errorf("destination directory %q was swapped during the download and no longer resolves inside the download root %q; refusing to finalize %q", dir, root, outputPath)
+	}
+	// Rename within the single resolved parent: oldpath and newpath share the
+	// identical resolved directory, so no component of the final path is
+	// resolved through the filesystem here.
+	finalPath := filepath.Join(realDir, filepath.Base(outputPath))
+	if err := os.Rename(tmpPath, finalPath); err != nil {
 		return 0, fmt.Errorf("finalize download: %w", err)
 	}
+	// Detective control: a successful rename must still land inside the root.
+	// If the final file resolves outside (or cannot be resolved at all), the
+	// violation is undone by removing the file and reported loudly rather than
+	// answered with a success receipt pointing outside the root. Cheap by
+	// design: two syscalls on the happy path.
+	finalReal, sealErr := filepath.EvalSymlinks(finalPath)
+	if sealErr != nil || realPathEscapesRoot(realRoot, finalReal) {
+		_ = os.Remove(finalPath)
+		return 0, fmt.Errorf("final destination %q resolved outside the download root %q after the write; the file was removed", finalPath, root)
+	}
 	return info.Size(), nil
+}
+
+// removeAbandonedTemp is the best-effort cleanup on a detected write-path
+// violation. The plain os.Remove(tmpPath) misses the temp when an attacker
+// RENAMED the destination directory away (the temp moves with the directory,
+// leaving the original path stale), so the confined root is swept for an exact
+// match on the temp's base name — unique per os.CreateTemp, so the sweep can
+// never touch another download's temp. Failure is non-fatal on every path: a
+// surviving artifact is confined within the root either way, and the caller
+// reports the containment violation regardless.
+func removeAbandonedTemp(realRoot, tmpPath string) {
+	_ = os.Remove(tmpPath)
+	name := filepath.Base(tmpPath)
+	_ = filepath.WalkDir(realRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreachable/unreadable entries can never be our temp
+		}
+		if !d.IsDir() && d.Name() == name {
+			_ = os.Remove(path)
+			return filepath.SkipAll
+		}
+		return nil
+	})
 }
 
 // DownloadResult is the canonical envelope returned by download tools.
@@ -299,7 +403,7 @@ func ExecuteLocalSink(ctx context.Context, source, sourceName, outputPath, downl
 	if err != nil {
 		return DownloadResult{}, err
 	}
-	size, err := WriteLocalDownload(ctx, final, maxBytes, resolve)
+	size, err := WriteLocalDownload(ctx, downloadRoot, final, maxBytes, resolve)
 	if err != nil {
 		return DownloadResult{}, err
 	}

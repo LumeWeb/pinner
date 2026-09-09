@@ -210,7 +210,7 @@ func TestDownloadSinksAllowed(t *testing.T) {
 func TestWriteLocalDownload(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "sub", "out.bin")
-	n, err := WriteLocalDownload(context.Background(), out, 0, func(ctx context.Context, w io.Writer) error {
+	n, err := WriteLocalDownload(context.Background(), dir, out, 0, func(ctx context.Context, w io.Writer) error {
 		_, err := w.Write([]byte("hello world"))
 		return err
 	})
@@ -227,7 +227,7 @@ func TestWriteLocalDownloadExceedsCap(t *testing.T) {
 	// Cap smaller than the stream; the write must fail loudly and must NOT
 	// leave a final file (the temp is cleaned up), so no truncated download
 	// is presented as complete.
-	_, err := WriteLocalDownload(context.Background(), out, 4, func(ctx context.Context, w io.Writer) error {
+	_, err := WriteLocalDownload(context.Background(), dir, out, 4, func(ctx context.Context, w io.Writer) error {
 		_, err := w.Write([]byte("hello world"))
 		return err
 	})
@@ -246,7 +246,7 @@ func TestWriteLocalDownloadTempCleanedUpOnFailure(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out.bin")
 	boom := context.Canceled
-	_, err := WriteLocalDownload(context.Background(), out, 0, func(ctx context.Context, w io.Writer) error {
+	_, err := WriteLocalDownload(context.Background(), dir, out, 0, func(ctx context.Context, w io.Writer) error {
 		return boom
 	})
 	require.ErrorIs(t, err, boom)
