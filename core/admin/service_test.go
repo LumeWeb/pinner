@@ -10,7 +10,7 @@ import (
 	coreerrors "go.lumeweb.com/pinner/core/errors"
 )
 
-const adminTestAuthToken = "test-auth-token"
+const adminTestAuthToken = "dummy-auth-token"
 
 func TestDefaultQuotaAdminServiceFactory(t *testing.T) {
 	tests := []struct {
