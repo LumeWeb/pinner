@@ -346,7 +346,7 @@ var argFrontend = map[string][]ArgFrontend{
 		{Name: "confirm", AgentHelp: "Must be true to convert the domain to on-chain managed; this drops Pinner's managed zone/DNSSEC and is one-way. Only a human sets this on confirmation; a model alone cannot confirm a destructive operation."},
 	},
 	"websites_update": {
-		{Name: "cid", AgentHelp: "The IPFS CID to serve. A CID produced by a Pinner upload tool is already pinned and used directly. A CID that is an external IPFS CID requires pins_add(cids=[\"<cid>\"], wait=true) first; an unpinned CID fails with CID_NOT_PINNED. With a bare cid (no target-type), the site's current targeting is preserved automatically."},
+		{Name: "cid", AgentHelp: "The IPFS CID to serve. If you just uploaded this CID (upload_data/upload_file/upload_url with wait=true), a CID_NOT_PINNED failure right after upload usually means the gateway is still propagating the pin — retry the update after a few seconds rather than re-pinning. Only if the CID was never uploaded through Pinner should you first run pins_add(cids=[\"<cid>\"], wait=true) and confirm it succeeds. With a bare cid (no target-type), the site's current targeting is preserved automatically."},
 		{Name: "dns-hosting", AgentHelp: "true enables Pinner-managed DNS; false disables it (self-managed). Omit to leave the current DNS hosting state unchanged."},
 		{Name: "namespace", AgentHelp: "The DNS namespace of the custom domain: \"icann\" (traditional) or \"hns\" for a Handshake (alt-root) name. Omit to leave the current namespace unchanged. When renaming to an HNS name with rename-to, set namespace to \"hns\"."},
 	},

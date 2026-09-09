@@ -567,7 +567,7 @@ func websitesUpdate(d WebsitesDeps) opmesh.Operation {
 		Name:        "websites_update",
 		Title:       "Update a website",
 		Summary:     "Update a website",
-		Description: "Update an existing website: change its cid, target-type (ipfs|ipns), rename its domain (rename-to), set the domain namespace (namespace: icann or hns for Handshake/alt-root names), or set dns-hosting (true = Pinner-managed, false = self-managed, omit = unchanged). Select the site by website; set at least one optional field. With only cid set (no target-type), the site's current target type is preserved automatically.",
+		Description: "Update an existing website: change its cid, target-type (ipfs|ipns), rename its domain (rename-to), set the domain namespace (namespace: icann or hns for Handshake/alt-root names), or set dns-hosting (true = Pinner-managed, false = self-managed, omit = unchanged). Select the site by website; set at least one optional field. With only cid set (no target-type), the site's current target type is preserved automatically. If the target CID was just uploaded (upload_data/upload_file/upload_url with wait=true), a CID_NOT_PINNED failure right after upload usually means the gateway is still propagating the pin — retry the update after a few seconds rather than re-pinning. If the CID was never uploaded through Pinner, pin it first (pins_add with wait=true).",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,

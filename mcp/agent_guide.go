@@ -427,7 +427,7 @@ func BuildAgentGuide(profile HostProfile, surface assembly.Surface, hosted bool)
 			))).
 		Flow(mcpforge.Flow[HostProfile]("update_website", "Update an existing website").
 			Steps("websites_get", "websites_update", "websites_validate").
-			Detail(mcpforge.Static[HostProfile]("Update a deployed website's content without recreating it. 1) websites_get <domain> first to capture the current target_type and dns_hosting_enabled — never guess them. 2) If the new CID is external, pins_add it first; updating an unpinned CID returns CidNotPinned. 3) websites_update <domain> with the new cid (target-type is inherited when omitted; change it only when intentionally switching IPFS<->IPNS). 4) websites_validate. If DNS hosting is managed, validation may report the old CID right after the update — that is reconciliation lag, not failure; re-call websites_validate without starting a new flow.").
+			Detail(mcpforge.Static[HostProfile]("Update a deployed website's content without recreating it. 1) websites_get <domain> first to capture the current target_type and dns_hosting_enabled — never guess them. 2) If the new CID was never uploaded through Pinner, pins_add it first; if CID_NOT_PINNED appears right after an upload the gateway is still propagating the pin — wait a few seconds and retry the update. 3) websites_update <domain> with the new cid (target-type is inherited when omitted; change it only when intentionally switching IPFS<->IPNS). 4) websites_validate. If DNS hosting is managed, validation may report the old CID right after the update — that is reconciliation lag, not failure; re-call websites_validate without starting a new flow.").
 				Then(cdnDeployNoticeClause))).
 		Resolve(p)
 
