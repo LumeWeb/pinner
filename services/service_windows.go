@@ -216,6 +216,7 @@ func (s *windowsService) Logs(ctx context.Context, follow bool) error {
 	defer ticker.Stop()
 	cursor := 0
 	consecFailures := 0
+	emptyStreak := 0
 	for {
 		// The first poll begins at record 0 and would otherwise dump the whole
 		// log; cap that first view to the most recent 50 (matching --logs
@@ -253,16 +254,42 @@ func (s *windowsService) Logs(ctx context.Context, follow bool) error {
 			continue
 		}
 		consecFailures = 0
-		// Advance the cursor to the newest id of the returned batch whenever
-		// the batch is non-empty — even when that id is LOWER than the prior
-		// cursor. The Application event log is circular: when it rolls over,
-		// EventRecordIDs restart below the previous cursor and a strict
-		// `newCursor > cursor` guard would leave the cursor pinned above every
-		// subsequent id, so the tail would silently emit nothing forever.
-		// Resetting to the newest id re-synchronizes after the rollover. An
-		// empty batch (newCursor == 0) keeps the cursor where it is.
+		// On a non-empty batch, advance the cursor to the newest id seen.
+		// On an empty batch against a non-zero cursor, guard the follow tail
+		// against a stale cursor after the circular Application log wrapped:
+		// the empty batch alone cannot tell "idle" from "wrapped" (see the
+		// empty-poll probe below).
 		if newCursor := printNewEvents(out); newCursor > 0 {
 			cursor = newCursor
+			emptyStreak = 0
+		} else if cursor > 0 {
+			// The Application event log is circular. If an empty batch means
+			// the log is merely idle, waiting longer is correct. But if the
+			// log has ROLLED OVER, EventRecordIDs restarted BELOW the pinned
+			// cursor, so the `EventRecordID > cursor` filter can never match
+			// again: every new event falls below the boundary, the batch stays
+			// empty forever, and no returned batch would ever reveal the wrap
+			// (the round-1 `newCursor > 0` cursor advance is unreachable in
+			// exactly this case). The empties themselves therefore cannot be
+			// the trigger; instead, after maxEventPollEmpties consecutive
+			// empty polls, run an unfiltered newest-record probe: if the log's
+			// newest id is now LOWER than the cursor, the log wrapped — reset
+			// the cursor to 0 so the next (capped) poll re-anchors on the
+			// post-rollover ids. If the probe reports newest >= cursor the log
+			// is intact and just idle: no reset, no re-dump, no duplicates.
+			// (This independent-probe design was chosen over a plain
+			// consecutive-empty reset, which cannot distinguish idle from
+			// wrapped and would re-dump the capped window on every idle
+			// cycle. A failing probe is simply retried after the next
+			// empty-streak cycle; bail-out remains governed by the poll's own
+			// consecutiveFailures accounting above.)
+			emptyStreak++
+			if emptyStreak >= maxEventPollEmpties {
+				emptyStreak = 0
+				if newest, perr := s.probeNewestRecordID(ctx); perr == nil && newest > 0 && newest < cursor {
+					cursor = 0
+				}
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -281,6 +308,11 @@ func (s *windowsService) Logs(ctx context.Context, follow bool) error {
 var (
 	eventPollInterval    = 2 * time.Second
 	maxEventPollFailures = 5
+	// maxEventPollEmpties is how many consecutive EMPTY batches a follow-mode
+	// tail tolerates before probing (unfiltered) whether the circular log has
+	// wrapped beneath the cursor. It is a var (not a const) so the regression
+	// test can tighten it.
+	maxEventPollEmpties = 3
 )
 
 // logsArgs builds the wevtutil invocation. The query must carry the /q: switch
@@ -312,21 +344,48 @@ var (
 	winEventDataRe  = regexp.MustCompile(`<Data>(.*?)</Data>`)
 )
 
+// maxRecordID returns the highest EventRecordID carried in a wevtutil /f:xml
+// batch (0 when the batch is empty or carries no parsable id) without printing
+// anything.
+func maxRecordID(out string) int {
+	maxID := 0
+	for _, blk := range winEventBlockRe.FindAllString(out, -1) {
+		if idMatch := winEventIDRe.FindStringSubmatch(blk); len(idMatch) == 2 {
+			if id, _ := strconv.Atoi(idMatch[1]); id > maxID {
+				maxID = id
+			}
+		}
+	}
+	return maxID
+}
+
+// probeNewestRecordID queries the single newest event of the service's source
+// WITHOUT any EventRecordID boundary, and returns its record id. The follow
+// tail uses it to detect a stale cursor after the circular Application log
+// rolled over: an unfiltered probe is the only way to observe ids that fall
+// below a pinned `EventRecordID > cursor` boundary.
+func (s *windowsService) probeNewestRecordID(ctx context.Context) (int, error) {
+	out, err := s.cfg.OutputRun(ctx, "wevtutil", "qe", "Application",
+		fmt.Sprintf(`/q:*[System[Provider[@Name='%s']]]`, xpathEscape(s.name)),
+		"/f:xml", "/rd:true", "/c:1")
+	if err != nil {
+		return 0, err
+	}
+	return maxRecordID(out), nil
+}
+
 // printNewEvents prints each event in a wevtutil /f:xml batch as "[id] data"
 // and returns the highest EventRecordID seen (0 if none). Repeated message
 // text is printed once per distinct event because events are keyed by record
 // id, not by content.
 func printNewEvents(out string) int {
-	maxID := 0
+	maxID := maxRecordID(out)
 	for _, blk := range winEventBlockRe.FindAllString(out, -1) {
 		idMatch := winEventIDRe.FindStringSubmatch(blk)
 		if len(idMatch) != 2 {
 			continue
 		}
 		id, _ := strconv.Atoi(idMatch[1])
-		if id > maxID {
-			maxID = id
-		}
 		var data []string
 		for _, d := range winEventDataRe.FindAllStringSubmatch(blk, -1) {
 			if len(d) == 2 {

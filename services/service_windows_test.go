@@ -3,11 +3,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -180,49 +183,117 @@ func TestWindowsLogsRoutesThroughOutputRun(t *testing.T) {
 	require.Contains(t, a, "/c:50")
 }
 
-func TestWindowsLogsFollowResetsCursorOnRollover(t *testing.T) {
-	// Regression (PR #32): the Application event log is circular; when it
-	// rolls over, EventRecordIDs restart at values LOWER than the prior
-	// cursor. The old `newCursor > cursor` guard left the cursor pinned above
-	// every subsequent id, so the tail silently emitted nothing while
-	// returning success. After a non-empty batch the follow cursor must reset
-	// to the batch's newest id — even when lower — so the next XPath query
-	// re-synchronizes against the new id space.
-	oldInterval, oldMax := eventPollInterval, maxEventPollFailures
-	eventPollInterval, maxEventPollFailures = time.Millisecond, 2
-	defer func() { eventPollInterval, maxEventPollFailures = oldInterval, oldMax }()
+func TestWindowsLogsFollowRecoversAfterLogRollover(t *testing.T) {
+	// Regression (PR #32, round 2): the Application event log is circular.
+	// After a rollover EventRecordIDs restart at values BELOW the pinned
+	// cursor, so — exactly like real wevtutil — a follow query filtered by
+	// `EventRecordID > cursor` matches NOTHING (the fake here honors the
+	// XPath filter; the round-1 fake did not, so it could exercise only a
+	// path real wevtutil never reaches). Because no returned batch can ever
+	// reveal the wrap, the follow loop detects the stale cursor
+	// independently: after maxEventPollEmpties consecutive empty polls it
+	// probes the log's newest record id WITHOUT the boundary filter, and when
+	// that id is lower than the cursor it resets the cursor so the next
+	// (capped) poll re-anchors on the post-rollover events. Without that
+	// reset the tail stays silent forever while returning success.
+	oldInterval, oldMaxFail, oldMaxEmpty := eventPollInterval, maxEventPollFailures, maxEventPollEmpties
+	eventPollInterval, maxEventPollFailures, maxEventPollEmpties = time.Millisecond, 10, 3
+	defer func() { eventPollInterval, maxEventPollFailures, maxEventPollEmpties = oldInterval, oldMaxFail, oldMaxEmpty }()
 
-	var queries []string
-	poll := 0
-	batches := []string{
-		winEventXML(500, "seed"),     // poll 1 (initial /c:50 cap): cursor -> 500
-		winEventXML(42, "post-roll"), // poll 2 (rollover): cursor must reset to 42
+	type event struct {
+		id  int
+		msg string
 	}
+	events := []event{{500, "seed"}}
+	var pollQueries []string // main polls: EventRecordID > boundary
+	var probeQueries []string
 	cfg := Config{Name: "pinner-mcp"}
 	cfg.OutputRun = func(_ context.Context, _ string, args ...string) (string, error) {
+		query := ""
 		for _, a := range args {
 			if strings.HasPrefix(a, "/q:") {
-				queries = append(queries, a)
+				query = a
 			}
 		}
-		if poll >= len(batches) {
-			return "", nil
+		if !strings.Contains(query, "EventRecordID > ") {
+			// Unfiltered newest-record probe (/c:1): the newest id of the
+			// current (possibly wrapped) event list.
+			probeQueries = append(probeQueries, query)
+			newest := events[len(events)-1]
+			return winEventXML(newest.id, newest.msg), nil
 		}
-		out := batches[poll]
-		poll++
-		return out, nil
+		pollQueries = append(pollQueries, query)
+		if len(pollQueries) == 2 {
+			// After poll 1 seeds the cursor at 500, the circular log wraps:
+			// records restart below the pinned cursor, identical to a real
+			// post-rollover Application log.
+			events = []event{{41, "post-roll-a"}, {42, "post-roll-b"}}
+		}
+		// Honor the XPath boundary: return ONLY events with id > boundary
+		// (an empty batch when every id is <= boundary), like real wevtutil.
+		rest, _ := strings.CutPrefix(query, "/q:*[System[Provider[@Name='pinner-mcp'] and EventRecordID > ")
+		boundary, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(rest), "]]"))
+		if err != nil {
+			return "", fmt.Errorf("unparsable query %q: %w", query, err)
+		}
+		var out strings.Builder
+		for _, e := range events {
+			if e.id > boundary {
+				out.WriteString(winEventXML(e.id, e.msg))
+			}
+		}
+		return out.String(), nil
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	require.NoError(t, newWindowsService(cfg).Logs(ctx, true))
+	printed := captureStdout(t, func() {
+		require.NoError(t, newWindowsService(cfg).Logs(ctx, true))
+	})
 
-	// Poll 1 seeds the cursor at 500; poll 2's rollover batch (newest id 42)
-	// must reset it, so the NEXT query boundary is EventRecordID > 42 (the
-	// lower, rolled-over id) rather than the stale 500.
-	require.Contains(t, queries[0], "EventRecordID > 0")
-	require.Contains(t, queries[1], "EventRecordID > 500")
-	require.Contains(t, queries[2], "EventRecordID > 42")
-	require.True(t, len(queries) > 2, "follow must have polled past the rollover batch")
+	// Poll 1 seeds the cursor at 500; polls 2..4 hit the stale boundary and
+	// must return empty (the fake honors the filter) until the empty-poll
+	// probe fires and resets the cursor, after which a capped poll re-anchors.
+	require.Contains(t, pollQueries[0], "EventRecordID > 0")
+	require.Contains(t, pollQueries[1], "EventRecordID > 500")
+	require.True(t, len(probeQueries) > 0, "empty-poll rollover probe must run")
+	// The reset must drop the query boundary back to 0 (re-anchor) and then
+	// advance to 42 (the new newest id) on the poll after it.
+	reAnchor := -1
+	for i, q := range pollQueries {
+		if strings.Contains(q, "EventRecordID > 0") && i > 0 {
+			reAnchor = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, reAnchor, "cursor must reset to 0 after the rollover probe (got boundaries: %v)", pollQueries)
+	require.Contains(t, pollQueries[reAnchor+1], "EventRecordID > 42",
+		"the re-anchor poll must advance the cursor to the post-rollover newest id 42")
+	// The post-rollover events must actually be emitted, not just re-queried.
+	require.Contains(t, printed, "[41] post-roll-a")
+	require.Contains(t, printed, "[42] post-roll-b")
+}
+
+// captureStdout runs fn with os.Stdout redirected into a pipe and returns what
+// it printed. Logs emits through fmt.Print* directly, so the pipe is the only
+// seam. (Tests never run in parallel in this package, so swapping os.Stdout is
+// race-free.)
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	done := make(chan string)
+	go func() {
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		done <- buf.String()
+	}()
+	fn()
+	require.NoError(t, w.Close())
+	return <-done
 }
 
 // winEventXML builds one wevtutil /f:xml event block carrying the given
