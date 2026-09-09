@@ -264,6 +264,77 @@ func TestOperationsListWatchAllPagesSettledSuccess(t *testing.T) {
 	}
 }
 
+// TestOperationsListWatchResetsStartOffset is a regression test: with
+// watch=true and a caller-supplied page offset (page=2 with no page-size
+// resolves Start=(2-1)*10=10), the watch must clear BOTH the page size and the
+// Start offset when polling, so the settlement decision covers the complete
+// matching set — including any pending operation that falls BEFORE the
+// caller's offset. A watch that kept opts.Start would only see the settled
+// rows at/after the offset and could report success while an earlier row is
+// still unsettled.
+func TestOperationsListWatchResetsStartOffset(t *testing.T) {
+	withTightWatchBounds(t)
+
+	// Row 1 sits BEFORE the caller's Start offset (page 2 of the default
+	// 10-row page) and only reaches a terminal status after the first poll;
+	// rows 2-11 at/after the offset are settled from the start.
+	rows := make([]operations.OperationListItem, 0, 11)
+	rows = append(rows, sampleOperationItem(1, "processing"))
+	for id := 2; id <= 11; id++ {
+		rows = append(rows, sampleOperationItem(id, "completed"))
+	}
+
+	var svc *fakeOperationsService
+	svc = &fakeOperationsService{
+		listFn: func(ctx context.Context, opts operations.ListOptions) (*operations.OperationsListResult, error) {
+			// The fake honors the Start cursor exactly like the concrete
+			// backend would for a paginated slice, so a poll carrying the
+			// caller's offset literally cannot see row 1. As with the other
+			// watch tests, the status flip happens inside the fake between
+			// calls — no goroutines or shared-state races.
+			if svc.listCalls > 1 && rows[0].Status != "completed" {
+				rows[0].Status = "completed"
+			}
+			start := opts.Start
+			if start > len(rows) {
+				start = len(rows)
+			}
+			pageRows := append([]operations.OperationListItem(nil), rows[start:]...)
+			return &operations.OperationsListResult{
+				Operations: pageRows,
+				Total:      len(pageRows),
+			}, nil
+		},
+	}
+	op := operationsList(OperationsDeps{Service: func(input map[string]any) operations.Service { return svc }})
+
+	res, err := op.Handler().Execute(context.Background(), map[string]any{"watch": true, "page": 2})
+	if err != nil {
+		t.Fatalf("watch list with page offset: %v", err)
+	}
+	if svc.listCalls < 2 {
+		t.Fatalf("list calls = %d, want >= 2 (must keep polling until the pending row BEFORE the caller's offset settles)", svc.listCalls)
+	}
+	lr, ok := res.(ListResult)
+	if !ok {
+		t.Fatalf("unexpected result type %T", res)
+	}
+	if lr.ListTotal() != 11 {
+		t.Fatalf("Total = %d, want 11 (the complete matching set, not the page-2 slice)", lr.ListTotal())
+	}
+	for i, opts := range svc.listOpts {
+		if opts.Start != 0 {
+			t.Fatalf("poll %d: Start = %d, want 0 (offset must be cleared so settlement covers the whole set)", i, opts.Start)
+		}
+		if opts.Limit != 0 {
+			t.Fatalf("poll %d: Limit = %d, want 0 (unbounded)", i, opts.Limit)
+		}
+		if !opts.IsWatch {
+			t.Fatalf("poll %d: IsWatch = false, want true", i)
+		}
+	}
+}
+
 // TestOperationsListWatchTimesOut pins the bounded-poll contract: watch gives
 // up with a clear error instead of polling forever.
 func TestOperationsListWatchTimesOut(t *testing.T) {
