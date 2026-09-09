@@ -63,13 +63,15 @@ func (s *platformDomainAdminService) RequireAuthenticated() error {
 }
 
 // getService returns the platform domain service, lazily initializing with token exchange if needed.
+// Initialization runs under the write lock with a re-check so concurrent
+// cold-start callers do not perform redundant token exchanges/client creations.
 func (s *platformDomainAdminService) getService(ctx context.Context) (*admin.PlatformDomainService, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.service != nil {
-		s.mu.RUnlock()
 		return s.service, nil
 	}
-	s.mu.RUnlock()
 
 	token, err := s.base.tokenProvider.GetLoginToken(ctx)
 	if err != nil {
@@ -84,8 +86,6 @@ func (s *platformDomainAdminService) getService(ctx context.Context) (*admin.Pla
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.service = client.PlatformDomains()
 	return s.service, nil
 }

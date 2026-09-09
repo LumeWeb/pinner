@@ -69,13 +69,15 @@ func (s *socialProviderAdminService) RequireAuthenticated() error {
 }
 
 // getService returns the social provider service, lazily initializing with token exchange if needed.
+// Initialization runs under the write lock with a re-check so concurrent
+// cold-start callers do not perform redundant token exchanges/client creations.
 func (s *socialProviderAdminService) getService(ctx context.Context) (*admin.SocialProviderService, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.service != nil {
-		s.mu.RUnlock()
 		return s.service, nil
 	}
-	s.mu.RUnlock()
 
 	token, err := s.base.tokenProvider.GetLoginToken(ctx)
 	if err != nil {
@@ -90,8 +92,6 @@ func (s *socialProviderAdminService) getService(ctx context.Context) (*admin.Soc
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.service = client.SocialProviders()
 	return s.service, nil
 }

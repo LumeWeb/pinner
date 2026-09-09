@@ -285,13 +285,15 @@ type ProfilingAdminService interface {
 }
 
 // getService returns the quota service, lazily initializing with token exchange if needed.
+// The write lock with a re-check guards the whole initialization so concurrent
+// cold-start callers do not perform redundant token exchanges/client creations.
 func (s *quotaAdminService) getService(ctx context.Context) (*admin.QuotaService, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.service != nil {
-		s.mu.RUnlock()
 		return s.service, nil
 	}
-	s.mu.RUnlock()
 
 	token, err := s.tokenProvider.GetLoginToken(ctx)
 	if err != nil {
@@ -306,8 +308,6 @@ func (s *quotaAdminService) getService(ctx context.Context) (*admin.QuotaService
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.service = client.Quota()
 	return s.service, nil
 }
@@ -431,13 +431,14 @@ func (s *quotaAdminService) ResetUserPlan(ctx context.Context, userID int) error
 }
 
 // getService returns the billing service, lazily initializing with token exchange if needed.
+// Initialization runs under the write lock with a re-check (see quotaAdminService.getService).
 func (s *billingAdminService) getService(ctx context.Context) (*admin.BillingService, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.service != nil {
-		s.mu.RUnlock()
 		return s.service, nil
 	}
-	s.mu.RUnlock()
 
 	token, err := s.tokenProvider.GetLoginToken(ctx)
 	if err != nil {
@@ -452,8 +453,6 @@ func (s *billingAdminService) getService(ctx context.Context) (*admin.BillingSer
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.service = client.Billing()
 	return s.service, nil
 }
@@ -718,13 +717,14 @@ func (s *billingAdminService) SyncAllPricingPlans(ctx context.Context) error {
 }
 
 // getService returns the website service, lazily initializing with token exchange if needed.
+// Initialization runs under the write lock with a re-check (see quotaAdminService.getService).
 func (s *websiteAdminService) getService(ctx context.Context) (*admin.WebsiteService, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.service != nil {
-		s.mu.RUnlock()
 		return s.service, nil
 	}
-	s.mu.RUnlock()
 
 	token, err := s.tokenProvider.GetLoginToken(ctx)
 	if err != nil {
@@ -739,8 +739,6 @@ func (s *websiteAdminService) getService(ctx context.Context) (*admin.WebsiteSer
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.service = client.Website()
 	return s.service, nil
 }
@@ -760,13 +758,14 @@ func (s *websiteAdminService) UnblockWebsite(ctx context.Context, id string) (*a
 }
 
 // getService returns the profiling service, lazily initializing with token exchange if needed.
+// Initialization runs under the write lock with a re-check (see quotaAdminService.getService).
 func (s *profilingAdminService) getService(ctx context.Context) (*admin.ProfilingService, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.service != nil {
-		s.mu.RUnlock()
 		return s.service, nil
 	}
-	s.mu.RUnlock()
 
 	token, err := s.tokenProvider.GetLoginToken(ctx)
 	if err != nil {
@@ -781,8 +780,6 @@ func (s *profilingAdminService) getService(ctx context.Context) (*admin.Profilin
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.service = client.Profiling()
 	return s.service, nil
 }
