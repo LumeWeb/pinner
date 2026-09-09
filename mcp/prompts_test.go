@@ -1,0 +1,211 @@
+package mcp
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"go.lumeweb.com/mcpplane/model"
+	"go.lumeweb.com/pinner/assembly"
+)
+
+// Characterization tests for the Pinner prompts: prompt-set gating per
+// surface and
+// deterministic template rendering with embedded resource references.
+
+func TestPromptNamesFullSurface(t *testing.T) {
+	prompts := PromptDescriptorsForSurface(assembly.FullSurface)
+	names := promptNames(prompts)
+	require.Equal(t, []string{PromptWebsiteOnboarding, PromptWebsiteUpdate, PromptSetup, PromptENSPublish}, names)
+}
+
+// TestPromptGatingPerSurface pins the tool-domain gating: websites prompts on
+// the websites surface, setup on the account surface, ENS on the ENS surface;
+// a surface without the domain omits its prompt.
+func TestPromptGatingPerSurface(t *testing.T) {
+	websitesOnly := assembly.Surface{Websites: true}
+	require.Equal(t, []string{PromptWebsiteOnboarding, PromptWebsiteUpdate},
+		promptNames(PromptDescriptorsForSurface(websitesOnly)))
+
+	accountOnly := assembly.Surface{Account: true}
+	require.Equal(t, []string{PromptSetup}, promptNames(PromptDescriptorsForSurface(accountOnly)))
+
+	ensOnly := assembly.Surface{ENS: true}
+	require.Equal(t, []string{PromptENSPublish}, promptNames(PromptDescriptorsForSurface(ensOnly)))
+
+	none := assembly.Surface{Pins: true, DNS: true, IPNS: true, Operations: true, Admin: true, Vault: true, Upload: true}
+	require.Empty(t, PromptDescriptorsForSurface(none))
+}
+
+func promptNames(prompts []model.PromptDescriptor) []string {
+	out := make([]string, 0, len(prompts))
+	for _, p := range prompts {
+		out = append(out, p.Name)
+	}
+	return out
+}
+
+// TestWebsiteOnboardingPromptRendering renders the onboarding prompt for the
+// guided (no-args) and pre-filled variants and pins the deterministic message
+// skeleton: step blocks, wizard tools, and the pinner:// resource embeds.
+func TestWebsiteOnboardingPromptRendering(t *testing.T) {
+	prompts := PromptDescriptors()
+	p := promptByName(t, prompts, PromptWebsiteOnboarding)
+	require.Equal(t, "Website Onboarding Wizard", p.Title)
+
+	res, err := p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{}})
+	require.NoError(t, err)
+	require.Equal(t, "Website onboarding wizard workflow with embedded resource references", res.Description)
+
+	texts := allTexts(res)
+	embedded := embeddedURIs(res)
+	require.Contains(t, texts[0], "website creation wizard")
+	require.Contains(t, joined(texts), "websites_wizard_start", "the wizard is started with the wizard tools")
+	require.Contains(t, joined(texts), "websites_wizard_step")
+	require.Contains(t, embedded, AccountStatusURI, "step 1 embeds the account status resource")
+	require.Contains(t, embedded, PlatformDomainsURI, "the domain step embeds the platform-domains resource")
+	require.Contains(t, embedded, ValidationStatusTmpl, "the validate step embeds the validation-status template")
+
+	// Pre-filled arguments switch the content/source/domain steps to the
+	// pre-filled variants and carry the domain through the template prose.
+	prefilled, err := p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{
+		ArgDomain:        "example.com",
+		ArgContentSource: "upload",
+		ArgTargetType:    "ipfs",
+		ArgDNSMode:       "managed",
+	}})
+	require.NoError(t, err)
+	prefTexts := joined(allTexts(prefilled))
+	require.Contains(t, prefTexts, "example.com", "pre-filled variant must render filled steps")
+	require.Contains(t, prefTexts, "upload")
+	// The no-args variant embeds a per-domain dns-requirements URI only when a
+	// domain was supplied; the guided variant does not.
+	noArgsEmbedded := embeddedURIs(res)
+	require.NotContains(t, noArgsEmbedded, "pinner://websites/example.com/dns-requirements")
+	require.Contains(t, embeddedURIs(prefilled), "pinner://websites/example.com/dns-requirements")
+}
+
+// TestWebsiteOnboardingValidation pins the argument validation contract.
+func TestWebsiteOnboardingValidation(t *testing.T) {
+	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptWebsiteOnboarding)
+	for name, want := range map[string]string{
+		"content_source": "invalid content_source",
+		"target_type":    "invalid target_type",
+		"dns_mode":       "invalid dns_mode",
+	} {
+		_, err := p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{name: "nonsense"}})
+		require.ErrorContains(t, err, want, name)
+	}
+}
+
+// TestWebsiteUpdatePrompt pins the update workflow skeleton and required args.
+func TestWebsiteUpdatePrompt(t *testing.T) {
+	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptWebsiteUpdate)
+
+	_, err := p.Handler(context.Background(), model.PromptRequest{})
+	require.ErrorContains(t, err, "website is required")
+	_, err = p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{ArgWebsite: "example.com"}})
+	require.ErrorContains(t, err, "cid is required")
+
+	res, err := p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{
+		ArgWebsite: "example.com", ArgCID: "bafy", ArgCurrentType: "ipfs",
+	}})
+	require.NoError(t, err)
+	require.Equal(t, "Website update workflow with target-type preservation and DNS-mode handling", res.Description)
+	require.Len(t, res.Messages, 8)
+	require.Contains(t, allTexts(res)[0], "update")
+	// The validation-status template URI is embedded before the validate step.
+	require.Equal(t, ValidationStatusTmpl, res.Messages[5].EmbeddedResource.URI)
+}
+
+// TestENSPublishPrompt pins the ENS flow skeleton: upload-when-no-CID, the
+// ens_point discovery step, and the wallet-agnostic onchain guidance.
+func TestENSPublishPrompt(t *testing.T) {
+	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptENSPublish)
+
+	_, err := p.Handler(context.Background(), model.PromptRequest{})
+	require.ErrorContains(t, err, "name is required")
+
+	withCID, err := p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{
+		ArgENSName: "vitalik.eth", ArgCID: "bafy",
+	}})
+	require.NoError(t, err)
+	joined := strings.Join(allTexts(withCID), "\n")
+	require.Contains(t, joined, "ens_point")
+	require.Contains(t, joined, "wallet")
+	require.Contains(t, joined, "app.ens.domains")
+	require.NotContains(t, joined, "MetaMask required")
+
+	withoutCID, err := p.Handler(context.Background(), model.PromptRequest{Arguments: map[string]string{ArgENSName: "vitalik.eth"}})
+	require.NoError(t, err)
+	require.Contains(t, strings.Join(allTexts(withoutCID), "\n"), "upload")
+}
+
+// TestSetupPrompt pins the setup wizard skeleton with the account-status
+// resource embeds at the first and last steps.
+func TestSetupPrompt(t *testing.T) {
+	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptSetup)
+	res, err := p.Handler(context.Background(), model.PromptRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "Setup wizard workflow with embedded resource references", res.Description)
+	embedded := embeddedURIs(res)
+	require.Len(t, embedded, 2, "setup embeds the account-status resource at first and last steps")
+	require.Equal(t, AccountStatusURI, embedded[0])
+	require.Equal(t, AccountStatusURI, embedded[len(embedded)-1])
+	texts := joined(allTexts(res))
+	require.Contains(t, texts, "setup_wizard_start")
+	require.Contains(t, texts, "setup_wizard_step")
+}
+
+// TestPromptEmbeddedMessages pins the embedded-resource message form.
+func TestPromptEmbeddedMessages(t *testing.T) {
+	msg := embeddedMsg(AccountStatusURI)
+	require.Equal(t, "user", msg.Role)
+	require.NotNil(t, msg.EmbeddedResource)
+	require.Equal(t, AccountStatusURI, msg.EmbeddedResource.URI)
+	require.Equal(t, "application/json", msg.EmbeddedResource.MIMEType)
+}
+
+// --- helpers ---
+
+func strContains(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func promptByName(t *testing.T, prompts []model.PromptDescriptor, name string) model.PromptDescriptor {
+	t.Helper()
+	for _, p := range prompts {
+		if p.Name == name {
+			return p
+		}
+	}
+	t.Fatalf("prompt %q not found", name)
+	return model.PromptDescriptor{}
+}
+
+func allTexts(res model.PromptResult) []string {
+	out := make([]string, 0, len(res.Messages))
+	for _, m := range res.Messages {
+		out = append(out, m.Text)
+	}
+	return out
+}
+
+func embeddedURIs(res model.PromptResult) []string {
+	var out []string
+	for _, m := range res.Messages {
+		if m.EmbeddedResource != nil {
+			out = append(out, m.EmbeddedResource.URI)
+		}
+	}
+	return out
+}
+
+func joined(texts []string) string { return strings.Join(texts, "\n") }
