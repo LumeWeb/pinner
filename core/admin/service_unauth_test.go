@@ -7,36 +7,46 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.lumeweb.com/pinner/core/config"
+	configmocks "go.lumeweb.com/pinner/core/config/mocks"
 	coreerrors "go.lumeweb.com/pinner/core/errors"
 	"go.lumeweb.com/portal-sdk/admin"
 )
 
-func newUnauthQuotaAdminService() *quotaAdminService {
+// newUnauthConfigManager returns a mock manager whose live config has no AuthToken.
+func newUnauthConfigManager(t *testing.T) config.Manager {
+	t.Helper()
+	cfgMgr := configmocks.NewMockManager(t)
+	cfgMgr.EXPECT().Config().Return(&config.Config{}).Maybe()
+	return cfgMgr
+}
+
+func newUnauthQuotaAdminService(t *testing.T) *quotaAdminService {
 	return &quotaAdminService{
-		adminServiceBase: &adminServiceBase{authenticated: false},
+		adminServiceBase: newAdminServiceBase(newUnauthConfigManager(t), ""),
 	}
 }
 
-func newUnauthBillingAdminService() *billingAdminService {
+func newUnauthBillingAdminService(t *testing.T) *billingAdminService {
 	return &billingAdminService{
-		adminServiceBase: &adminServiceBase{authenticated: false},
+		adminServiceBase: newAdminServiceBase(newUnauthConfigManager(t), ""),
 	}
 }
 
-func newUnauthWebsiteAdminService() *websiteAdminService {
+func newUnauthWebsiteAdminService(t *testing.T) *websiteAdminService {
 	return &websiteAdminService{
-		adminServiceBase: &adminServiceBase{authenticated: false},
+		adminServiceBase: newAdminServiceBase(newUnauthConfigManager(t), ""),
 	}
 }
 
-func newUnauthProfilingAdminService() *profilingAdminService {
+func newUnauthProfilingAdminService(t *testing.T) *profilingAdminService {
 	return &profilingAdminService{
-		adminServiceBase: &adminServiceBase{authenticated: false},
+		adminServiceBase: newAdminServiceBase(newUnauthConfigManager(t), ""),
 	}
 }
 
 func TestQuotaAdminService_Unauthenticated(t *testing.T) {
-	svc := newUnauthQuotaAdminService()
+	svc := newUnauthQuotaAdminService(t)
 	ctx := context.Background()
 
 	_, _, err := svc.ListPlans(ctx)
@@ -74,7 +84,7 @@ func TestQuotaAdminService_Unauthenticated(t *testing.T) {
 }
 
 func TestBillingAdminService_Unauthenticated(t *testing.T) {
-	svc := newUnauthBillingAdminService()
+	svc := newUnauthBillingAdminService(t)
 	ctx := context.Background()
 
 	_, _, err := svc.ListCredits(ctx, nil)
@@ -140,7 +150,7 @@ func TestBillingAdminService_Unauthenticated(t *testing.T) {
 }
 
 func TestWebsiteAdminService_Unauthenticated(t *testing.T) {
-	svc := newUnauthWebsiteAdminService()
+	svc := newUnauthWebsiteAdminService(t)
 	ctx := context.Background()
 	_, err := svc.BlockWebsite(ctx, "example.com")
 	require.Error(t, err)
@@ -149,7 +159,7 @@ func TestWebsiteAdminService_Unauthenticated(t *testing.T) {
 }
 
 func TestProfilingAdminService_Unauthenticated(t *testing.T) {
-	svc := newUnauthProfilingAdminService()
+	svc := newUnauthProfilingAdminService(t)
 	ctx := context.Background()
 	_, err := svc.GetProfileIndex(ctx)
 	require.Error(t, err)
@@ -181,13 +191,15 @@ func TestProfilingAdminService_Unauthenticated(t *testing.T) {
 
 func TestAdminServiceBase_RequireAuthenticated(t *testing.T) {
 	t.Run("not authenticated", func(t *testing.T) {
-		base := &adminServiceBase{authenticated: false}
+		base := newAdminServiceBase(newUnauthConfigManager(t), "")
 		err := base.RequireAuthenticated()
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
 	})
 	t.Run("authenticated", func(t *testing.T) {
-		base := &adminServiceBase{authenticated: true}
+		cfgMgr := configmocks.NewMockManager(t)
+		cfgMgr.EXPECT().Config().Return(&config.Config{AuthToken: adminTestAuthToken}).Maybe()
+		base := newAdminServiceBase(cfgMgr, "")
 		err := base.RequireAuthenticated()
 		require.NoError(t, err)
 	})

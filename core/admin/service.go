@@ -14,13 +14,15 @@ import (
 type adminServiceBase struct {
 	tokenProvider *AdminTokenProvider
 	endpoint      string
-	authenticated bool
+	cfgMgr        config.Manager
 	mu            sync.RWMutex
 }
 
-// RequireAuthenticated checks if the admin service is authenticated.
+// RequireAuthenticated checks if the admin service is authenticated by
+// reading the LIVE config so that a login at runtime (config live-reload)
+// flips the service to authenticated without reconstruction.
 func (b *adminServiceBase) RequireAuthenticated() error {
-	if !b.authenticated {
+	if b.cfgMgr.Config().AuthToken == "" {
 		return coreerrors.ErrNotAuthenticated
 	}
 	return nil
@@ -84,11 +86,10 @@ func DefaultProfilingAdminServiceFactory(cfgMgr config.Manager) ProfilingAdminSe
 
 // newAdminServiceBase creates a new adminServiceBase with the shared fields.
 func newAdminServiceBase(cfgMgr config.Manager, endpoint string) *adminServiceBase {
-	authToken := cfgMgr.Config().AuthToken
 	return &adminServiceBase{
 		tokenProvider: NewAdminTokenProvider(cfgMgr),
 		endpoint:      endpoint,
-		authenticated: authToken != "",
+		cfgMgr:        cfgMgr,
 	}
 }
 

@@ -318,7 +318,7 @@ func TestQuotaAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("Reconcile not authenticated", func(t *testing.T) {
-		svc := newUnauthQuotaAdminService()
+		svc := newUnauthQuotaAdminService(t)
 		result, count, err := svc.Reconcile(ctx, nil)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -357,7 +357,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	}
 
 	t.Run("GetProfileIndex not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		result, err := svc.GetProfileIndex(ctx)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -372,7 +372,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("GetBlockProfile not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		result, err := svc.GetBlockProfile(ctx)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -387,7 +387,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("SetBlockProfileRate not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		err := svc.SetBlockProfileRate(ctx, 1)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -400,7 +400,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("GetCmdline not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		result, err := svc.GetCmdline(ctx)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -415,7 +415,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("GetGoroutineProfile not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		result, err := svc.GetGoroutineProfile(ctx)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -430,7 +430,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("GetHeapProfile not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		result, err := svc.GetHeapProfile(ctx)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -445,7 +445,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("GetMutexProfile not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		result, err := svc.GetMutexProfile(ctx)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)
@@ -460,7 +460,7 @@ func TestProfilingAdminService_Delegation(t *testing.T) {
 	})
 
 	t.Run("SetMutexProfileFraction not authenticated", func(t *testing.T) {
-		svc := newUnauthProfilingAdminService()
+		svc := newUnauthProfilingAdminService(t)
 		err := svc.SetMutexProfileFraction(ctx, 1)
 		require.Error(t, err)
 		assert.Equal(t, coreerrors.ErrNotAuthenticated, err)

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
+	coreerrors "go.lumeweb.com/pinner/core/errors"
 )
 
 const adminTestAuthToken = "test-auth-token"
@@ -136,11 +137,16 @@ func TestNewQuotaAdminService(t *testing.T) {
 			assert.NotNil(t, service)
 
 			// Verify the service is of the expected type
-			qs, ok := service.(*quotaAdminService)
+			_, ok := service.(*quotaAdminService)
 			require.True(t, ok)
 
-			// Check authentication state
-			assert.Equal(t, tt.shouldBeAuth, qs.authenticated)
+			// Check authentication state (read live from config)
+			err := service.RequireAuthenticated()
+			if tt.shouldBeAuth {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, coreerrors.ErrNotAuthenticated)
+			}
 		})
 	}
 }
@@ -178,11 +184,16 @@ func TestNewBillingAdminService(t *testing.T) {
 			assert.NotNil(t, service)
 
 			// Verify the service is of the expected type
-			bs, ok := service.(*billingAdminService)
+			_, ok := service.(*billingAdminService)
 			require.True(t, ok)
 
-			// Check authentication state
-			assert.Equal(t, tt.shouldBeAuth, bs.authenticated)
+			// Check authentication state (read live from config)
+			err := service.RequireAuthenticated()
+			if tt.shouldBeAuth {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, coreerrors.ErrNotAuthenticated)
+			}
 		})
 	}
 }
@@ -303,4 +314,21 @@ func TestBillingAdminService_HasTokenProvider(t *testing.T) {
 
 	bs := service.(*billingAdminService)
 	assert.NotNil(t, bs.tokenProvider)
+}
+
+func TestRequireAuthenticated_ReadsLiveConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfgMgr := configmocks.NewMockManager(t)
+	cfgMgr.EXPECT().Config().RunAndReturn(func() *config.Config {
+		return cfg
+	}).Maybe()
+
+	service := NewQuotaAdminService(cfgMgr, "https://api.test.com")
+
+	// No AuthToken yet -> not authenticated
+	assert.ErrorIs(t, service.RequireAuthenticated(), coreerrors.ErrNotAuthenticated)
+
+	// Runtime login flips the shared config -> authenticated without reconstruction
+	cfg.AuthToken = adminTestAuthToken
+	assert.NoError(t, service.RequireAuthenticated())
 }
