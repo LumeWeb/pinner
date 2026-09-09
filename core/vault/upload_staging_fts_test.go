@@ -387,3 +387,70 @@ func TestStatJSONSurfacesFlushVisibilityOnPending(t *testing.T) {
 		t.Errorf("ok payload must omit flush_started_at, got %v", ok)
 	}
 }
+
+
+// TestStagedAdoptDemotesIsCurrent pins the concurrent staged-write fix: when a
+// staged write adopts a concurrent same-path winner, the adopted row must lose
+// its IsCurrent flag before insert — the winner still owns the live
+// (name, dir) slot — or idx_files_live_name_dir rejects every retry and
+// commitFileRecord exhausts maxAdoptRetries.
+func TestStagedAdoptDemotesIsCurrent(t *testing.T) {
+	svc, _ := newStagingService(t, t.TempDir())
+	const path = "vault:/docs/a.txt"
+
+	vp, err := ParseVaultPath(path)
+	if err != nil {
+		t.Fatalf("ParseVaultPath: %v", err)
+	}
+
+	// Two writers race on the same brand-new path. The loser snapshots its
+	// pending record first: a fresh path means buildPendingRecord mints a new
+	// UUID and sets IsCurrent, betting no row owns the path yet.
+	stale, err := svc.buildPendingRecord(vp, map[string]any{}, 4, "digest")
+	if err != nil {
+		t.Fatalf("buildPendingRecord: %v", err)
+	}
+	if !stale.IsCurrent {
+		t.Fatalf("fresh-path staged record must be current-candidate")
+	}
+
+	// The winner commits first and takes the live slot.
+	winner, err := svc.Put(context.Background(), bytes.NewReader([]byte("winner")), 6, path, nil)
+	if err != nil {
+		t.Fatalf("winner Put: %v", err)
+	}
+	if winner.UUID == stale.UUID {
+		t.Fatalf("winner must have a distinct fresh UUID")
+	}
+
+	// The loser now commits with the staged adopt closure. Before the fix the
+	// adopted row stayed IsCurrent, the insert collided with the partial
+	// unique index on all 4 attempts, and this call failed.
+	committed, err := svc.commitFileRecord(context.Background(), vp, stale.DirectoryID, stale, nil, true, svc.stagedAdopt(vp, stale))
+	if err != nil {
+		t.Fatalf("adopting staged write must converge: %v", err)
+	}
+	if committed.UUID != winner.UUID {
+		t.Fatalf("adopted UUID = %q, want winner's %q", committed.UUID, winner.UUID)
+	}
+	if committed.IsCurrent {
+		t.Fatalf("adopted row must be inserted with IsCurrent=false")
+	}
+
+	// The commit transaction re-promotes the adopted row: exactly one live
+	// current row must exist for the path, and it is the adopted one.
+	var live File
+	if err := svc.db.Where("id = ?", committed.ID).First(&live).Error; err != nil {
+		t.Fatalf("reload committed row: %v", err)
+	}
+	if !live.IsCurrent {
+		t.Fatalf("promoteCurrent must re-promote the adopted row")
+	}
+	var n int64
+	if err := svc.db.Model(&File{}).Where("name = ? AND directory_id = ? AND is_current = 1 AND deleted_at IS NULL", vp.Name, stale.DirectoryID).Count(&n).Error; err != nil {
+		t.Fatalf("count live current rows: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected exactly 1 live current row for %s, got %d", path, n)
+	}
+}
