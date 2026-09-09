@@ -177,6 +177,14 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 	if !relayURLWired {
 		strip(FeatSourceURL)
 	}
+	// upload_data is registered only when the wired flag AND the effective
+	// feature set both declare the data: URI relay (FeatSourceData) — the
+	// same combined condition as the registration branch below — so when
+	// either half fails, the data feature must not drive any copy that
+	// names the tool either.
+	if !(wiring.DataURIWired && features.Has(FeatSourceData)) {
+		strip(FeatSourceData)
+	}
 
 	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.Surface, s.config.Hosted)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{

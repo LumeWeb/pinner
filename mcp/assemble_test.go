@@ -368,6 +368,79 @@ func TestUploadURLAdvertiseEqualsRegistered(t *testing.T) {
 	}
 }
 
+// --- Finding: the copy feature set must not name unregistered relay tools ---
+
+// TestAssembleDataURICopyFeatureFollowsRegistrationGate pins the caption
+// strip contract: upload_data registers only when DataURIWired AND the
+// effective feature set carries FeatSourceData, so when that combined gate
+// fails the strip must remove FeatSourceData from the copy feature set —
+// otherwise the capabilities chooser, the agent guide, and upload_file's
+// source.mode prose would advertise a data relay tools/list does not serve.
+func TestAssembleDataURICopyFeatureFollowsRegistrationGate(t *testing.T) {
+	// The host declares FeatSourceData in the effective feature set, but
+	// DataURIWired is false. upload_url is unwired too (RelayURLWired unset),
+	// so both relay features must end up stripped.
+	features := httpFeatures()
+	features[FeatSourceData] = true
+
+	srv, err := Assemble(Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			UploadFile:    true,
+			RelayFeatures: features,
+			// DataURIWired deliberately false: the registration gate fails.
+		},
+	})
+	require.NoError(t, err)
+
+	_, present := directTool(t, srv, "upload_data")
+	require.False(t, present, "DataURIWired=false -> upload_data not registered")
+	_, present = directTool(t, srv, "upload_url")
+	require.False(t, present, "upload_url unwired -> not registered")
+
+	upload, ok := directTool(t, srv, "upload_file")
+	require.True(t, ok, "upload_file must be registered so its source copy is observable")
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	require.NoError(t, json.Unmarshal(upload.InputSchema, &schema))
+	source, ok := schema.Properties["source"]
+	require.True(t, ok)
+	require.NotContains(t, string(source), "separate upload_data",
+		"the unwired data relay must be stripped from the copy set: upload_file's source prose names upload_data only when FeatSourceData survived")
+	require.NotContains(t, string(source), "separate upload_url",
+		"the unwired url relay must be stripped too")
+
+	cap, ok := directTool(t, srv, "capabilities")
+	require.True(t, ok, "capabilities tool must always be registered")
+	res, err := cap.Handler(t.Context(), model.ToolRequest{})
+	require.NoError(t, err)
+	report, ok := res.StructuredContent.(CapabilityReport)
+	require.True(t, ok, "capabilities handler must return a CapabilityReport")
+	require.Equal(t, []UploadToolCapability{UploadToolFile}, report.UploadTools,
+		"no relay tool registered -> upload_tools must list upload_file only")
+
+	// Positive: the same feature set with DataURIWired=true retains
+	// FeatSourceData — upload_data registers and upload_file keeps the
+	// source.mode=data copy.
+	srv, err = Assemble(Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			UploadFile:    true,
+			DataURIWired:  true,
+			RelayFeatures: features,
+		},
+	})
+	require.NoError(t, err)
+	_, present = directTool(t, srv, "upload_data")
+	require.True(t, present, "DataURIWired=true + FeatSourceData -> upload_data registered")
+	upload, ok = directTool(t, srv, "upload_file")
+	require.True(t, ok)
+	require.NoError(t, json.Unmarshal(upload.InputSchema, &schema))
+	require.Contains(t, string(schema.Properties["source"]), "separate upload_data",
+		"the registered data relay keeps FeatSourceData in the copy set")
+}
+
 // TestTransportStartupFeatures pins the effective-feature fallback per
 // transport: mechanism-only for stdio/HTTP, mechanism + ChatGPT host caps for
 // the embedded OpenAI tunnel.
