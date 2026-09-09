@@ -163,6 +163,16 @@ func NewConfig() *Config {
 	}
 }
 
+// timeoutFieldSchema validates a time.Duration timeout field. The config
+// manager validates schemas against the decoded struct, so these fields arrive
+// as time.Duration values (nanoseconds): raw integer config values are decoded
+// as seconds, duration strings ("30s", "2m") are parsed as-is. Valid range is
+// [1s, 1h]; the zero value is treated as "unset" (Optional) so the getters can
+// fall back to their defaults.
+func timeoutFieldSchema() z.ZogSchema {
+	return z.IntLike[time.Duration]().GTE(time.Second).LTE(3600 * time.Second).Optional()
+}
+
 func (c *Config) Schema() z.ZogSchema {
 	return z.Struct(z.Shape{
 		"AuthToken": z.String().Optional(),
@@ -184,9 +194,9 @@ func (c *Config) Schema() z.ZogSchema {
 			Min(1).
 			Max(2048).
 			Optional(),
-		"DefaultTimeout": z.Int().GTE(1).LTE(3600).Optional(),
-		"UploadTimeout":  z.Int().GTE(1).LTE(3600).Optional(),
-		"SyncTimeout":    z.Int().GTE(1).LTE(3600).Optional(),
+		"DefaultTimeout": timeoutFieldSchema(),
+		"UploadTimeout":  timeoutFieldSchema(),
+		"SyncTimeout":    timeoutFieldSchema(),
 		"MaxMCPUploadSize": z.UintLike[uint64]().
 			GTE(1).
 			Optional(),
