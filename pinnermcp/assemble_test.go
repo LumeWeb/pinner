@@ -1,7 +1,9 @@
 package pinnermcp
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"reflect"
 	"testing"
 
@@ -262,6 +264,108 @@ func TestAssembleAdaptsTypedNilCarrier(t *testing.T) {
 		_, err := Assemble(Config{Catalog: testCatalog(), Profile: typedNil})
 		require.NoError(t, err, "typed-nil carrier profile assembles as profile-less")
 	})
+}
+
+// --- Finding (C1): upload_url advertising and registration share ONE gate ---
+
+// noopRelayHandler is a trivial TransferDeps.Relay executor stub: the honest
+// gate only checks that an executor IS wired, so a do-nothing function is
+// enough to make Relay != nil true.
+func noopRelayHandler(context.Context, io.Reader, int64, string, bool, string, bool) (any, error) {
+	return nil, nil
+}
+
+// capabilitiesUploadToolSet returns the set of upload tools this assembled
+// server's capabilities report advertises.
+func capabilitiesUploadToolSet(t *testing.T, srv *Server) map[UploadToolCapability]bool {
+	t.Helper()
+	capDesc, ok := directTool(t, srv, "capabilities")
+	require.True(t, ok, "capabilities tool must always be registered")
+	res, err := capDesc.Handler(t.Context(), model.ToolRequest{})
+	require.NoError(t, err)
+	report, ok := res.StructuredContent.(CapabilityReport)
+	require.True(t, ok, "capabilities handler must return a CapabilityReport")
+	out := make(map[UploadToolCapability]bool, len(report.UploadTools))
+	for _, tool := range report.UploadTools {
+		out[tool] = true
+	}
+	return out
+}
+
+// TestUploadURLAdvertiseEqualsRegistered pins the C1 invariant: upload_url is
+// in the direct tools list if AND ONLY IF the capabilities report's
+// upload_tools lists it, and both sides are gated on the SAME shared gate —
+// TransferDeps.RelayURLRegistered(features) = RelayURLWired && Relay != nil &&
+// FeatSourceURL. The full Assemble path exercises both halves through
+// DIFFERENT code (the registration branch in buildDirectTools vs
+// uploadToolsFor in the capabilities descriptor), so a one-sided gate drift
+// fails the advertise==registered pairing, and the per-case expected values
+// keep the pairing itself from tautologically agreeing on a shared wrong
+// answer.
+func TestUploadURLAdvertiseEqualsRegistered(t *testing.T) {
+	cases := []struct {
+		name      string
+		transfer  TransferDeps
+		wantWired bool
+	}{
+		{
+			// All three gate conjuncts hold: executor wired, caller wiring
+			// flag set, registration-time features declare FeatSourceURL.
+			name: "wired: relay executor + RelayURLWired + FeatSourceURL",
+			transfer: TransferDeps{
+				UploadFile:    true,
+				TunnelOpenAI:  true,
+				Relay:         noopRelayHandler,
+				RelayURLWired: true,
+				RelayFeatures: tunnelFeatures(),
+			},
+			wantWired: true,
+		},
+		{
+			// FeatSourceURL missing from the registration-time set: the gate
+			// fails even with the executor and the wiring flag in place.
+			name: "not wired: RelayURLWired set but feature absent",
+			transfer: TransferDeps{
+				UploadFile:    true,
+				Relay:         noopRelayHandler,
+				RelayURLWired: true,
+				RelayFeatures: httpFeatures(),
+			},
+			wantWired: false,
+		},
+		{
+			// The executor is missing: RelayURLRegistered is false even
+			// though the wiring flag and the feature both hold.
+			name: "not wired: feature declared but Relay executor nil",
+			transfer: TransferDeps{
+				UploadFile:    true,
+				TunnelOpenAI:  true,
+				RelayURLWired: true,
+				RelayFeatures: tunnelFeatures(),
+			},
+			wantWired: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.wantWired,
+				tc.transfer.RelayURLRegistered(tc.transfer.RelayFeatures),
+				"the shared gate RelayURLRegistered must equal the case's wiring intent")
+
+			srv, err := Assemble(Config{Catalog: testCatalog(), Transfer: tc.transfer})
+			require.NoError(t, err)
+
+			_, registered := directTool(t, srv, "upload_url")
+			advertised := capabilitiesUploadToolSet(t, srv)[UploadToolURL]
+
+			require.Equal(t, tc.wantWired, registered,
+				"upload_url registration must follow RelayURLRegistered && FeatSourceURL")
+			require.Equal(t, tc.wantWired, advertised,
+				"upload_url advertisement must follow the SAME reconciled gate")
+			require.Equal(t, registered, advertised,
+				"the C1 invariant: upload_url registered iff advertised — no advertise-without-register, no register-without-advertise")
+		})
+	}
 }
 
 // TestTransportStartupFeatures pins the effective-feature fallback per

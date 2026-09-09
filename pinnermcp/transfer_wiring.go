@@ -65,3 +65,15 @@ type TransferDeps struct {
 	DataURIWired  bool
 	RelayFeatures mcpforge.FeatureSet
 }
+
+// RelayURLRegistered is the SINGLE honest registration/advertising gate for
+// the upload_url relay tool: the caller's explicit wiring decision
+// (RelayURLWired) AND the relay executor actually wired (Relay != nil) AND
+// the registration-time effective feature set declaring the server-fetch
+// relay feature (FeatSourceURL). Both buildDirectTools's registration branch
+// AND the capabilities tool's upload_tools report MUST consume this one
+// method, so a relay tool can never be advertised without being registered
+// (the pinnermcp C1 regression) nor registered without being advertised.
+func (t TransferDeps) RelayURLRegistered(features mcpforge.FeatureSet) bool {
+	return t.RelayURLWired && t.Relay != nil && features.Has(FeatSourceURL)
+}

@@ -3,6 +3,7 @@ package pinnermcp
 import (
 	"fmt"
 
+	"go.lumeweb.com/mcpforge"
 	"go.lumeweb.com/opmesh"
 
 	"go.lumeweb.com/mcpplane/model"
@@ -133,7 +134,10 @@ func (s *Server) Hosted() bool { return s.config.Hosted }
 
 // buildDirectTools orders the direct-only tool set: agent_guide first (the
 // "start here" orientation), then capabilities, then the wired transfer tools
-// in registration order (upload_file, upload_data, download_file).
+// in registration order (upload_file, upload_url, upload_data,
+// download_file). The upload_url placement mirrors pinner-cli's original
+// registration order (custom_tools.go registered upload_url between
+// upload_file and upload_data) and the capabilities chooser order.
 func (s *Server) buildDirectTools() []model.ToolDescriptor {
 	wiring := s.config.Transfer
 
@@ -154,6 +158,30 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		features = transportStartupFeatures(UploadFileTransport(wiring.CoLocated, wiring.TunnelOpenAI))
 	}
 
+	// The relay-tool gates, computed ONCE and consumed by BOTH the
+	// registration branches below and the capabilities report: registration
+	// and advertising can never disagree. upload_url additionally requires
+	// the executor itself (TransferDeps.RelayURLRegistered — the honest gate:
+	// RelayURLWired && Relay != nil && FeatSourceURL).
+	relayURLWired := wiring.RelayURLRegistered(features)
+
+	// The copy feature set: when a relay tool is NOT registered, its feature
+	// must not drive any description/schema copy that names the tool —
+	// otherwise the guide, the capabilities chooser, and upload_file's
+	// source.mode prose would advertise a tool tools/list does not serve. The
+	// stripes are additive to the clamps capabilitiesDescriptionFor already
+	// applies (host-file/drop need wired tools too).
+	featuresForCopy := features
+	strip := func(f mcpforge.Feature) {
+		if featuresForCopy.Has(f) {
+			featuresForCopy = featuresForCopy.Clone()
+			delete(featuresForCopy, f)
+		}
+	}
+	if !relayURLWired {
+		strip(FeatSourceURL)
+	}
+
 	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.Surface, s.config.Hosted)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{
 		CoLocated:     wiring.CoLocated,
@@ -163,16 +191,16 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		DownloadFile:  wiring.DownloadFile,
 		VaultGetFile:  wiring.VaultGetFile,
 		DropWired:     wiring.DropWired || wiring.FileDrop != nil,
-		RelayURLWired: wiring.RelayURLWired,
+		RelayURLWired: relayURLWired,
 		DataURIWired:  wiring.DataURIWired,
 		DraftXFile:    wiring.DataURIWired,
 		RelayMaxBytes: wiring.MaxRelayBytes,
-		RelayFeatures: features,
+		RelayFeatures: featuresForCopy,
 	}))
 
 	if wiring.UploadFile {
 		direct = append(direct, NewUploadFileDescriptor(
-			features,
+			featuresForCopy,
 			wiring.CoLocated,
 			wiring.TunnelOpenAI,
 			wiring.PathUpload,
@@ -180,6 +208,19 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 			wiring.Relay,
 			wiring.RelayAllowedHosts,
 			wiring.MaxRelayBytes,
+		))
+	}
+	// upload_url registers when (and ONLY when) the reconciled gate holds:
+	// RelayURLWired && Relay != nil && FeatSourceURL — the exact gate the
+	// capabilities report above consumed, mirroring pinner-cli's original
+	// registration condition (opts.relayURLUpload != nil &&
+	// effectiveFeatures.Has(hostenv.FeatSourceURL)).
+	if relayURLWired {
+		direct = append(direct, RelayURLUploadDescriptor(
+			wiring.Relay,
+			wiring.RelayAllowedHosts,
+			wiring.MaxRelayBytes,
+			featuresForCopy,
 		))
 	}
 	// upload_data registers only when the wired flag AND the effective
