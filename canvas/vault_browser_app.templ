@@ -1,0 +1,30 @@
+package canvas
+
+// VaultBrowserAppForm renders the visible "Vault browser" view body: a status
+// line, the current path label, an up/root/refresh button row, and the listing
+// container. Navigation buttons and the listing are wired by the
+// "vault-browser" ESM bundle. The document <head> (the composition root's
+// injected theme stylesheet) and the ESM module <script> (bundle
+// "vault-browser" — appsassets/dist/vault-browser.js — resolved through the
+// Renderer's asset source) are supplied by Renderer.RenderDoc, so this templ
+// authors only the app-specific markup.
+//
+// Ported unchanged from pinner-cli internal/mcpapp vault_browser_app.templ:
+// the element ids and classes below are the hooks the "vault-browser" JS
+// bundle queries; do not rename them without rebuilding the bundle.
+templ VaultBrowserAppForm() {
+	<div class="app-shell">
+		<h1 class="app-title">Vault</h1>
+		<div id="vault-status" class="status"></div>
+		<div class="browser-bar justify-between">
+			<span id="vault-path" class="browser-path">vault:/</span>
+			<div class="flex gap-2">
+				<button type="button" id="vault-up" class="btn-primary !mt-0" disabled>Up</button>
+				<button type="button" id="vault-root" class="btn-primary !mt-0" disabled>Root</button>
+				<button type="button" id="vault-refresh" class="btn-primary !mt-0" disabled>Refresh</button>
+			</div>
+		</div>
+		<ul id="vault-list" class="browser-list"></ul>
+		<p id="vault-empty" class="browser-empty" hidden></p>
+	</div>
+}

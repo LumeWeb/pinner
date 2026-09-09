@@ -48,6 +48,8 @@ github.com/Oudwins/zog v0.23.0/go.mod h1:yznncrIHC5tQeOui28FMz67LEGZV3nAoCdWL5t8
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
 github.com/STARRY-S/zip v0.2.3 h1:luE4dMvRPDOWQdeDdUxUoZkzUIpTccdKdhHHsQJ1fm4=
 github.com/STARRY-S/zip v0.2.3/go.mod h1:lqJ9JdeRipyOQJrYSOtpNAiaesFO6zVDsE8GIGFaoSk=
+github.com/a-h/templ v0.3.1020 h1:ypAT/L5ySWEnZ6Zft/5yfoWXYYkhFNvEFOeeqecg4tw=
+github.com/a-h/templ v0.3.1020/go.mod h1:A2DlK61v+K+NRoGnhmYbNYVmtYHcFO5/AisMvBdDxTM=
 github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b h1:mimo19zliBX/vSQ6PWWSL9lK8qwHozUj03+zLoEB8O0=
 github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b/go.mod h1:fvzegU4vN3H1qMT+8wDmzjAcDONcgo2/SZ/TyfdUOFs=
 github.com/andybalholm/brotli v1.2.3 h1:8H1qwOkl2LPfjf3YezB90JnCliZb6SInJ/OJkEbA5NQ=
@@ -766,6 +768,8 @@ go.lumeweb.com/ipfs-sdk v0.1.97 h1:JV35ex2g5zcoN4uwKGaPIVtiiupli0zVfYnh7eR9OYw=
 go.lumeweb.com/ipfs-sdk v0.1.97/go.mod h1:VE85lcKSVHWqRHbKPfyWoMKv7aKwdhXBrRODGOIfoxQ=
 go.lumeweb.com/ipfs-sdk/dnsname v0.1.64 h1:RTBD+zoXHOYYKreNRoQhyLLKKWp/VgYfr7qojCzKjww=
 go.lumeweb.com/ipfs-sdk/dnsname v0.1.64/go.mod h1:1++6EWMiG/BC5UQjlIobId2YcWDVHjHEhdsEzeISKpQ=
+go.lumeweb.com/mcpcanvas v0.0.0-20260907112052-7adbd4d8dcac h1:3IF4iIQABGV2Q4KMwTKOkmiG3DBnZygQuMj3VqCCn7E=
+go.lumeweb.com/mcpcanvas v0.0.0-20260907112052-7adbd4d8dcac/go.mod h1:anGetqaVuMIgLks3AB8nOxP+D7qDmdM691EPbUI+Fjc=
 go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e h1:WhMvV/09YjOymmN0+cPI1kGinVV66j+gK9gfiKfQoUw=
 go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e/go.mod h1:qgdO7w6I7jB6BWpjA6uTp3Lv8Bgtd8VxuSZ+ZJJVCqM=
 go.lumeweb.com/mcpplane v0.0.0-20260908010148-2f0b05c8e8a9 h1:ORMDkksTgQGpH3h8foPDEPN2ULlBuaY/2Dy2w22bD2Y=
