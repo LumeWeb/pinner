@@ -2,6 +2,7 @@ package catalogops
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	coreadmin "go.lumeweb.com/pinner/core/admin"
@@ -170,6 +171,58 @@ func TestAdminBillingPriceLinesUpdateGetError(t *testing.T) {
 	_, err := op.Handler().Execute(context.Background(), map[string]any{"id": "42", "name": "New Name"})
 	if err == nil {
 		t.Fatal("expected an error when the existing price line cannot be fetched")
+	}
+}
+
+// TestAdminBillingPriceLinesUpdateNilExistingNotFound is a regression test:
+// the SDK getter can return (nil, nil) for a non-existent record, which used
+// to nil-panic on the existing.* merge. The update must fail clearly with a
+// not-found error and must never reach the update call.
+func TestAdminBillingPriceLinesUpdateNilExistingNotFound(t *testing.T) {
+	updated := false
+	svc := &fakeBillingService{
+		// Default getPriceLineFn returns (nil, nil).
+		updatePriceLineFn: func(ctx context.Context, id string, req *admin.PriceLineUpdateRequest) (*admin.PriceLine, error) {
+			updated = true
+			return &admin.PriceLine{}, nil
+		},
+	}
+	op := adminBillingPriceLinesUpdate(testBillingDeps(t, svc))
+
+	_, err := op.Handler().Execute(context.Background(), map[string]any{"id": "42", "name": "New Name"})
+	if err == nil {
+		t.Fatal("expected a not-found error when the existing price line is nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("error should mention not-found, got %v", err)
+	}
+	if updated {
+		t.Fatal("update must not be invoked when the existing record is missing")
+	}
+}
+
+// TestAdminBillingPricingPlansUpdateNilExistingNotFound is the pricing-plan
+// counterpart of the (nil, nil) getter regression above.
+func TestAdminBillingPricingPlansUpdateNilExistingNotFound(t *testing.T) {
+	updated := false
+	svc := &fakeBillingService{
+		// Default getPricingPlanFn returns (nil, nil).
+		updatePricingPlan: func(ctx context.Context, id string, req *admin.PricingPlanUpdateRequest) (*admin.PricingPlan, error) {
+			updated = true
+			return &admin.PricingPlan{}, nil
+		},
+	}
+	op := adminBillingPricingPlansUpdate(testBillingDeps(t, svc))
+
+	_, err := op.Handler().Execute(context.Background(), map[string]any{"id": "7", "name": "New Name"})
+	if err == nil {
+		t.Fatal("expected a not-found error when the existing pricing plan is nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("error should mention not-found, got %v", err)
+	}
+	if updated {
+		t.Fatal("update must not be invoked when the existing record is missing")
 	}
 }
 

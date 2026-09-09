@@ -544,6 +544,9 @@ func adminBillingPriceLinesUpdate(d AdminDeps) opmesh.Operation {
 			if err != nil {
 				return nil, fmt.Errorf("failed to get existing price line: %w", err)
 			}
+			if existing == nil {
+				return nil, fmt.Errorf("admin_billing_price_lines_update: price line %q not found", id)
+			}
 			req := &admin.PriceLineUpdateRequest{
 				Name:        existing.Name,
 				Description: existing.Description,
@@ -857,6 +860,9 @@ func adminBillingPricingPlansUpdate(d AdminDeps) opmesh.Operation {
 			existing, err := svc.GetPricingPlan(ctx, id)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get existing pricing plan: %w", err)
+			}
+			if existing == nil {
+				return nil, fmt.Errorf("admin_billing_pricing_plans_update: pricing plan %q not found", id)
 			}
 			req := &admin.PricingPlanUpdateRequest{
 				Name:        existing.Name,
