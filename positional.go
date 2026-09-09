@@ -39,10 +39,12 @@ func positionalNames(pos string) []string {
 // label like "<domain>" for a positional that drives a "website" arg), the slot
 // falls back to the operation's first string arg. Values already present in
 // input (e.g. populated from a flag) are never overwritten. It returns an error
-// when more positionals are supplied than the declaration allows, so surplus
+// when more positionals are supplied than the declaration allows (so surplus
 // arguments are rejected instead of silently dropped — mirroring legacy
-// per-command validation (a destructive op like `domains rm good.example bogus`
-// must not operate on good.example while ignoring bogus).
+// per-command validation: a destructive op like `domains rm good.example bogus`
+// must not operate on good.example while ignoring bogus), when two slots
+// resolve to the same named arg (ambiguous binding), or when a slot would
+// clobber a flag-populated value.
 func MapPositionalArgs(args []OperationArg, pos string, supplied []string, input map[string]any) error {
 	names := positionalNames(pos)
 	n := len(supplied)
@@ -54,15 +56,26 @@ func MapPositionalArgs(args []OperationArg, pos string, supplied []string, input
 			supplied[len(names)], len(names), strings.Join(names, " "))
 	}
 	start := len(names) - n
+	bound := make(map[string]struct{}, len(names))
 	for i := start; i < len(names); i++ {
 		slot := names[i]
 		argName := resolvePositionalArgName(args, slot)
+		// Two positional slots must not map to the same named arg: when the
+		// placeholder->first-string-arg fallback fires for more than one slot,
+		// they'd collide on one — reject rather than silently overwrite. This
+		// check runs before the flag-conflict check because an earlier slot's
+		// own write is in input by the time a later duplicate slot resolves;
+		// checking the conflict first would misreport this as flag misuse.
+		if _, seen := bound[argName]; seen {
+			return fmt.Errorf("positional slot <%s> maps to argument %q already bound by another positional slot", slot, argName)
+		}
 		// Supplying the same arg both as a flag and positionally is ambiguous —
 		// reject it instead of silently preferring one (the legacy commands
 		// errored, e.g. "website provided both as --website and positionally").
 		if existing := StrArg(input, argName, ""); existing != "" {
 			return fmt.Errorf("%s provided both as a flag and as a positional argument; use one form", argName)
 		}
+		bound[argName] = struct{}{}
 		input[argName] = supplied[i-start]
 	}
 	return nil

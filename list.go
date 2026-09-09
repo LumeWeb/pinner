@@ -1,6 +1,9 @@
 package pinner
 
-import "context"
+import (
+	"context"
+	"math"
+)
 
 // List is the normalized list cursor every *-list operation receives after the
 // CLI/MCP surface resolves its page/page-size args. Start is the 0-based offset
@@ -74,7 +77,18 @@ func parseList(input map[string]any, defaultPageSize int) List {
 	if defaultPageSize > 0 && pageSize < 1 {
 		pageSize = defaultPageSize
 	}
-	return List{Start: (page - 1) * pageSize, Limit: pageSize}
+	start := 0
+	if pageSize > 0 {
+		// Guard against overflow: (page-1) * pageSize must fit in int. On
+		// overflow clamp to MaxInt rather than emit a wrapped/negative cursor
+		// that would page incorrect data.
+		if page-1 > math.MaxInt/pageSize {
+			start = math.MaxInt
+		} else {
+			start = (page - 1) * pageSize
+		}
+	}
+	return List{Start: start, Limit: pageSize}
 }
 
 // MatchPredicate reports whether item satisfies the scan. Returning true stops

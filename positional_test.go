@@ -114,3 +114,29 @@ func TestMapPositionalArgs(t *testing.T) {
 		})
 	}
 }
+
+// TestMapPositionalArgsDuplicateSlotFallback pins the duplicate-slot guard:
+// when two <placeholder> slots both fall through to the same named arg (the
+// placeholder->first-string-arg fallback), mapping must fail with a collision
+// diagnostic rather than silently overwrite the first slot's value or return
+// the unrelated flag-conflict error. The arg is deliberately left unpopulated
+// in input so the flag-conflict path cannot fire instead.
+func TestMapPositionalArgsDuplicateSlotFallback(t *testing.T) {
+	args := []OperationArg{{Name: "target", Type: ArgTypeString}}
+	input := map[string]any{}
+	err := MapPositionalArgs(args, "<a> <b>", []string{"one", "two"}, input)
+	if err == nil {
+		t.Fatalf("expected an error for two slots mapping to the same arg, got nil; input = %v", input)
+	}
+	if strings.Contains(err.Error(), "provided both as a flag") {
+		t.Fatalf("got the flag-conflict error %q, want the duplicate-slot collision error", err.Error())
+	}
+	if !strings.Contains(err.Error(), "already bound") {
+		t.Fatalf("error %q does not indicate a slot collision (want %q substring)", err.Error(), "already bound")
+	}
+	// The error aborts mapping: the second slot must not overwrite the first
+	// slot's value (no silent last-write-wins "two").
+	if got := input["target"]; got != "one" {
+		t.Errorf("input[\"target\"] = %v, want the first slot's %q (second slot must not overwrite)", got, "one")
+	}
+}
