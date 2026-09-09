@@ -10,11 +10,47 @@ import (
 	ipfs "go.lumeweb.com/ipfs-sdk"
 )
 
-// Regression tests for ResolveKeyID: a key whose NAME is numeric must resolve
-// by NAME (to its own key ID) instead of being parsed as a literal ID.
-func TestResolveKeyID_NumericNameResolvesByName(t *testing.T) {
+// Regression tests for ResolveKeyID: a literal numeric argument is treated as
+// a raw key ID directly, with no ListKeys round-trip; non-numeric arguments
+// are resolved by matching against key names.
+func TestResolveKeyID_NumericArgIsLiteralID(t *testing.T) {
 	ctx := context.Background()
 
+	sdk := &mockIPNSSDKService{
+		listKeysFunc: func(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error) {
+			return []ipfs.IPNSKeyResponse{
+				{Id: 42, Name: "my-key"},
+			}, nil
+		},
+	}
+
+	id, err := ResolveKeyID(ctx, sdk, "123")
+	require.NoError(t, err)
+	assert.Equal(t, 123, id)
+	assert.Zero(t, sdk.listKeysCalls, "numeric arg must resolve as a literal ID without a ListKeys round-trip")
+}
+
+func TestResolveKeyID_NonNumericNameResolvesByName(t *testing.T) {
+	ctx := context.Background()
+
+	sdk := &mockIPNSSDKService{
+		listKeysFunc: func(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error) {
+			return []ipfs.IPNSKeyResponse{
+				{Id: 42, Name: "my-key"},
+			}, nil
+		},
+	}
+
+	id, err := ResolveKeyID(ctx, sdk, "my-key")
+	require.NoError(t, err)
+	assert.Equal(t, 42, id)
+}
+
+func TestResolveKeyID_NumericArgTakesPrecedenceOverNumericName(t *testing.T) {
+	ctx := context.Background()
+
+	// Intended contract tradeoff: a literal numeric arg always resolves as a
+	// raw key ID, even when a key happens to carry that number as its name.
 	sdk := &mockIPNSSDKService{
 		listKeysFunc: func(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error) {
 			return []ipfs.IPNSKeyResponse{
@@ -26,24 +62,7 @@ func TestResolveKeyID_NumericNameResolvesByName(t *testing.T) {
 
 	id, err := ResolveKeyID(ctx, sdk, "123")
 	require.NoError(t, err)
-	assert.Equal(t, 77, id, "numeric-named key must resolve to its key ID, not the parsed name")
-}
-
-func TestResolveKeyID_NumericFallbackWhenNoNameMatches(t *testing.T) {
-	ctx := context.Background()
-
-	sdk := &mockIPNSSDKService{
-		listKeysFunc: func(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error) {
-			return []ipfs.IPNSKeyResponse{
-				{Id: 42, Name: "my-key"},
-			}, nil
-		},
-	}
-
-	// "123" matches no key NAME, so fall back to the parsed numeric ID.
-	id, err := ResolveKeyID(ctx, sdk, "123")
-	require.NoError(t, err)
-	assert.Equal(t, 123, id)
+	assert.Equal(t, 123, id, "numeric arg resolves as a literal ID, not by matching the numeric key name")
 }
 
 func TestResolveKeyID_NonNumericNameNotFound(t *testing.T) {

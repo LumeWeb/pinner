@@ -16,6 +16,7 @@ import (
 
 // mockIPNSSDKService implements ipfs.IPNSService for testing the ipnsService wrapper.
 type mockIPNSSDKService struct {
+	listKeysCalls   int
 	listKeysFunc    func(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error)
 	getKeyFunc      func(ctx context.Context, id string) (*ipfs.IPNSKeyResponse, error)
 	createKeyFunc   func(ctx context.Context, name string, opts ...ipfs.CreateKeyOption) (*ipfs.IPNSKeyResponse, error)
@@ -27,6 +28,7 @@ type mockIPNSSDKService struct {
 }
 
 func (m *mockIPNSSDKService) ListKeys(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error) {
+	m.listKeysCalls++
 	if m.listKeysFunc != nil {
 		return m.listKeysFunc(ctx, opts...)
 	}
@@ -177,12 +179,12 @@ func TestIPNSService_WithAuthToken(t *testing.T) {
 }
 
 func TestResolveIPNSKeyID_NumericArg(t *testing.T) {
-	// Name lookup runs first; with no keys present, the numeric arg falls
-	// back to the parsed key ID.
+	// A literal numeric arg is a raw key ID: no ListKeys round-trip happens.
 	sdkMock := &mockIPNSSDKService{}
 	id, err := ResolveKeyID(context.Background(), sdkMock, "42")
 	require.NoError(t, err)
 	assert.Equal(t, 42, id)
+	assert.Zero(t, sdkMock.listKeysCalls)
 }
 
 func TestResolveIPNSKeyID_NumericString(t *testing.T) {
@@ -190,6 +192,7 @@ func TestResolveIPNSKeyID_NumericString(t *testing.T) {
 	id, err := ResolveKeyID(context.Background(), sdkMock, "0")
 	require.NoError(t, err)
 	assert.Equal(t, 0, id)
+	assert.Zero(t, sdkMock.listKeysCalls)
 }
 
 // ===== Behavioral tests for ipnsService CRUD methods =====
