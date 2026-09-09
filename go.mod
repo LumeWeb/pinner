@@ -8,9 +8,11 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
+	github.com/invopop/jsonschema v0.14.0
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
+	go.lumeweb.com/canimcp v0.0.0-20260907101331-ba497f0bb72a
 	go.lumeweb.com/configmanager v0.3.30
 	go.lumeweb.com/ipfs-content v0.1.18
 	go.lumeweb.com/ipfs-sdk v0.1.97
@@ -74,7 +76,6 @@ require (
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/boxo v0.37.0 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
@@ -118,6 +119,7 @@ require (
 	github.com/libp2p/go-libp2p-routing-helpers v0.7.5 // indirect
 	github.com/libp2p/go-msgio v0.3.0 // indirect
 	github.com/libp2p/go-netroute v0.4.0 // indirect
+	github.com/looplab/fsm v1.0.4 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
@@ -181,7 +183,6 @@ require (
 	go.etcd.io/etcd/api/v3 v3.7.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.7.0 // indirect
 	go.etcd.io/etcd/client/v3 v3.7.0 // indirect
-	go.lumeweb.com/canimcp v0.0.0-20260907101331-ba497f0bb72a // indirect
 	go.lumeweb.com/event/v2 v2.1.0 // indirect
 	go.lumeweb.com/gswagger v0.20.12 // indirect
 	go.lumeweb.com/portal v0.4.2-0.20251225165008-2bdb358c492d // indirect
