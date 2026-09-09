@@ -113,18 +113,29 @@ func SinkDefaultName(source string) string {
 // caller's output_path is a RELATIVE path within the root (subdirectories are
 // allowed and created); an absolute path, a drive root, or any path whose
 // cleaned lexical form escapes the root (via ".." or a Windows drive/cross-drive
-// input) is rejected. This prevents a compromised MCP agent from overwriting
-// arbitrary server files or redirecting decrypted vault/IPFS content elsewhere
-// on the host — the mirror of upload's local-path gating.
+// input) is rejected, as is any path whose real filesystem resolution escapes
+// the root through a pre-existing symbolic link. This prevents a compromised
+// MCP agent from overwriting arbitrary server files or redirecting decrypted
+// vault/IPFS content elsewhere on the host — the mirror of upload's gating.
 //
 // Implementation: `filepath.Join(root, rel)` replaces the root when rel is
 // absolute (or a Windows volume path), and lexically resolves `..`; the returned
 // path is confined only if `filepath.Rel(root, joined)` stays inside root (does
-// not start with ".."). That single containment check rejects every escape —
-// absolute inputs, drive inputs, and `..` traversal alike.
+// not start with ".."). That lexical check rejects absolute inputs, drive
+// inputs, and `..` traversal alike.
 //
-// It never writes — it only decides the destination and validates containment;
-// the returned error rejects the request before any byte is read or written.
+// The lexical check alone is not sufficient, because the downstream write
+// (WriteLocalDownload's MkdirAll / CreateTemp / Rename) resolves intermediate
+// directory components THROUGH the filesystem: a pre-existing symlink inside
+// the root pointing outside it would silently carry the destination — and the
+// downloaded bytes — out of the root. After the lexical check, containment is
+// therefore re-verified against the destination's REAL path (existing
+// components resolved via EvalSymlinks); any resolution outside the root's
+// real path, or an unresolvable component, is rejected.
+//
+// It never writes — it only decides the destination and validates containment
+// (the symlink resolution behind that validation is read-only); the returned
+// error rejects the request before any byte is read or written.
 func ResolveLocalOutputPath(downloadRoot, outputPath, sourceName string) (string, error) {
 	name := SinkDefaultName(sourceName)
 	if name == "" {
@@ -164,7 +175,70 @@ func ResolveLocalOutputPath(downloadRoot, outputPath, sourceName string) (string
 	if err != nil || relFromRoot == ".." || strings.HasPrefix(relFromRoot, ".."+string(filepath.Separator)) || filepath.IsAbs(relFromRoot) {
 		return "", fmt.Errorf("download output path %q escapes the configured download root %q", outputPath, root)
 	}
+	// The lexical check cannot see through symlinks, so the candidate is
+	// re-verified against its real filesystem resolution before the caller is
+	// handed a path the write machinery will follow component-by-component.
+	if err := ensureRealPathInsideRoot(root, clean); err != nil {
+		return "", err
+	}
 	return clean, nil
+}
+
+// resolveRealPath resolves path to its effective filesystem location: the
+// deepest EXISTING ancestor is resolved through any symlinks via
+// filepath.EvalSymlinks, and the remaining non-existent tail components are
+// re-appended lexically (they cannot yet be symlinks, so there is nothing on
+// disk to resolve). Walking up to the deepest existing ancestor — rather than
+// failing when path itself does not exist — lets a destination inside a
+// not-yet-created subdirectory of a symlinked root resolve consistently on
+// both sides of the containment comparison.
+func resolveRealPath(path string) (string, error) {
+	probe := filepath.Clean(path)
+	tail := ""
+	for {
+		if _, err := os.Lstat(probe); err == nil {
+			break
+		}
+		parent := filepath.Dir(probe)
+		if parent == probe {
+			break
+		}
+		tail = filepath.Join(filepath.Base(probe), tail)
+		probe = parent
+	}
+	resolved, err := filepath.EvalSymlinks(probe)
+	if err != nil {
+		// An existing but unresolvable component (e.g. a broken symlink in the
+		// ancestry) means the effective location is unknown: fail closed
+		// rather than assume containment the write would traverse anyway.
+		return "", err
+	}
+	return filepath.Join(resolved, tail), nil
+}
+
+// ensureRealPathInsideRoot is the filesystem half of the local-sink
+// confinement invariant. The lexical containment check cannot see through
+// symlinks, but WriteLocalDownload resolves intermediate directory components
+// through the filesystem (MkdirAll / CreateTemp / Rename), so a pre-existing
+// root-internal symlink pointing outside downloadRoot would carry the write —
+// and the downloaded bytes — outside the root. Both the root and the
+// destination are resolved to their real locations and containment is
+// re-checked there; a component whose real location cannot be determined
+// fails closed.
+func ensureRealPathInsideRoot(root, dest string) error {
+	realRoot, err := resolveRealPath(root)
+	if err != nil {
+		return fmt.Errorf("cannot resolve the configured download root %q: %w", root, err)
+	}
+	realDest, err := resolveRealPath(dest)
+	if err != nil {
+		return fmt.Errorf("download output path %q cannot be resolved inside the configured download root %q: %w", dest, root, err)
+	}
+	relFromRoot, err := filepath.Rel(realRoot, realDest)
+	if err != nil || relFromRoot == ".." || strings.HasPrefix(relFromRoot, ".."+string(filepath.Separator)) || filepath.IsAbs(relFromRoot) {
+		return fmt.Errorf("download output path %q resolves outside the configured download root %q via a symbolic link", dest, root)
+	}
+	return nil
 }
 
 // WriteLocalDownload streams the source bytes to a host-side output path

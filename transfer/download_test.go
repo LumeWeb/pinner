@@ -142,6 +142,62 @@ func TestExecuteLocalSinkConfinesToRoot(t *testing.T) {
 	require.Equal(t, "ok", res.Status)
 }
 
+// TestResolveLocalOutputPathRejectsSymlinkEscape covers the filesystem half of
+// the confinement invariant: a pre-existing symlink inside the root pointing
+// outside it must be rejected, because the write machinery resolves
+// intermediate components through the filesystem and would follow it.
+func TestResolveLocalOutputPathRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	_, err := ResolveLocalOutputPath(root, "link/evil.txt", "evil.txt")
+	require.Error(t, err, "a top-level symlinked component pointing outside the root must be rejected")
+
+	// A non-existent nested tail under the symlinked component is equally
+	// dangerous: the write would create the missing directories THROUGH the
+	// symlink, landing outside the root.
+	if err := os.Symlink(outside, filepath.Join(root, "sub")); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	_, err = ResolveLocalOutputPath(root, "sub/nested/evil.txt", "evil.txt")
+	require.Error(t, err, "a nested tail under a symlinked component pointing outside the root must be rejected")
+}
+
+// TestExecuteLocalSinkRejectsSymlinkEscape verifies end-to-end that content is
+// never written through a root-internal symlink out of the download root, and
+// that the positive path (new nested subdirectories inside the root) still
+// works.
+func TestExecuteLocalSinkRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	src := "vault:/docs/secret.pdf"
+	name := "secret.pdf"
+	_, err := ExecuteLocalSink(context.Background(), src, name, "link/evil.txt", root, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("secret"))
+		return werr
+	})
+	require.Error(t, err, "content must not be written through a symlink escaping the download root")
+	_, statErr := os.Stat(filepath.Join(outside, "evil.txt"))
+	require.Error(t, statErr, "no byte may land outside the download root")
+
+	// Positive control: a normal nested path still lands inside the root, and
+	// its subdirectories are created there.
+	res, err := ExecuteLocalSink(context.Background(), src, name, "docs/secret.pdf", root, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("ok"))
+		return werr
+	})
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, "docs", "secret.pdf"), res.Output)
+	data, readErr := os.ReadFile(res.Output)
+	require.NoError(t, readErr)
+	require.Equal(t, "ok", string(data))
+}
+
 func TestDownloadSinksAllowed(t *testing.T) {
 	require.NoError(t, DownloadSinksAllowed(transfer.SinkLocal, false, false))
 	require.NoError(t, DownloadSinksAllowed(transfer.SinkLocal, true, true)) // local always
