@@ -22,8 +22,8 @@ type Service interface {
 	// Blocked if the key is the one currently used for authentication, unless force is true.
 	DeleteAPIKey(ctx context.Context, idOrName string, force bool) error
 
-	// GetCurrentAPIKeyUUID returns the UUID from the auth token's JWT subject claim,
-	// or empty string if not an API key JWT.
+	// GetCurrentAPIKeyUUID returns the API key UUID from the auth token's JWT
+	// jti (ID) claim, or empty string if not an API key JWT.
 	GetCurrentAPIKeyUUID() string
 	RequireAuthenticated() error
 }
@@ -113,7 +113,8 @@ func (s *service) GetCurrentAPIKeyUUID() string {
 		return ""
 	}
 
-	// Subject claim holds the API key UUID
+	// The API key UUID lives in the jti (ID) claim; Subject holds the user ID
+	// for api-purpose tokens.
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
 	parsedToken, _, err := parser.ParseUnverified(token, &jwt.RegisteredClaims{})
 	if err != nil {
@@ -125,7 +126,7 @@ func (s *service) GetCurrentAPIKeyUUID() string {
 		return ""
 	}
 
-	return claims.Subject
+	return claims.ID
 }
 
 func (s *service) RequireAuthenticated() error {
