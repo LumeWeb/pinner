@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -253,6 +256,202 @@ func TestWriteLocalDownloadTempCleanedUpOnFailure(t *testing.T) {
 	entries, readErr := os.ReadDir(dir)
 	require.NoError(t, readErr)
 	require.Empty(t, entries, "destination dir must contain no temp files after a failed write")
+}
+
+// TestWriteLocalDownloadRejectsDirSwapDuringDownload exercises the actual
+// TOCTOU exploit: a co-resident attacker waits for the download temp to appear
+// in the destination directory, then — WHILE the download streams — swaps the
+// directory for a symlink to outside the root. The vulnerable
+// CreateTemp(dir)/Rename(dir) sequence would have followed that symlink and
+// exfiltrated the bytes outside the root; the writer must detect the swap at
+// its pre-rename re-validation and fail loudly WITHOUT landing any byte outside
+// the root and without reporting success.
+func TestWriteLocalDownloadRejectsDirSwapDuringDownload(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	dir := filepath.Join(root, "victim")
+	require.NoError(t, os.Mkdir(dir, 0o755))
+	out := filepath.Join(dir, "evil.bin")
+
+	// The attacker: detect the temp in the real dir, then swap.
+	start := make(chan struct{})
+	done, attackResult := tryDirSwapOnceTempAppears(dir, outside, start)
+
+	n, err := WriteLocalDownload(context.Background(), root, out, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("stolen"))
+		// Hand the attacker the download window mid-stream…
+		close(start)
+		// …and only finish streaming once the swap has completed.
+		<-done
+		return werr
+	})
+	require.Error(t, err, "a mid-download directory swap must abort the write")
+	require.Zero(t, n, "no success count may be reported when containment failed")
+	require.NoError(t, <-attackResult, "attacker must have detected the temp and completed the swap (test setup)")
+
+	// The swapped-in symlink must never have been traversed: no download byte
+	// may land outside the root.
+	outsideEntries, readErr := os.ReadDir(outside)
+	require.NoError(t, readErr)
+	require.Empty(t, outsideEntries, "no byte may land outside the download root via the swapped directory")
+	_, statErr := os.Stat(out)
+	require.Error(t, statErr, "no final file may exist at the (swapped) destination")
+	// The temp left in the real directory (now at dir+".old") is removed too.
+	oldEntries, readErr := os.ReadDir(dir + ".old")
+	require.NoError(t, readErr)
+	require.Empty(t, oldEntries, "the abandoned temp must be cleaned up after a detected swap")
+}
+
+// TestWriteLocalDownloadRejectsSymlinkedDir pins the write-half containment
+// for direct callers: a destination directory that is a pre-existing symlink
+// pointing outside the root is rejected before ANY byte is written.
+func TestWriteLocalDownloadRejectsSymlinkedDir(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	out := filepath.Join(root, "link", "evil.txt")
+	_, err := WriteLocalDownload(context.Background(), root, out, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("secret"))
+		return werr
+	})
+	require.Error(t, err, "a symlinked destination directory escaping the root must be rejected")
+	_, statErr := os.Stat(filepath.Join(outside, "evil.txt"))
+	require.Error(t, statErr, "no byte may land outside the download root")
+
+	// A root argument is mandatory for direct callers too: without a root there
+	// is no containment contract to enforce.
+	_, err = WriteLocalDownload(context.Background(), "", out, 0, func(ctx context.Context, w io.Writer) error {
+		return nil
+	})
+	require.Error(t, err, "a missing download root must be rejected, not treated as unconstrained")
+}
+
+// TestWriteLocalDownloadCreatesTempInResolvedDir is the positive control: the
+// success path leaves exactly the final file inside the (real) root with the
+// streamed bytes and the reported size, and no temp artifacts.
+func TestWriteLocalDownloadCreatesTempInResolvedDir(t *testing.T) {
+	root := t.TempDir()
+	out := filepath.Join(root, "sub", "out.bin")
+	n, err := WriteLocalDownload(context.Background(), root, out, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("hello world"))
+		return werr
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(11), n)
+	entries, readErr := os.ReadDir(filepath.Join(root, "sub"))
+	require.NoError(t, readErr)
+	require.Len(t, entries, 1, "exactly the final file must remain — no leftover temp")
+	require.Equal(t, "out.bin", entries[0].Name())
+	data, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	require.Equal(t, "hello world", string(data))
+}
+
+// TestWriteLocalDownloadFinalRenameReplacesFinalSymlinkSafely pins the rename
+// semantics: a pre-existing FINAL component that is a symlink to outside the
+// root is REPLACED by the rename (rename never follows its newpath), the
+// outside target stays untouched, and the bytes land as a regular file inside
+// the root.
+func TestWriteLocalDownloadFinalRenameReplacesFinalSymlinkSafely(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	out := filepath.Join(root, "out.bin")
+	if err := os.Symlink(filepath.Join(outside, "evil.txt"), out); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	n, err := WriteLocalDownload(context.Background(), root, out, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("payload"))
+		return werr
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(7), n)
+	// The symlink is gone, replaced by a regular file inside the root.
+	info, statErr := os.Lstat(out)
+	require.NoError(t, statErr)
+	require.Zero(t, info.Mode()&os.ModeSymlink, "the final symlink must be replaced, not followed")
+	data, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	require.Equal(t, "payload", string(data))
+	// The symlink's outside target was never created or touched.
+	_, statErr = os.Stat(filepath.Join(outside, "evil.txt"))
+	require.Error(t, statErr, "the symlink's outside target must remain untouched")
+}
+
+// TestWriteLocalDownloadNoLyingReceipt verifies the end-to-end envelope
+// contract: when containment is violated (here: the mid-download directory
+// swap), ExecuteLocalSink returns an error and NEVER a Status:"ok" result with
+// an inside-root output_path — a violation must not produce a lying receipt.
+func TestWriteLocalDownloadNoLyingReceipt(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	dir := filepath.Join(root, "victim")
+	require.NoError(t, os.Mkdir(dir, 0o755))
+
+	start := make(chan struct{})
+	done, attackResult := tryDirSwapOnceTempAppears(dir, outside, start)
+
+	res, err := ExecuteLocalSink(context.Background(), "bafy/secret.bin", "secret.bin", "victim/secret.bin", root, 0, func(ctx context.Context, w io.Writer) error {
+		_, werr := w.Write([]byte("stolen"))
+		close(start)
+		<-done
+		return werr
+	})
+	require.Error(t, err, "a containment violation must fail the local sink")
+	require.NotEqual(t, "ok", res.Status, "no success receipt may be returned when containment was violated")
+	require.Empty(t, res.Output, "no output path may be reported when containment was violated")
+	require.Zero(t, res.Size)
+	require.NoError(t, <-attackResult, "attacker must have completed the swap (test setup)")
+	outsideEntries, readErr := os.ReadDir(outside)
+	require.NoError(t, readErr)
+	require.Empty(t, outsideEntries, "no byte may land outside the download root")
+}
+
+// tryDirSwapOnceTempAppears emulates a co-resident attacker: once started, it
+// polls dir for the download temp (".pinner-dl-*") to appear, then renames dir
+// away and plants a symlink to outside in its place — the classic TOCTOU swap
+// a vulnerable directory-based write would follow. The returned channel closes
+// when the attack attempt finished; the buffered result channel carries a
+// non-nil error only if the attacker could not perform its setup (which would
+// invalidate the test, not the code under test).
+func tryDirSwapOnceTempAppears(dir, outside string, start <-chan struct{}) (done <-chan struct{}, result <-chan error) {
+	doneC := make(chan struct{})
+	errC := make(chan error, 1)
+	go func() {
+		defer close(doneC)
+		<-start
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			if entries, err := os.ReadDir(dir); err == nil {
+				found := false
+				for _, e := range entries {
+					if strings.HasPrefix(e.Name(), ".pinner-dl-") {
+						found = true
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+			if time.Now().After(deadline) {
+				errC <- errors.New("download temp never appeared in " + dir)
+				return
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+		if err := os.Rename(dir, dir+".old"); err != nil {
+			errC <- err
+			return
+		}
+		if err := os.Symlink(outside, dir); err != nil {
+			errC <- err
+			return
+		}
+		errC <- nil
+	}()
+	return doneC, errC
 }
 
 func TestExecuteDropSinkReportsRealSize(t *testing.T) {
