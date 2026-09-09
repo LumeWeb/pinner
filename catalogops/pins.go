@@ -365,6 +365,9 @@ func pinsRemove(d PinsDeps) opmesh.Operation {
 					}
 					return dryRun(fmt.Sprintf("unpin-all (%d pins)", len(pins)), requestIDs, options), nil
 				}
+				if !confirm {
+					return nil, fmt.Errorf("pins_rm: confirmation is required to unpin all pins (pass confirm=true or --force)")
+				}
 				return svc.UnpinAll(ctx, statusFilter, pinning.BatchOptions{
 					Parallel:   parallel,
 					ContinueOn: continueOn,
@@ -395,6 +398,9 @@ func pinsRemove(d PinsDeps) opmesh.Operation {
 				return svc.Unpin(ctx, cids[0], confirm)
 			}
 
+			if !confirm {
+				return nil, fmt.Errorf("pins_rm: confirmation is required to unpin a batch (pass confirm=true or --force)")
+			}
 			return svc.UnpinBatch(ctx, cids, pinning.BatchOptions{
 				Parallel:   parallel,
 				ContinueOn: continueOn,

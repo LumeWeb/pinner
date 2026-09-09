@@ -270,8 +270,10 @@ func ensDepsFor(t *testing.T, svc ipns.Service) ENSDeps {
 		NewAuthenticated: func(_ config.Manager, _ string, _ bool) (ipns.Service, error) {
 			return svc, nil
 		},
-		// A config token makes service() route through NewAuthenticated (the
+		// A non-empty config token makes service() route through NewAuthenticated (the
 		// auth-token path) instead of falling through to a nil ServiceFactory.
-		GetAuthToken: func() string { return "config-token" },
+		// The value is an opaque placeholder; NewAuthenticated only needs it
+		// non-empty and never compares it against a real secret.
+		GetAuthToken: func() string { return "dummy" },
 	}}
 }
