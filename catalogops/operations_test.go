@@ -135,6 +135,135 @@ func TestOperationsListNoWatchSingleCall(t *testing.T) {
 	}
 }
 
+// pagingOperationsService paginates f.rows by the Start/Limit cursor exactly
+// like the concrete operations service (a positive Limit is a page size; Limit
+// 0 means unbounded), so tests can exercise multi-page listings deterministically.
+type pagingOperationsService struct {
+	operations.Service
+
+	rows []operations.OperationListItem
+	// settleRowIdx/settleTo/settleAfterCall model a pending operation on a
+	// later page transitioning to a terminal status between polls: from
+	// poll (settleAfterCall + 1) onward, rows[settleRowIdx].Status is settleTo.
+	settleRowIdx    int
+	settleTo        string
+	settleAfterCall int
+
+	calls int
+	opts  []operations.ListOptions
+}
+
+func (f *pagingOperationsService) RequireAuthenticated() error { return nil }
+
+func (f *pagingOperationsService) List(ctx context.Context, opts operations.ListOptions) (*operations.OperationsListResult, error) {
+	f.calls++
+	f.opts = append(f.opts, opts)
+	if f.settleAfterCall > 0 && f.calls > f.settleAfterCall && f.settleRowIdx < len(f.rows) {
+		f.rows[f.settleRowIdx].Status = f.settleTo
+	}
+	if opts.Limit <= 0 {
+		return &operations.OperationsListResult{
+			Operations: append([]operations.OperationListItem(nil), f.rows...),
+			Total:      len(f.rows),
+		}, nil
+	}
+	start, end := opts.Start, opts.Start+opts.Limit
+	if start > len(f.rows) {
+		start = len(f.rows)
+	}
+	if end > len(f.rows) {
+		end = len(f.rows)
+	}
+	return &operations.OperationsListResult{
+		Operations: append([]operations.OperationListItem(nil), f.rows[start:end]...),
+		Total:      len(f.rows),
+	}, nil
+}
+
+// TestOperationsListWatchSettlesAcrossAllPages is a regression test: with
+// watch=true and multiple pages where the FIRST page is settled but a LATER
+// page still holds a pending operation, the watch must not exit on page 1. It
+// must keep polling until the pending row on the later page reaches a terminal
+// status, and only then return success.
+func TestOperationsListWatchSettlesAcrossAllPages(t *testing.T) {
+	withTightWatchBounds(t)
+
+	// Page 1 holds a settled operation; page 2 holds a pending one that
+	// transitions to a terminal status only after the first poll.
+	svc := &pagingOperationsService{
+		rows: []operations.OperationListItem{
+			sampleOperationItem(1, "completed"),
+			sampleOperationItem(2, "processing"),
+		},
+		settleRowIdx:    1,
+		settleTo:        "completed",
+		settleAfterCall: 1,
+	}
+	op := operationsList(OperationsDeps{Service: func(input map[string]any) operations.Service { return svc }})
+
+	// page-size 1 forces a paginated initial options set; the watch path
+	// must raise it so every poll sees ALL rows, not just page 1. A watch
+	// that trusted the first (settled) page would return after ONE call —
+	// before the pending row on page 2 was even observed.
+	res, err := op.Handler().Execute(context.Background(), map[string]any{
+		"watch": true, "page-size": 1,
+	})
+	if err != nil {
+		t.Fatalf("watch list across pages: %v", err)
+	}
+	if svc.calls < 2 {
+		t.Fatalf("list calls = %d, want >= 2 (must keep polling past the settled first page until the pending later page settles)", svc.calls)
+	}
+	lr, ok := res.(ListResult)
+	if !ok {
+		t.Fatalf("unexpected result type %T", res)
+	}
+	if lr.ListTotal() != 2 {
+		t.Fatalf("Total = %d, want 2 (both rows)", lr.ListTotal())
+	}
+	for i, opts := range svc.opts {
+		if opts.Limit != 0 {
+			t.Fatalf("poll %d: Limit = %d, want 0 (unbounded) so settlement spans all pages", i, opts.Limit)
+		}
+		if !opts.IsWatch {
+			t.Fatalf("poll %d: IsWatch = false, want true", i)
+		}
+	}
+}
+
+// TestOperationsListWatchAllPagesSettledSuccess pins that when every
+// operation across the full (multi-row) result set is already terminal, the
+// watch returns success on the first poll.
+func TestOperationsListWatchAllPagesSettledSuccess(t *testing.T) {
+	withTightWatchBounds(t)
+
+	svc := &pagingOperationsService{rows: []operations.OperationListItem{
+		sampleOperationItem(1, "completed"),
+		sampleOperationItem(2, "failed"),
+	}}
+	op := operationsList(OperationsDeps{Service: func(input map[string]any) operations.Service { return svc }})
+
+	res, err := op.Handler().Execute(context.Background(), map[string]any{
+		"watch": true, "page-size": 1,
+	})
+	if err != nil {
+		t.Fatalf("watch list: %v", err)
+	}
+	if svc.calls != 1 {
+		t.Fatalf("list calls = %d, want 1 (all rows settled up front)", svc.calls)
+	}
+	lr, ok := res.(ListResult)
+	if !ok {
+		t.Fatalf("unexpected result type %T", res)
+	}
+	if lr.ListTotal() != 2 {
+		t.Fatalf("Total = %d, want 2 (all rows, not just page size)", lr.ListTotal())
+	}
+	if svc.opts[0].Limit != 0 {
+		t.Fatalf("watch Limit = %d, want 0 (unbounded)", svc.opts[0].Limit)
+	}
+}
+
 // TestOperationsListWatchTimesOut pins the bounded-poll contract: watch gives
 // up with a clear error instead of polling forever.
 func TestOperationsListWatchTimesOut(t *testing.T) {

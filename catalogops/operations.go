@@ -113,6 +113,14 @@ func allOperationsSettled(res *operations.OperationsListResult) bool {
 // bound expires, or the context is canceled — mirroring the CLI's
 // watch-on-list loop and honoring the documented `watch` contract.
 func pollOperationsList(ctx context.Context, svc operations.Service, opts operations.ListOptions) (any, error) {
+	// The settlement decision must span ALL matching rows, not just the first
+	// page: with watch=true the service returns every status (IsWatch skips
+	// the active-only filter), and a pending operation on a later page would
+	// otherwise be missed. The backend treats a positive Limit as page size
+	// and Limit 0 as "unbounded", so the watch path drops the page size and
+	// every poll fetches the complete (Start-offset) result set. Non-watch
+	// listings keep their normalized pagination untouched.
+	opts.Limit = 0
 	for attempt := 0; attempt < operationsListWatchAttempts; attempt++ {
 		if attempt > 0 {
 			select {
