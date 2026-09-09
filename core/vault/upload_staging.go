@@ -363,7 +363,10 @@ func (s *vaultService) commitFileRecord(ctx context.Context, vp *VaultPath, dirI
 }
 
 // stagedAdopt re-resolves a concurrent same-path winner for a staged write and
-// adopts its identity (no object to re-pin, unlike the durable path).
+// adopts its identity (no object to re-pin, unlike the durable path). The
+// adopted row drops IsCurrent — the winner still holds the live (name,dir)
+// slot — so the insert does not collide with idx_files_live_name_dir;
+// promoteCurrent re-promotes it inside the commit transaction.
 func (s *vaultService) stagedAdopt(vp *VaultPath, rec *File) func() (bool, error) {
 	return func() (bool, error) {
 		if rec.DirectoryID == nil {
@@ -371,6 +374,7 @@ func (s *vaultService) stagedAdopt(vp *VaultPath, rec *File) func() (bool, error
 		}
 		if w, err := s.findCurrentFile(vp.Name, rec.DirectoryID); err == nil {
 			rec.UUID = w.UUID
+			rec.IsCurrent = false // adopted winner already owns this (name,dir); promoteCurrent re-promotes after insert
 			return true, nil
 		}
 		return false, nil
