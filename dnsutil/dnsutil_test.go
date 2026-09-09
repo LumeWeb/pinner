@@ -50,6 +50,55 @@ func TestIsValidDomain(t *testing.T) {
 	}
 }
 
+// TestIsValidDomainStrict pins the strict LDH label contract: labels may
+// contain only letters, digits, and interior hyphens (no leading or trailing
+// hyphen), are at most 63 characters, and the full name is at most 253
+// characters with at least two labels. A single trailing dot (FQDN form) is
+// allowed.
+func TestIsValidDomainStrict(t *testing.T) {
+	label63 := strings.Repeat("a", 63)
+	label64 := strings.Repeat("a", 64)
+
+	valid := []string{
+		"example.com",
+		"example.com.",
+		"sub.example.com",
+		"a.b.c.d",
+		"a-b-c.example.com",
+		"xn--ls8h.example.com", // punycode labels are plain LDH
+		label63 + ".example.com",
+		"a-1-b-2.example.com",
+		"1234567890.example.com",
+	}
+	invalid := []string{
+		"",
+		".",
+		"single",
+		".com",
+		"example.",
+		"a..b",
+		"bad_label.com", // underscore
+		"!!.com",
+		"-lead.com",
+		"trailing-.com",
+		"-lead-.com",
+		"a b.example.com", // interior space
+		"münchen.com",     // non-ASCII
+		label64 + ".example.com",
+		strings.Repeat("a.", 126) + "aa", // 254 chars total
+	}
+	for _, d := range valid {
+		if !IsValidDomain(d) {
+			t.Errorf("IsValidDomain(%q) = false, want true", d)
+		}
+	}
+	for _, d := range invalid {
+		if IsValidDomain(d) {
+			t.Errorf("IsValidDomain(%q) = true, want false", d)
+		}
+	}
+}
+
 func TestValidateDNSRecordExtendedAndBase(t *testing.T) {
 	valid := []struct{ typ, content string }{
 		{"A", "1.2.3.4"},

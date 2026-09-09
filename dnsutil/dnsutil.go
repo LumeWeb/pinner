@@ -112,16 +112,20 @@ func IsValidIPv6(ip string) bool {
 	return parsedIP.To4() == nil && parsedIP.To16() != nil
 }
 
-// IsValidDomain reports whether s is a valid DNS host/record target domain. A
-// single trailing dot denotes an absolute/FQDN name and is valid; the
-// terminating dot is the DNS root separator, not an empty label.
+// IsValidDomain reports whether s is a valid DNS domain name for use as a
+// record target (host). Each label must be an LDH label: it may contain only
+// letters, digits, and interior hyphens, with no leading or trailing hyphen,
+// and is at most 63 characters long. The full name is at most 253 characters
+// (excluding the root dot) and must have at least two labels. A single
+// trailing dot denotes an absolute/FQDN name and is valid; the terminating
+// dot is the DNS root separator, not an empty label.
 func IsValidDomain(domain string) bool {
 	if domain == "" {
 		return false
 	}
 
 	trimmed := dnsname.TrimDot(domain)
-	if trimmed == "" {
+	if trimmed == "" || len(trimmed) > 253 {
 		return false
 	}
 
@@ -130,7 +134,28 @@ func IsValidDomain(domain string) bool {
 		return false
 	}
 	for _, part := range parts {
-		if part == "" {
+		if !isValidLabel(part) {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidLabel reports whether s is a valid DNS label per RFC 1035: letters,
+// digits, and hyphens, with no leading or trailing hyphen, at most 63 chars.
+func isValidLabel(s string) bool {
+	if s == "" || len(s) > 63 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case c == '-':
+			if i == 0 || i == len(s)-1 {
+				return false
+			}
+		default:
 			return false
 		}
 	}
