@@ -101,6 +101,7 @@ func Project(op pinner.Operation) opmesh.Operation {
 }
 
 // ProjectAll projects every operation, dropping nils. It never panics.
+// Like RegisterAll, it does not filter by Environment; see RegisterAll.
 func ProjectAll(ops []pinner.Operation) []opmesh.Operation {
 	out := make([]opmesh.Operation, 0, len(ops))
 	for _, op := range ops {
@@ -221,6 +222,18 @@ func ProjectArgType(a pinner.ArgType) opmesh.ArgType {
 // is reported as ErrNilCatalog rather than a panic; nil operation elements
 // are intentionally skipped, consistent with ProjectAll, which also drops
 // nils.
+//
+// RegisterAll performs no environment or surface gating of its own: it
+// registers every operation passed to it, including EnvLocalOnly and
+// EnvCLIOnly carve-out operations such as auth_login and auth_logout. A
+// caller serving the resulting catalog to a target surface must therefore
+// filter by each operation's Environment (see pinner.Operation.Environment
+// and the pinner root model, or the surface's own gating) before calling
+// RegisterAll, or before serving the catalog, otherwise local-only
+// operations would be exposed on a hosted surface. This is the projection
+// contract stated above: the projection carries only the opmesh-owned
+// vocabulary and never filters by Environment — surface gating belongs to
+// the consumption layer.
 func RegisterAll(cat opmesh.Catalog, ops ...pinner.Operation) error {
 	if cat == nil {
 		return ErrNilCatalog
