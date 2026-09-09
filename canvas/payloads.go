@@ -203,12 +203,13 @@ type PinRow struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// PinListPayload is the listing ViewPinList renders in StateReady.
-type PinListPayload struct {
-	// Pins are the loaded pins; empty means no pins yet (an empty readout,
-	// not an error).
-	Pins []PinRow `json:"pins"`
-}
+// PinListPayload is the listing ViewPinList renders in StateReady. It is a
+// top-level array of rows, not an object: the pin-list client reads the
+// envelope's value as a bare PinRow[] (Array.isArray in
+// packages/apps/src/pin-list.ts), mirroring how AuthStatusPayload and
+// VaultStatusPayload mirror their object-shaped envelope values. An empty
+// (nil) payload means no pins yet — an empty readout, not an error.
+type PinListPayload []PinRow
 
 // AuthStatusPayload is the account readout ViewAuthStatus renders in
 // StateReady. It mirrors the AuthStatusData shape the auth-status screen

@@ -219,7 +219,6 @@ func TestPayloadJSONKeys(t *testing.T) {
 		fields []string
 	}{
 		{"PinStatusPayload", PinStatusPayload{Status: "s", CID: "c"}, []string{"cid", "status"}},
-		{"PinListPayload", PinListPayload{Pins: []PinRow{}}, []string{"pins"}},
 		{"PinRow", PinRow{CID: "c", Name: "n", Status: "s", Created: "t", RequestID: "r", Metadata: map[string]string{"m": "1"}}, []string{"cid", "name", "status", "created", "request_id", "metadata"}},
 		{"AuthStatusPayload", AuthStatusPayload{Authenticated: true, PortalURL: "u", Message: "m"}, []string{"authenticated", "portal_url", "message"}},
 		{"VaultStatusPayload", VaultStatusPayload{Unlocked: true, RemoteReachable: true, RemoteReady: true, RemoteError: "e", StorageUsed: 1, StorageLimit: 2, RemainingStorage: 3, CacheState: "healthy"}, []string{"unlocked", "remote_reachable", "remote_ready", "remote_error", "storage_used", "storage_limit", "remaining_storage", "cache_state"}},
@@ -235,6 +234,15 @@ func TestPayloadJSONKeys(t *testing.T) {
 		}
 		require.Len(t, got, len(f.fields), "%s must expose exactly its fields", f.name)
 	}
+
+	// PinListPayload is deliberately NOT object-keyed: the pin-list client
+	// reads the envelope's value as a top-level row array (Array.isArray in
+	// packages/apps/src/pin-list.ts), so it must serialize as JSON [...].
+	data, err := json.Marshal(PinListPayload{{CID: "c"}})
+	require.NoError(t, err)
+	var rows []PinRow
+	require.NoError(t, json.Unmarshal(data, &rows), "PinListPayload must unmarshal as a top-level array, not {\"pins\":[...]}")
+	require.Equal(t, []PinRow{{CID: "c"}}, rows)
 }
 
 // TestActionVocabulary pins the action surface: every action resolves from
