@@ -41,7 +41,7 @@ func TestRemoveProfile_RemovesEntryAndData(t *testing.T) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatalf("mkdir profile dir: %v", err)
 	}
-	dummyKey := hex.EncodeToString([]byte("test-work-not-a-secret"))
+	dummyKey := hex.EncodeToString([]byte("test-work-not-a-real-key"))
 	if err := os.WriteFile(ProfileStatePath("work"), []byte(`{"app_key":"`+dummyKey+`"}`), 0600); err != nil {
 		t.Fatalf("write state: %v", err)
 	}
