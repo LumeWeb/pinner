@@ -194,7 +194,7 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		VaultPutFile:  wiring.VaultPutFile,
 		DownloadFile:  wiring.DownloadFile,
 		VaultGetFile:  wiring.VaultGetFile,
-		DropWired:     wiring.DropWired || wiring.FileDrop != nil,
+		DropWired:     wiring.FileDrop != nil,
 		RelayURLWired: relayURLWired,
 		DataURIWired:  wiring.DataURIWired,
 		DraftXFile:    wiring.DataURIWired,

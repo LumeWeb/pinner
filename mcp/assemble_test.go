@@ -12,6 +12,7 @@ import (
 	"go.lumeweb.com/canimcp"
 	"go.lumeweb.com/mcpforge"
 	"go.lumeweb.com/mcpplane/model"
+	"go.lumeweb.com/mcpplane/transfer"
 	"go.lumeweb.com/opmesh"
 )
 
@@ -439,6 +440,59 @@ func TestAssembleDataURICopyFeatureFollowsRegistrationGate(t *testing.T) {
 	require.NoError(t, json.Unmarshal(upload.InputSchema, &schema))
 	require.Contains(t, string(schema.Properties["source"]), "separate upload_data",
 		"the registered data relay keeps FeatSourceData in the copy set")
+}
+
+// --- Finding: the drop sink must follow the filedrop coordinator wiring ---
+
+// TestAssembleDropSinkFollowsFileDropWiring pins the capabilities/schema
+// gate for sink=drop: the download_file tool gates the drop branch on
+// FileDrop != nil ONLY (never on the raw DropWired registration flag), and
+// the capabilities report must advertise sink=drop against that same single
+// source of truth — a composition root that sets DropWired without
+// coordinating a FileDrop must not get a drop sink advertised the registered
+// tool would reject.
+func TestAssembleDropSinkFollowsFileDropWiring(t *testing.T) {
+	downloadSinks := func(t *testing.T, srv *Server) []FileOutputCapability {
+		t.Helper()
+		cap, ok := directTool(t, srv, "capabilities")
+		require.True(t, ok, "capabilities tool must always be registered")
+		res, err := cap.Handler(t.Context(), model.ToolRequest{})
+		require.NoError(t, err)
+		report, ok := res.StructuredContent.(CapabilityReport)
+		require.True(t, ok, "capabilities handler must return a CapabilityReport")
+		return report.DownloadSinkModes
+	}
+
+	// DropWired set but no FileDrop coordinator: nil disables the drop sink.
+	srv, err := Assemble(Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			UploadFile:   true,
+			DownloadFile: true,
+			DropWired:    true,
+			// FileDrop deliberately nil: the tool's drop gate fails.
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []FileOutputCapability{CapabilitySinkLocal}, downloadSinks(t, srv),
+		"DropWired without a FileDrop coordinator must not advertise sink=drop")
+
+	// A wired FileDrop coordinator: sink=drop is advertised and download_file
+	// registers with the drop branch.
+	srv, err = Assemble(Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			UploadFile:   true,
+			DownloadFile: true,
+			DropWired:    true,
+			FileDrop:     &transfer.Download{},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []FileOutputCapability{CapabilitySinkLocal, CapabilitySinkDrop}, downloadSinks(t, srv),
+		"a wired FileDrop coordinator advertises sink=drop")
+	_, present := directTool(t, srv, "download_file")
+	require.True(t, present, "DownloadFile wired -> download_file registered")
 }
 
 // TestTransportStartupFeatures pins the effective-feature fallback per
