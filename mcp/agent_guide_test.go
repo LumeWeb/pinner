@@ -31,7 +31,7 @@ func guideFlowByName(t *testing.T, guide AgentGuide, name string) GuideFlow {
 // TestAgentGuideDescriptorFullSurface pins the full-surface guide:
 // the full surface carries all 13 flows, sane structure, clean serialization.
 func TestAgentGuideDescriptorFullSurface(t *testing.T) {
-	desc := AgentGuideDescriptor(assembly.FullSurface, false)
+	desc := AgentGuideDescriptor(assembly.FullSurface, false, true)
 	require.Equal(t, "agent_guide", desc.Name)
 	require.EqualValues(t, model.CategoryCore, desc.Category)
 

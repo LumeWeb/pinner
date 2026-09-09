@@ -185,8 +185,19 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 	if !(wiring.DataURIWired && features.Has(FeatSourceData)) {
 		strip(FeatSourceData)
 	}
+	// The drop sink is only real when a FileDrop coordinator is wired and the
+	// transport has a reachable HTTP mux (not the embedded OpenAI tunnel) —
+	// the exact condition the capabilities report's sinkModesFor and the
+	// download_file tool's drop gate (DownloadSinksAllowed with hd != nil)
+	// apply. Otherwise no download tool accepts sink=drop, so the
+	// FeatSinkDrop-bearing copy (the capabilities description's drop prose)
+	// must not advertise it either.
+	dropAvailable := wiring.FileDrop != nil && !wiring.TunnelOpenAI
+	if !dropAvailable {
+		strip(FeatSinkDrop)
+	}
 
-	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.Surface, s.config.Hosted)}
+	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.Surface, s.config.Hosted, dropAvailable)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{
 		CoLocated:     wiring.CoLocated,
 		TunnelOpenAI:  wiring.TunnelOpenAI,

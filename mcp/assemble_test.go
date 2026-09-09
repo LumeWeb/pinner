@@ -495,6 +495,77 @@ func TestAssembleDropSinkFollowsFileDropWiring(t *testing.T) {
 	require.True(t, present, "DownloadFile wired -> download_file registered")
 }
 
+// TestAssembleDropProseFollowsFileDropWiring extends the sink-mode pin above
+// to the POS: the FeatSinkDrop-bearing copy resolved through the copy feature
+// set and the agent guide. With download_file registered, both the
+// capabilities description and the agent guide resolve their drop prose
+// against the SAME drop-availability condition the report's DownloadSinkModes
+// and the download_file tool's drop gate apply (FileDrop != nil &&
+// !tunnelOpenAI): a composition root registering download_file without a
+// FileDrop coordinator must not serve prose advertising sink=drop the tool
+// would reject at invocation time.
+func TestAssembleDropProseFollowsFileDropWiring(t *testing.T) {
+	guide := func(t *testing.T, srv *Server) string {
+		t.Helper()
+		desc, ok := directTool(t, srv, "agent_guide")
+		require.True(t, ok, "agent_guide must always be registered")
+		res, err := desc.Handler(t.Context(), model.ToolRequest{
+			Arguments: map[string]any{},
+			// An HTTP host declaring the sink-drop mechanism feature: on the
+			// wire profile alone the guide would render the drop prose.
+			Caps: &model.RequestCaps{Profile: modelProfileWith(FeatSinkDrop, canimcp.TransportHTTP)},
+		})
+		require.NoError(t, err)
+		return res.Text
+	}
+
+	// DownloadFile registered, FileDrop coordinator nil: the drop sink is not
+	// real, so no drop prose may render anywhere.
+	srv, err := Assemble(Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			UploadFile:   true,
+			DownloadFile: true,
+			DropWired:    true,
+			// FileDrop deliberately nil: the tool's drop gate fails.
+		},
+	})
+	require.NoError(t, err)
+
+	capabilities, ok := directTool(t, srv, "capabilities")
+	require.True(t, ok, "capabilities tool must always be registered")
+	require.NotContains(t, capabilities.Description, "one-time filedrop link",
+		"without a FileDrop coordinator the capabilities description must not advertise sink=drop")
+
+	text := guide(t, srv)
+	require.NotContains(t, text, "Prefer sink=drop",
+		"without a FileDrop coordinator the agent guide must not steer to sink=drop")
+	require.Contains(t, text, "sink=local is the only sink offered",
+		"without a FileDrop coordinator the agent guide must state sink=local is the only sink")
+
+	// Positive control: a wired FileDrop coordinator keeps the drop prose in
+	// both surfaces (the feature carries through and the drop gate passes).
+	srv, err = Assemble(Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			UploadFile:   true,
+			DownloadFile: true,
+			DropWired:    true,
+			FileDrop:     &transfer.Download{},
+		},
+	})
+	require.NoError(t, err)
+
+	capabilities, ok = directTool(t, srv, "capabilities")
+	require.True(t, ok)
+	require.Contains(t, capabilities.Description, "one-time filedrop link",
+		"a wired FileDrop coordinator keeps the capabilities description's drop prose")
+
+	text = guide(t, srv)
+	require.Contains(t, text, "Prefer sink=drop",
+		"a wired FileDrop coordinator keeps the agent guide's drop prose")
+}
+
 // TestTransportStartupFeatures pins the effective-feature fallback per
 // transport: mechanism-only for stdio/HTTP, mechanism + ChatGPT host caps for
 // the embedded OpenAI tunnel.

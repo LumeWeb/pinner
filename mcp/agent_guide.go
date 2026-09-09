@@ -489,7 +489,15 @@ const agentGuideDescription = "Orientation for autonomous agents: the primary Pi
 // assembly. surface and hosted are the assembled server's construction-time
 // properties (Config fields) — the de-globalized replacements for the source
 // package's activeSurface()/activeHosted() read.
-func AgentGuideDescriptor(surface assembly.Surface, hosted bool) model.ToolDescriptor {
+//
+// dropSinkAvailable is the registration-true drop-sink eligibility derived
+// from the transfer wiring (FileDrop != nil && !tunnelOpenAI) — the exact
+// condition the capabilities report's sinkModesFor and the download_file
+// tool's drop gate apply. When false, the per-request profile is stripped of
+// FeatSinkDrop before resolution, mirroring assemble's strip closure: with no
+// FileDrop coordinator wired no download tool accepts sink=drop, so the
+// guide's drop-bearing prose must not render either.
+func AgentGuideDescriptor(surface assembly.Surface, hosted bool, dropSinkAvailable bool) model.ToolDescriptor {
 	return model.ToolDescriptor{
 		Name:          "agent_guide",
 		Title:         "Pinner agent guide",
@@ -500,6 +508,13 @@ func AgentGuideDescriptor(surface assembly.Surface, hosted bool) model.ToolDescr
 		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
 			profile := profileFromRequest(request)
 			profile.Hosted = hosted
+			if !dropSinkAvailable {
+				profile = profile.CloneFeatures()
+				// The startup copy set (assemble.go) strips the feature for
+				// the same wiring fact; per-request wire profiles may still
+				// declare FeatSinkDrop on hosts, so re-apply the gate here.
+				delete(profile.Features, FeatSinkDrop)
+			}
 			guide := BuildAgentGuide(profile, surface, hosted)
 			return model.ToolResult{StructuredContent: guide, Text: toolargs.ResultJSONText(guide)}, nil
 		},
