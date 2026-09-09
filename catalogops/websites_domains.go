@@ -13,6 +13,15 @@ import (
 	"go.lumeweb.com/pinner/core/websites"
 )
 
+// Operation names for the websites domains ops that frontend wiring keys
+// rendering on: the verify outcome renderer and the on-chain-aware
+// dns-requirements renderer compare against these instead of magic strings.
+// Referenced by the operation specs below and by the CLI frontends.
+const (
+	OpWebsitesDomainsVerify          = "websites_domains_verify"
+	OpWebsitesDomainsDNSRequirements = "websites_domains_dns_requirements"
+)
+
 // websitesDomainsList is the `websites domains list` operation. Returns
 // []ipfs.DomainResponse.
 func websitesDomainsList(d WebsitesDeps) opmesh.Operation {
@@ -217,10 +226,10 @@ func websitesDomainsRemove(d WebsitesDeps) opmesh.Operation {
 // *ipfs.DomainResponse.
 func websitesDomainsVerify(d WebsitesDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
-		Name:        "websites_domains_verify",
+		Name:        OpWebsitesDomainsVerify,
 		Title:       "Verify a domain binding",
 		Summary:     "Verify a domain's DNS delegation",
-		Description: "Verify that a bound domain's DNS delegation is correctly configured. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the domain's status and delegation after verification.",
+		Description: "Verify that a bound domain's DNS delegation is correctly configured. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the domain's status and delegation after verification. For on-chain-managed domains (status onchain_managed) there is no Pinner delegation to verify: the DNS records are set on-chain and cannot be written from Pinner, so surface the _443._tcp TLSA record the domain carries — it is what makes the site load over HTTPS.",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
@@ -252,13 +261,13 @@ func websitesDomainsVerify(d WebsitesDeps) opmesh.Operation {
 }
 
 // websitesDomainsDNSRequirements is the `websites domains dns-requirements`
-// operation. Returns *ipfs.DomainResponse.
+// operation. Returns *DomainDNSRequirements.
 func websitesDomainsDNSRequirements(d WebsitesDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
-		Name:        "websites_domains_dns_requirements",
+		Name:        OpWebsitesDomainsDNSRequirements,
 		Title:       "DNS requirements for a domain",
 		Summary:     "Show DNS records needed to complete domain delegation",
-		Description: "Show the DNS records a user must publish to complete delegation for a bound domain. For HNS namespaces this is the delegation bundle (parent NS/GLUE/DS and authoritative NS/TLSA). The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically.",
+		Description: "Show the DNS records a user must publish to complete delegation for a bound domain. For HNS namespaces this is the delegation bundle (parent NS/GLUE/DS and authoritative NS/TLSA). For on-chain-managed domains (status onchain_managed) the delegation bundle is empty: the DNS records are set on-chain and cannot be written from Pinner — surface the _443._tcp TLSA record the domain carries, it is what makes the site load over HTTPS. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically.",
 		Category:    "core",
 		Safety:      opmesh.SafetyRead,
 		Interaction: opmesh.InteractionAgentSafe,
@@ -283,10 +292,29 @@ func websitesDomainsDNSRequirements(d WebsitesDeps) opmesh.Operation {
 			if err != nil {
 				return nil, err
 			}
-			// *ipfs.DomainResponse
-			return svc.GetDomainDNSRequirements(ctx, websiteID, domainID)
+			domain, err := svc.GetDomainDNSRequirements(ctx, websiteID, domainID)
+			if err != nil {
+				return nil, err
+			}
+			// On-chain bindings no longer carry a delegation bundle: the
+			// owning website is attached so the CLI renderer can derive the
+			// on-chain records (the _dnslink TXT) from its target. Best effort
+			// — a fetch failure only loses the derived rows, never the op.
+			website, _ := svc.Get(ctx, websiteID)
+			return &DomainDNSRequirements{Domain: domain, Website: website}, nil
 		}),
 	})
+}
+
+// DomainDNSRequirements is the typed data returned by the dns-requirements
+// operation: the domain response paired with the owning website record.
+// On-chain bindings no longer carry a delegation bundle, so the CLI renderer
+// uses Website to derive the on-chain records (the _dnslink TXT) from the
+// website's target; Website is presentation data (nil when the website fetch
+// failed best-effort), not part of the domain binding itself.
+type DomainDNSRequirements struct {
+	Domain  *ipfs.DomainResponse
+	Website *ipfs.WebsiteItem
 }
 
 // websitesDomainsDANERepublish is the `websites domains dane republish`
@@ -296,7 +324,7 @@ func websitesDomainsDANERepublish(d WebsitesDeps) opmesh.Operation {
 		Name:        "websites_domains_dane_republish",
 		Title:       "Republish DANE records",
 		Summary:     "Force re-publication of a domain's DANE TLSA record",
-		Description: "Force re-publication of a bound domain's DANE records (the _443._tcp TLSA RRset) into the managed authoritative zone, to recover a TLSA that was deleted or missing and not re-published by certificate renewal. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the republished record's status and TLSA value.",
+		Description: "Force re-publication of a bound domain's DANE records (the _443._tcp TLSA RRset) into the managed authoritative zone, to recover a TLSA that was deleted or missing and not re-published by certificate renewal. The republish targets Pinner's managed authoritative zone only: an on-chain-managed (HNS/alt-root) domain's TLSA record lives on-chain and cannot be written from Pinner, so check the response's published_to_managed_zone — when it is false the publication did not land in a managed zone and the record is NOT live; do not render the outcome as success. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns the republished record's status and TLSA value.",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
