@@ -19,6 +19,11 @@ import (
 //go:embed prompttemplates
 var promptTemplatesFS embed.FS
 
+// promptTemplates is the parsed prompt template set. The embedded FS is
+// immutable and static, so parsing once at package init is a build-time
+// invariant and each render reuses it instead of re-parsing on every call.
+var promptTemplates = template.Must(template.ParseFS(promptTemplatesFS, "prompttemplates/*.tmpl"))
+
 // sitePromptData carries the optional values templated into the
 // website-onboarding and website-update prompts. Empty fields select the
 // "ask the user" variant of a step instead of the pre-filled step.
@@ -45,12 +50,8 @@ type sitePromptData struct {
 // conventions). text/template (not html/template) is used so the
 // instructional prose is emitted verbatim with no HTML escaping.
 func renderPromptTemplate(name string, data sitePromptData) string {
-	tpl, err := template.ParseFS(promptTemplatesFS, "prompttemplates/*.tmpl")
-	if err != nil {
-		panic("mcp: parse prompt templates: " + err.Error())
-	}
 	var b bytes.Buffer
-	if err := tpl.ExecuteTemplate(&b, name, data); err != nil {
+	if err := promptTemplates.ExecuteTemplate(&b, name, data); err != nil {
 		panic("mcp: render prompt template: " + err.Error())
 	}
 	return b.String()

@@ -47,6 +47,36 @@ func promptNames(prompts []model.PromptDescriptor) []string {
 	return out
 }
 
+// TestRenderPromptTemplateSmoke pins the render path behavior: every known
+// prompt template in the package-level parsed set renders non-empty prose
+// (and a data-driven template carries its data). The individual prompt
+// handlers pin the exact message skeletons; this covers renderPromptTemplate
+// directly across the template families.
+func TestRenderPromptTemplateSmoke(t *testing.T) {
+	siteData := sitePromptData{Domain: "example.com"}
+	updateData := sitePromptData{WebsiteArg: "example.com", CID: "bafy"}
+	ensData := sitePromptData{ENSName: "vitalik.eth"}
+
+	cases := []struct {
+		name string
+		data sitePromptData
+	}{
+		{"website_overview", siteData},
+		{"website_step_content_source_ask", siteData},
+		{"website_step_dns_setup_filled", siteData},
+		{"website_update_overview", updateData},
+		{"ens_publish_overview", ensData},
+		{"setup_overview", sitePromptData{}},
+	}
+	for _, tc := range cases {
+		out := renderPromptTemplate(tc.name, tc.data)
+		require.NotEmpty(t, strings.TrimSpace(out), "template %s must render non-empty prose", tc.name)
+	}
+
+	require.Contains(t, renderPromptTemplate("website_step_domain_filled", siteData), "example.com",
+		"data-driven templates must carry their data into the rendered prose")
+}
+
 // TestWebsiteOnboardingPromptRendering renders the onboarding prompt for the
 // guided (no-args) and pre-filled variants and pins the deterministic message
 // skeleton: step blocks, wizard tools, and the pinner:// resource embeds.
