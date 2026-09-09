@@ -164,6 +164,9 @@ func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) error {
 	}
 	addRequired(schema, agentRequired)
 	for _, arg := range op.Args() {
+		if len(arg.RawSchema) > 0 {
+			continue // author-supplied raw schema (and its description) wins verbatim
+		}
 		meta := catalogmeta.ArgFrontendForArg(op.Name(), arg.Name)
 		if meta == nil || meta.AgentHelp == "" {
 			continue

@@ -189,3 +189,91 @@ func TestCompilerIncludesAgentRequiredArgsInSchemaRequired(t *testing.T) {
 		got,
 		"requiredness restoration must not drop the AgentHelp description")
 }
+
+// TestCompilerAgentHelpDoesNotOverrideRawSchemaDescription pins the
+// RawSchema-verbatim contract of the AgentHelp projection: a RawSchema arg
+// that ALSO declares catalogmeta AgentHelp keeps its author-supplied
+// raw-schema property description untouched (the doc comment on
+// applyAgentArgHelp states the raw schema and its own description win
+// verbatim), while a non-RawSchema arg with AgentHelp still gets its
+// description from AgentHelp. The raw-schema arg's description must also not
+// leak loop 1's AgentRequired collection: a RawSchema arg is never pulled
+// into the compiled "required" array, matching loop 1's deliberate skip.
+func TestCompilerAgentHelpDoesNotOverrideRawSchemaDescription(t *testing.T) {
+	cat := opmesh.NewCatalog()
+
+	// pins_add is chosen because catalogmeta declares AgentHelp for its
+	// "cids" arg (the lookup catalogmeta.ArgFrontendForArg("pins_add",
+	// "cids") resolves a non-nil ArgFrontend at compile time). The op itself
+	// is a local fixture: its "cids" arg carries a RawSchema whose
+	// description is deliberately distinct from the catalogmeta AgentHelp so
+	// an overwrite regression is detectable in either direction.
+	op := opmesh.NewOperation(opmesh.OperationSpec{
+		Name:        "pins_add",
+		Description: "cli-level description",
+		Args: []opmesh.OperationArg{
+			{
+				Name: "cids",
+				Type: opmesh.ArgTypeRawJSON,
+				// RawSchema supplies the property object verbatim; the
+				// author description below must survive compiles that also
+				// see the pins_add.cids AgentHelp.
+				RawSchema: json.RawMessage(`{
+					"type": "array",
+					"items": {"type": "string"},
+					"description": "author raw schema description"
+				}`),
+				Help: "generic human help for cids",
+				// Pins loop 1's RawSchema skip: AgentRequired is collected
+				// only for non-RawSchema args, so "cids" must NOT appear in
+				// the compiled "required" array even though it is
+				// AgentRequired.
+				AgentRequired: true,
+			},
+		},
+	})
+	require.NoError(t, cat.Add(op))
+
+	// Control: pins_status declares AgentHelp for its non-RawSchema "cid"
+	// arg (catalogmeta.ArgFrontendForArg("pins_status", "cid")), so that arg
+	// must still get its description from AgentHelp.
+	control := opmesh.NewOperation(opmesh.OperationSpec{
+		Name:        "pins_status",
+		Description: "cli-level description",
+		Args: []opmesh.OperationArg{
+			{
+				Name: "cid",
+				Type: opmesh.ArgTypeString,
+				Help: "generic human help for cid",
+			},
+		},
+	})
+	require.NoError(t, cat.Add(control))
+
+	tools, err := NewCompiler().Compile(cat)
+	require.NoError(t, err)
+	require.Len(t, tools, 2)
+
+	// The RawSchema arg keeps its AUTHOR description verbatim; a regression
+	// (AgentHelp overwriting it) would yield the catalogmeta prose instead.
+	got, ok := propertyDescription(t, requiredOf(t, tools, "pins_add").InputSchema, "cids")
+	require.True(t, ok, "cids property missing from InputSchema")
+	require.Equal(t,
+		"author raw schema description",
+		got,
+		"RawSchema arg with catalogmeta AgentHelp must keep the author-supplied raw-schema description verbatim")
+
+	// The non-RawSchema arg still gets its description from AgentHelp.
+	got, ok = propertyDescription(t, requiredOf(t, tools, "pins_status").InputSchema, "cid")
+	require.True(t, ok, "cid property missing from InputSchema")
+	require.Equal(t,
+		"The concrete CID whose pin status to return.",
+		got,
+		"non-RawSchema arg with catalogmeta AgentHelp must still use AgentHelp as its description")
+
+	// Loop 1's RawSchema skip: the AgentRequired-but-raw-schema "cids" arg
+	// must not be projected into "required".
+	reqs := requiredArgs(t, requiredOf(t, tools, "pins_add").InputSchema)
+	require.NotContains(t, reqs, "cids",
+		"RawSchema args are excluded from the AgentRequired projection, so cids must stay out of required")
+}
