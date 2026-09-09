@@ -105,7 +105,7 @@ func TestCrossProfileProbe_SendDispatchesToPerProfileServices(t *testing.T) {
 
 	srcPath := "vault:/docs/source.txt"
 	destPath := "vault:/docs/dest.txt"
-	shareURL := "https://indexer.example.com/objects/x/shared#encryption_key=K"
+	shareURL := "https://indexer.example.com/objects/x/shared#encryption_key=dummy-share-key"
 
 	svcA.On("Stat", mock.Anything, srcPath).
 		Return(&vault.StatResult{Path: srcPath, Status: vault.FileStatusDurable}, nil)
@@ -174,7 +174,7 @@ func TestCrossProfileProbe_AcceptStatePinned(t *testing.T) {
 	deps := crossProfileProbeDeps(svcA, svcB)
 
 	destPath := "vault:/docs/acc.txt"
-	shareURL := "https://indexer.example.com/objects/x/shared#encryption_key=K"
+	shareURL := "https://indexer.example.com/objects/x/shared#encryption_key=dummy-share-key"
 	svcB.On("ShareAccept", mock.Anything, destPath, shareURL, "", mock.Anything).
 		Return(&vault.File{ObjectKey: "objAcc", Size: 7}, nil)
 

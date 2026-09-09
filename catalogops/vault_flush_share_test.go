@@ -87,7 +87,7 @@ func TestVaultShareDurable_IssuesLink(t *testing.T) {
 	msvc.On("Stat", mock.Anything, "vault:/docs/a.txt").
 		Return(&vault.StatResult{Path: "vault:/docs/a.txt", Status: vault.FileStatusOK}, nil)
 	msvc.On("Share", mock.Anything, "vault:/docs/a.txt", mock.Anything).
-		Return("https://indexer.example.com/shared/abc#encryption_key=K", nil)
+		Return("https://indexer.example.com/shared/abc#encryption_key=dummy-share-key", nil)
 
 	res, err := newVaultOps(t, msvc, "vault_share", map[string]any{
 		"path":    "vault:/docs/a.txt",
@@ -97,7 +97,7 @@ func TestVaultShareDurable_IssuesLink(t *testing.T) {
 	require.NoError(t, err)
 	sr := res.(*VaultShareResult)
 	require.Equal(t, "durable", sr.Status)
-	require.Equal(t, "https://indexer.example.com/shared/abc#encryption_key=K", sr.ShareURL)
+	require.Equal(t, "https://indexer.example.com/shared/abc#encryption_key=dummy-share-key", sr.ShareURL)
 	msvc.AssertCalled(t, "Share", mock.Anything, "vault:/docs/a.txt", mock.Anything)
 }
 
