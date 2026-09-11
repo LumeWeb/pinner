@@ -131,4 +131,21 @@ func TestNormalize(t *testing.T) {
 			t.Fatal("expected conflicting-resolver error")
 		}
 	})
+
+	t.Run("catalog is authoritative when both catalog and deps are set", func(t *testing.T) {
+		cat := opmesh.NewCatalog()
+		n, err := Normalize(Config{
+			Catalog:     cat,
+			CatalogDeps: bundleFactory(nil),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n.Catalog != cat {
+			t.Fatal("expected Normalized.Catalog to retain the pre-assembled catalog")
+		}
+		if n.CatalogDeps != nil {
+			t.Fatal("expected Normalized.CatalogDeps to be nil when a real Catalog is set")
+		}
+	})
 }

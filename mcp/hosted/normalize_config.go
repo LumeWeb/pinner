@@ -60,9 +60,17 @@ func Normalize(cfg Config) (Normalized, error) {
 		return Normalized{}, err
 	}
 
+	// A pre-assembled Catalog is authoritative over the catalog-deps factory:
+	// when a real Catalog is present, drop the factory so the invariant that
+	// exactly one of Catalog / CatalogDeps is effective holds on Normalized.
+	var catalogDeps func() *assembly.CatalogDepsBundle
+	if isNilCatalog(cfg.Catalog) {
+		catalogDeps = cfg.CatalogDeps
+	}
+
 	return Normalized{
 		DomainScope:        scope,
-		CatalogDeps:        cfg.CatalogDeps,
+		CatalogDeps:        catalogDeps,
 		Catalog:            cfg.Catalog,
 		CredentialResolver: effective,
 	}, nil
