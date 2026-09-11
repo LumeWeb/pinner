@@ -12,31 +12,31 @@ import (
 )
 
 // Characterization tests for the Pinner prompts: prompt-set gating per
-// surface and
+// scope and
 // deterministic template rendering with embedded resource references.
 
 func TestPromptNamesFullSurface(t *testing.T) {
-	prompts := PromptDescriptorsForSurface(assembly.FullSurface)
+	prompts := PromptDescriptorsForScope(assembly.FullDomainScope)
 	names := promptNames(prompts)
 	require.Equal(t, []string{PromptWebsiteOnboarding, PromptWebsiteUpdate, PromptSetup, PromptENSPublish}, names)
 }
 
 // TestPromptGatingPerSurface pins the tool-domain gating: websites prompts on
-// the websites surface, setup on the account surface, ENS on the ENS surface;
-// a surface without the domain omits its prompt.
+// the websites scope, setup on the account scope, ENS on the ENS scope;
+// a scope without the domain omits its prompt.
 func TestPromptGatingPerSurface(t *testing.T) {
-	websitesOnly := assembly.Surface{Websites: true}
+	websitesOnly := assembly.DomainScope{Websites: true}
 	require.Equal(t, []string{PromptWebsiteOnboarding, PromptWebsiteUpdate},
-		promptNames(PromptDescriptorsForSurface(websitesOnly)))
+		promptNames(PromptDescriptorsForScope(websitesOnly)))
 
-	accountOnly := assembly.Surface{Account: true}
-	require.Equal(t, []string{PromptSetup}, promptNames(PromptDescriptorsForSurface(accountOnly)))
+	accountOnly := assembly.DomainScope{Account: true}
+	require.Equal(t, []string{PromptSetup}, promptNames(PromptDescriptorsForScope(accountOnly)))
 
-	ensOnly := assembly.Surface{ENS: true}
-	require.Equal(t, []string{PromptENSPublish}, promptNames(PromptDescriptorsForSurface(ensOnly)))
+	ensOnly := assembly.DomainScope{ENS: true}
+	require.Equal(t, []string{PromptENSPublish}, promptNames(PromptDescriptorsForScope(ensOnly)))
 
-	none := assembly.Surface{Pins: true, DNS: true, IPNS: true, Operations: true, Admin: true, Vault: true, Upload: true}
-	require.Empty(t, PromptDescriptorsForSurface(none))
+	none := assembly.DomainScope{Pins: true, DNS: true, IPNS: true, Operations: true, Admin: true, Vault: true, Upload: true}
+	require.Empty(t, PromptDescriptorsForScope(none))
 }
 
 func promptNames(prompts []model.PromptDescriptor) []string {
@@ -119,7 +119,7 @@ func TestWebsiteOnboardingPromptRendering(t *testing.T) {
 
 // TestWebsiteOnboardingValidation pins the argument validation contract.
 func TestWebsiteOnboardingValidation(t *testing.T) {
-	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptWebsiteOnboarding)
+	p := promptByName(t, PromptDescriptorsForScope(assembly.FullDomainScope), PromptWebsiteOnboarding)
 	for name, want := range map[string]string{
 		"content_source": "invalid content_source",
 		"target_type":    "invalid target_type",
@@ -132,7 +132,7 @@ func TestWebsiteOnboardingValidation(t *testing.T) {
 
 // TestWebsiteUpdatePrompt pins the update workflow skeleton and required args.
 func TestWebsiteUpdatePrompt(t *testing.T) {
-	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptWebsiteUpdate)
+	p := promptByName(t, PromptDescriptorsForScope(assembly.FullDomainScope), PromptWebsiteUpdate)
 
 	_, err := p.Handler(context.Background(), model.PromptRequest{})
 	require.ErrorContains(t, err, "website is required")
@@ -153,7 +153,7 @@ func TestWebsiteUpdatePrompt(t *testing.T) {
 // TestENSPublishPrompt pins the ENS flow skeleton: upload-when-no-CID, the
 // ens_point discovery step, and the wallet-agnostic onchain guidance.
 func TestENSPublishPrompt(t *testing.T) {
-	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptENSPublish)
+	p := promptByName(t, PromptDescriptorsForScope(assembly.FullDomainScope), PromptENSPublish)
 
 	_, err := p.Handler(context.Background(), model.PromptRequest{})
 	require.ErrorContains(t, err, "name is required")
@@ -176,7 +176,7 @@ func TestENSPublishPrompt(t *testing.T) {
 // TestSetupPrompt pins the setup wizard skeleton with the account-status
 // resource embeds at the first and last steps.
 func TestSetupPrompt(t *testing.T) {
-	p := promptByName(t, PromptDescriptorsForSurface(assembly.FullSurface), PromptSetup)
+	p := promptByName(t, PromptDescriptorsForScope(assembly.FullDomainScope), PromptSetup)
 	res, err := p.Handler(context.Background(), model.PromptRequest{})
 	require.NoError(t, err)
 	require.Equal(t, "Setup wizard workflow with embedded resource references", res.Description)

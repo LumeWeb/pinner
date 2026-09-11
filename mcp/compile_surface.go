@@ -15,7 +15,7 @@ import (
 
 // errNilCatalog is the assembly error for a Config that resolves to a nil
 // operation catalog.
-var errNilCatalog = fmt.Errorf("mcp: populateCatalogSurface: nil operation catalog")
+var errNilCatalog = fmt.Errorf("mcp: populateCatalogTools: nil operation catalog")
 
 // catalogmcpCompile compiles the catalog for the model surface through the
 // catalogmcp compiler for the given (already adapted) profile.
@@ -33,11 +33,12 @@ func catalogmcpCompile(profile any, cat opmesh.Catalog) ([]opmesh.ToolDescriptor
 // catalogmeta's AgentHelp re-application, so CLI help prose and global flag
 // bags never leak into the model surface. This file projects them onto the
 // mcpplane model.ToolDescriptor presentation shape: safety-derived wire hints,
-// the per-classification output schema, curated stamping, and the
+// the per-classification output schema, direct stamping, and the
 // environment carve-out skips.
 //
-// State lives on the assembled Server: the surface, hosted flag, and profile
-// are Config fields threaded through Assemble, and the projection below is a
+// State lives on the assembled Server: the domain scope, hosted flag, and
+// profile are Config fields threaded through Assemble, and the projection
+// below is a
 // pure function of its arguments. The dispatch/gate plumbing (catalog.Handler,
 // CredentialFromContext, the needs_human result mapping) stays where it
 // belongs — with the composition root; this package carries only declared,
@@ -222,7 +223,7 @@ func outputSchemaForCompiled(safety opmesh.Safety, interaction opmesh.Interactio
 // operation. The hints may be corrected per tool via readOnlyOverride where
 // the platform contract demands it (see auth_status).
 //
-// DirectVisible is left to stampCurated (the curated product surface),
+// DirectVisible is left to stampDirect (the direct product surface),
 // matching how every other descriptor is promoted to tools/list.
 func catalogDescriptorToPresentation(d opmesh.ToolDescriptor) CatalogPresentation {
 	readOnly := d.Safety == opmesh.SafetyRead
@@ -257,12 +258,12 @@ func isModelVisibleOnMCP(d opmesh.ToolDescriptor) bool {
 	return catalogmeta.EnvironmentOf(d.Name) != catalogmeta.EnvCLIOnly
 }
 
-// populateCatalogSurface compiles every model-visible operation from cat and
+// populateCatalogTools compiles every model-visible operation from cat and
 // projects it onto the presentation surface. It returns the set of compiled
 // operation names so a composition root can route those invocations through
 // the owning Catalog.Invoke gate (Interaction, Visibility, Safety, and
 // required-arg enforcement hold there). tools/list prominence is decided by
-// stampCurated.
+// stampDirect.
 //
 // profile must already be an adapted catalogmcp-compatible shape (Assemble
 // adapts Config.Profile exactly once via HostProfileOf/AdaptHostProfile and
@@ -270,7 +271,7 @@ func isModelVisibleOnMCP(d opmesh.ToolDescriptor) bool {
 // DescFunc-only fallback targets resolve against it: a catalogmcp compiler
 // built with a nil profile would collapse the DSL-composed descriptions (e.g.
 // websites_create's feature-gated guidance) to the short CLI description.
-func populateCatalogSurface(cat opmesh.Catalog, profile any) ([]CatalogPresentation, error) {
+func populateCatalogTools(cat opmesh.Catalog, profile any) ([]CatalogPresentation, error) {
 	if cat == nil {
 		return nil, errNilCatalog
 	}

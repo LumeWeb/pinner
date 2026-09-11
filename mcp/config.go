@@ -8,18 +8,18 @@ import (
 
 // Config holds everything needed to assemble the Pinner MCP presentation
 // surface independent of transport, tunnelling, or any particular
-// composition root: the surface, hosted flag, profile, transfer wiring, and
-// resource providers are all declared as instance-scoped fields. A hosted
+// composition root: the domain scope, hosted flag, profile, transfer wiring,
+// and resource providers are all declared as instance-scoped fields. A hosted
 // product is a DIFFERENT ASSEMBLY of the same presentation, declared entirely
 // by Config fields.
 //
-// There are no package globals: the surface, hosted flag, profile, transfer
-// wiring, resource providers, and app registry are all instance fields
-// consumed only through the assembled Server.
+// There are no package globals: the domain scope, hosted flag, profile,
+// transfer wiring, resource providers, and app registry are all instance
+// fields consumed only through the assembled Server.
 type Config struct {
-	// Surface declares which operation domains/tool families this server
-	// exposes. The zero value is the full surface.
-	Surface assembly.Surface
+	// DomainScope declares which operation domains/tool families this server
+	// exposes. The zero value is the full scope.
+	DomainScope assembly.DomainScope
 
 	// Hosted reports whether this is a hosted (Portal-embedded) assembly. It
 	// is the single, explicit source of truth for hosted mode: the guide's
@@ -42,7 +42,7 @@ type Config struct {
 	Profile any
 
 	// Deps, when set, supplies the operation-catalog dependency bundle and the
-	// catalog is assembled via assembly.AssembleCatalogOps(deps, Surface,
+	// catalog is assembled via assembly.AssembleCatalogOps(deps, DomainScope,
 	// Hosted). A hosted server MUST supply Deps (or Catalog) — the catalog is
 	// the source of the compiled tool surface.
 	Deps *assembly.CatalogDepsBundle

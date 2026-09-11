@@ -20,8 +20,8 @@ It contains:
   lives on the boundary packages keyed by these operations' stable IDs.
 - **`pinnerops`** — the operation ASSEMBLY layer: `AssembleCatalogOps` takes a
   `CatalogDepsBundle` (the lazy per-invocation dependency graph wired by the
-  product's construction layer), a `Surface` (which operation domains the
-  deployment registers — the zero value is the full surface; `HostedSurface`
+  product's construction layer), a `DomainScope` (which operation domains the
+  deployment registers — the zero value is the full scope; `HostedDomainScope`
   excludes the Sia vault and portal admin), and an explicit `hosted` flag that
   drops `EnvCLIOnly`/`EnvLocalOnly` operations from a Portal-embedded assembly —
   and produces one runnable `opmesh.Catalog`. Also carries the frontend-free
@@ -68,9 +68,9 @@ It contains:
   transfer wiring, resource providers — no package globals, per fitness rule
   13): the catalog tool surface compiled via
   `catalogmcp.NewCompilerForProfile` and projected onto `model.ToolDescriptor`
-  with safety-derived wire hints, curated stamping, and environment
-  carve-out skips; the curated tools/list names (`CuratedToolNames`); the
-  surface-gated prompt set (the embedded `prompttemplates/` —
+  with safety-derived wire hints, direct stamping, and environment
+  carve-out skips; the direct tools/list names (`DirectToolNames`); the
+  domain-scope-gated prompt set (the embedded `prompttemplates/` —
   `website-onboarding`, `website-update`, `setup`, `ens-publish`); the
   `pinner://` resource descriptors with injected `ResourceProviders` (account,
   vault, DNS/website wizard status); the honest capabilities report
@@ -193,9 +193,9 @@ bundle := &pinnerops.CatalogDepsBundle{
     // ... remaining domains: leave nil to degrade to "service unavailable" ops
 }
 
-// Local/CLI assembly over the FULL surface; hosted (Portal-embedded) would use
-// pinnerops.HostedSurface and hosted=true:
-cat, err := pinnerops.AssembleCatalogOps(bundle, pinnerops.FullSurface, false)
+// Local/CLI assembly over the FULL scope; hosted (Portal-embedded) would use
+// assembly.HostedDomainScope and hosted=true:
+cat, err := assembly.AssembleCatalogOps(bundle, assembly.FullDomainScope, false)
 if err != nil {
     panic(err)
 }
