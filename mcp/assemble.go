@@ -17,7 +17,7 @@ import (
 // providers — and produces the fully-assembled presentation artifacts:
 //
 //   - Tools: the compiled catalog surface (via catalogmcp over the profile)
-//     projected onto model descriptors, with the curated set stamped
+//     projected onto model descriptors, with the direct set stamped
 //     DirectVisible.
 //   - Direct: the direct-only tools outside the catalog — agent_guide,
 //     capabilities, and the wired transfer tools (upload_file, upload_data,
@@ -44,7 +44,7 @@ func Assemble(cfg Config) (*Server, error) {
 	// across the assembly even when the wire profile reported itself
 	// unhosted. The direct presentation consumes Config.Hosted directly for
 	// its hosted gating (AgentGuideDescriptor's hosted notices) and the
-	// prompt/resource sets gate on the Surface; the compiled catalog surface
+	// prompt/resource sets gate on the DomainScope; the compiled catalog surface
 	// gates on feature sets rather than the hosted predicate. The overlay
 	// exists so anything resolving HostProfile.Hosted (e.g. the HostedIs
 	// predicate fragments) reads the single explicit setting.
@@ -55,25 +55,25 @@ func Assemble(cfg Config) (*Server, error) {
 		return nil, err
 	}
 
-	presentations, err := populateCatalogSurface(cat, profile)
+	presentations, err := populateCatalogTools(cat, profile)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: assemble: %w", err)
 	}
 
-	curated := CuratedToolNames(cfg.Surface)
-	stampCurated(curated, presentations)
+	directNames := DirectToolNames(cfg.DomainScope)
+	stampDirect(directNames, presentations)
 
 	srv := &Server{
-		config:  cfg,
-		catalog: cat,
-		profile: profile,
-		Tools:   presentations,
-		Curated: curated,
+		config:          cfg,
+		catalog:         cat,
+		profile:         profile,
+		Tools:           presentations,
+		DirectToolNames: directNames,
 	}
 
 	// Prompts and resources are surface-gated presentation sets.
-	srv.Prompts = PromptDescriptorsForSurface(cfg.Surface)
-	srv.Resources, srv.ResourceTemplates = ResourceDescriptorsForSurface(cfg.ResourceProviders, cfg.Surface)
+	srv.Prompts = PromptDescriptorsForScope(cfg.DomainScope)
+	srv.Resources, srv.ResourceTemplates = ResourceDescriptorsForScope(cfg.ResourceProviders, cfg.DomainScope)
 
 	// Direct-only tools outside the catalog: the guide is always registered;
 	// capabilities with the honest registration wiring; the transfer tools
@@ -92,7 +92,7 @@ type Server struct {
 	profile HostProfile
 
 	// Tools is the compiled catalog surface: one presentation descriptor per
-	// model-visible, MCP-visible operation, with the curated set stamped
+	// model-visible, MCP-visible operation, with the direct set stamped
 	// DirectVisible. Dispatch goes through catalog.Invoke at the composition
 	// root — these descriptors carry metadata only.
 	Tools []CatalogPresentation
@@ -101,8 +101,8 @@ type Server struct {
 	// the capabilities tool, and any wired transfer tools.
 	Direct []model.ToolDescriptor
 
-	// Curated lists the curated tools/list names for the assembled surface.
-	Curated []string
+	// DirectToolNames lists the direct tools/list names for the assembled domain scope.
+	DirectToolNames []string
 
 	// Prompts is the surface-gated prompt set (4 Pinner workflows).
 	Prompts []model.PromptDescriptor
@@ -124,8 +124,8 @@ func (s *Server) Catalog() opmesh.Catalog { return s.catalog }
 // with. The zero value is the documented intentionally profile-less case.
 func (s *Server) Profile() HostProfile { return s.profile }
 
-// Surface returns the assembled surface (zero value = full surface).
-func (s *Server) Surface() assembly.Surface { return s.config.Surface }
+// DomainScope returns the assembled domain scope (zero value = full scope).
+func (s *Server) DomainScope() assembly.DomainScope { return s.config.DomainScope }
 
 // Hosted reports whether this is a hosted (Portal-embedded) assembly.
 func (s *Server) Hosted() bool { return s.config.Hosted }
@@ -197,7 +197,7 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		strip(FeatSinkDrop)
 	}
 
-	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.Surface, s.config.Hosted, dropAvailable)}
+	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.DomainScope, s.config.Hosted, dropAvailable)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{
 		CoLocated:     wiring.CoLocated,
 		TunnelOpenAI:  wiring.TunnelOpenAI,
@@ -274,7 +274,7 @@ func resolveCatalog(cfg Config) (opmesh.Catalog, error) {
 		return cfg.Catalog, nil
 	}
 	if cfg.Deps != nil {
-		cat, err := assembly.AssembleCatalogOps(cfg.Deps, cfg.Surface, cfg.Hosted)
+		cat, err := assembly.AssembleCatalogOps(cfg.Deps, cfg.DomainScope, cfg.Hosted)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: assemble: %w", err)
 		}

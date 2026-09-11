@@ -1,22 +1,22 @@
 package assembly
 
-// Surface describes which operation domains and tool families a Pinner server
+// DomainScope describes which operation domains and tool families a Pinner server
 // registers. It is the single source of truth that makes "hosted mode" (a
 // Portal-embedded server exposing account/subscription and IPFS/websites/DNS
 // only, with no Sia vault) a different ASSEMBLY of the same operations rather
 // than a fork or a second implementation.
 //
-// The surface is a server-construction-time property, declared to
+// The domain scope is a server-construction-time property, declared to
 // AssembleCatalogOps so the assembled catalog only ever contains the domains
 // the deployment advertises.
 //
-// The zero value of Surface is the FULL surface: any field left at its zero
+// The zero value of DomainScope is the FULL scope: any field left at its zero
 // value is treated as enabled, so a caller that does not opt into a restricted
-// surface keeps full behaviour without having to populate every flag. Whether
+// scope keeps full behaviour without having to populate every flag. Whether
 // a server is HOSTED (Portal-embedded) is an orthogonal deployment property,
 // passed explicitly to AssembleCatalogOps — do not infer hosted from a
-// surface.
-type Surface struct {
+// scope.
+type DomainScope struct {
 	// Account enables the account, subscription, auth, and API-key operations.
 	Account bool
 	// Vault enables the Sia durable-storage vault operations, apps, and
@@ -40,8 +40,8 @@ type Surface struct {
 	Upload bool
 }
 
-// FullSurface enables every domain and tool family.
-var FullSurface = Surface{
+// FullDomainScope enables every domain and tool family.
+var FullDomainScope = DomainScope{
 	Account:    true,
 	Vault:      true,
 	Pins:       true,
@@ -54,11 +54,11 @@ var FullSurface = Surface{
 	Upload:     true,
 }
 
-// HostedSurface is the restricted surface for a Portal-embedded ("hosted")
+// HostedDomainScope is the restricted scope for a Portal-embedded ("hosted")
 // Pinner server. It exposes account/subscription, IPFS pinning and upload,
 // websites, DNS, IPNS, ENS, and operations — but deliberately NOT the Sia
 // vault (that remains a CLI/local-MCP concern) and NOT portal admin.
-var HostedSurface = Surface{
+var HostedDomainScope = DomainScope{
 	Account:    true,
 	Pins:       true,
 	Websites:   true,
@@ -70,15 +70,15 @@ var HostedSurface = Surface{
 }
 
 // IsZero reports whether s is the zero value (the implicit full surface).
-func (s Surface) IsZero() bool {
-	return s == (Surface{})
+func (s DomainScope) IsZero() bool {
+	return s == (DomainScope{})
 }
 
-// flagOn reports whether the given flag is enabled, treating a zero Surface as
+// flagOn reports whether the given flag is enabled, treating a zero DomainScope as
 // the full surface. It is the shared gate used by every field accessor, so
 // enabling an unset field on an otherwise-zero surface keeps backwards
 // compatibility.
-func (s Surface) flagOn(set bool) bool {
+func (s DomainScope) flagOn(set bool) bool {
 	if s.IsZero() {
 		return true
 	}
@@ -86,31 +86,31 @@ func (s Surface) flagOn(set bool) bool {
 }
 
 // AccountOn reports whether the account surface is enabled.
-func (s Surface) AccountOn() bool { return s.flagOn(s.Account) }
+func (s DomainScope) AccountOn() bool { return s.flagOn(s.Account) }
 
 // VaultOn reports whether the Sia vault surface is enabled.
-func (s Surface) VaultOn() bool { return s.flagOn(s.Vault) }
+func (s DomainScope) VaultOn() bool { return s.flagOn(s.Vault) }
 
 // PinsOn reports whether the IPFS pinning surface is enabled.
-func (s Surface) PinsOn() bool { return s.flagOn(s.Pins) }
+func (s DomainScope) PinsOn() bool { return s.flagOn(s.Pins) }
 
 // WebsitesOn reports whether the website-publishing surface is enabled.
-func (s Surface) WebsitesOn() bool { return s.flagOn(s.Websites) }
+func (s DomainScope) WebsitesOn() bool { return s.flagOn(s.Websites) }
 
 // DNSOn reports whether the DNS surface is enabled.
-func (s Surface) DNSOn() bool { return s.flagOn(s.DNS) }
+func (s DomainScope) DNSOn() bool { return s.flagOn(s.DNS) }
 
 // IPNSOn reports whether the IPNS surface is enabled.
-func (s Surface) IPNSOn() bool { return s.flagOn(s.IPNS) }
+func (s DomainScope) IPNSOn() bool { return s.flagOn(s.IPNS) }
 
 // ENSOn reports whether the ENS/onchain surface is enabled.
-func (s Surface) ENSOn() bool { return s.flagOn(s.ENS) }
+func (s DomainScope) ENSOn() bool { return s.flagOn(s.ENS) }
 
 // OperationsOn reports whether the operations-status surface is enabled.
-func (s Surface) OperationsOn() bool { return s.flagOn(s.Operations) }
+func (s DomainScope) OperationsOn() bool { return s.flagOn(s.Operations) }
 
 // AdminOn reports whether the portal-admin surface is enabled.
-func (s Surface) AdminOn() bool { return s.flagOn(s.Admin) }
+func (s DomainScope) AdminOn() bool { return s.flagOn(s.Admin) }
 
 // UploadOn reports whether the IPFS upload/download tool family is enabled.
-func (s Surface) UploadOn() bool { return s.flagOn(s.Upload) }
+func (s DomainScope) UploadOn() bool { return s.flagOn(s.Upload) }

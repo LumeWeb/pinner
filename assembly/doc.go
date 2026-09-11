@@ -1,6 +1,6 @@
 // Package assembly is the Pinner operation assembly layer: it takes the
 // domain operation providers (catalogops), a dependency graph
-// (CatalogDepsBundle), and a product surface (Surface) and produces one
+// (CatalogDepsBundle), and a product surface (DomainScope) and produces one
 // runnable opmesh.Catalog.
 //
 // Assembly, not execution: opmesh owns the operation model (Operation
@@ -9,15 +9,15 @@
 // per-domain operation providers. assembly is the glue that decides WHICH
 // of those operations a given deployment gets:
 //
-//   - Surface gates whole operation domains (account, vault, DNS, ...) in or
-//     out of a server's catalog; the zero value is the full surface.
+//   - DomainScope gates whole operation domains (account, vault, DNS, ...) in or
+//     out of a server's catalog; the zero value is the full scope.
 //   - The explicit hosted flag drops operations whose Environment is
 //     EnvCLIOnly or EnvLocalOnly from a hosted (Portal-embedded) assembly,
-//     without ever being inferred from the surface or credential seam.
+//     without ever being inferred from the scope or credential seam.
 //   - CatalogDepsBundle carries the concrete, lazy per-invocation dependency
 //     graph every provider gets.
 //
-// Surface gating reads the Environment carve-outs from the catalogmeta
+// DomainScope gating reads the Environment carve-outs from the catalogmeta
 // frontend-metadata boundary (keyed by stable operation ID), since the opmesh
 // core model deliberately carries no Environment field.
 //

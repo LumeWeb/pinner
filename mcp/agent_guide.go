@@ -310,13 +310,14 @@ func publishDomainDecision() *mcpforge.GuideDecisionBuilder[HostProfile] {
 
 // BuildAgentGuide constructs the AgentGuide declaratively with the platform
 // DSL, then resolves it against the given profile overlaid with the assembled
-// server's surface and hosted deployment — both construction-time properties
-// owned by the caller (Config), applied here explicitly instead of via package
-// globals. Every flow, step, branch and sentence is feature-gated and per-host
-// resolved through the same mcpforge DSL the tool schemas use, so the guide
-// can never advertise a tool or source mode the resolved surface rejects
+// server's domain scope and hosted deployment — both construction-time
+// properties owned by the caller (Config), applied here explicitly instead of
+// via package globals. Every flow, step, branch and sentence is feature-gated
+// and per-host resolved through the same mcpforge DSL the tool schemas use, so
+// the guide can never advertise a tool or source mode the resolved scope
+// rejects
 // (e.g. upload_status only appears on mint transports).
-func BuildAgentGuide(profile HostProfile, surface assembly.Surface, hosted bool) AgentGuide {
+func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted bool) AgentGuide {
 	p := profile.CloneFeatures()
 	// The deployment mode is a construction-time property (owned by Config);
 	// overlay it so the guide reflects the actual deployment, which the
@@ -347,7 +348,7 @@ func BuildAgentGuide(profile HostProfile, surface assembly.Surface, hosted bool)
 		// Hosted (Portal-embedded) deployments establish the caller's identity
 		// via Portal OAuth before the request reaches the MCP server. State that
 		// explicitly so the agent does not attempt a config-mutating
-		// auth_login/auth_logout, which are CLI/local-only surfaces absent here.
+		// auth_login/auth_logout, which are CLI/local-only scopes absent here.
 		RuleWhenPred(HostedIs(true),
 			"Hosted instance notice: a Portal OAuth identity is already established for the current request and authenticated operations run as that user. Do NOT call auth_login or auth_logout (they are unavailable on this hosted surface); identity cannot be switched mid-session.").
 		Rule("Access policy (quota trumps a subscription): before a paid/metered action, check the user's access via account_quota (discover it with search_tools query \"quota\"). Its has_quota flag is authoritative — if true, granted quota covers the user and they need NO subscription, so proceed without asking about one. Only when has_quota is false, check account_subscription (search_tools query \"subscription\"): if subscribed, proceed; if not subscribed, surface the returned web_url deep-link so the human opens the web app to subscribe — you can neither subscribe on their behalf nor treat a subscription as a substitute when quota is available.").
@@ -431,40 +432,40 @@ func BuildAgentGuide(profile HostProfile, surface assembly.Surface, hosted bool)
 				Then(cdnDeployNoticeClause))).
 		Resolve(p)
 
-	// The resolved guide is filtered to the server surface: flows whose
-	// underlying tools are not registered on this surface (e.g. the Sia vault
+	// The resolved guide is filtered to the server's domain scope: flows whose
+	// underlying tools are not registered on this scope (e.g. the Sia vault
 	// flows on a hosted server) are dropped so the guide never advertises an
 	// unregisterable action.
-	return filterGuideFlows(spec, surface)
+	return filterGuideFlows(spec, scope)
 }
 
-// flowSurface maps each agent_guide flow name to the surface flag that gates
-// it. Flows not listed are gated by no flag (always kept).
-var flowSurface = map[string]func(assembly.Surface) bool{
-	"auth":            assembly.Surface.AccountOn,
-	"vault_create":    assembly.Surface.VaultOn,
-	"vault_restore":   assembly.Surface.VaultOn,
-	"vault_upload":    assembly.Surface.VaultOn,
-	"vault_download":  assembly.Surface.VaultOn,
-	"vault_share":     assembly.Surface.VaultOn,
-	"vault_sync":      assembly.Surface.VaultOn,
-	"upload":          assembly.Surface.UploadOn,
-	"download":        assembly.Surface.UploadOn,
-	"pins":            assembly.Surface.PinsOn,
-	"publish_website": assembly.Surface.WebsitesOn,
-	"update_website":  assembly.Surface.WebsitesOn,
-	"ens_publish":     assembly.Surface.ENSOn,
+// flowScope maps each agent_guide flow name to the domain-scope flag that
+// gates it. Flows not listed are gated by no flag (always kept).
+var flowScope = map[string]func(assembly.DomainScope) bool{
+	"auth":            assembly.DomainScope.AccountOn,
+	"vault_create":    assembly.DomainScope.VaultOn,
+	"vault_restore":   assembly.DomainScope.VaultOn,
+	"vault_upload":    assembly.DomainScope.VaultOn,
+	"vault_download":  assembly.DomainScope.VaultOn,
+	"vault_share":     assembly.DomainScope.VaultOn,
+	"vault_sync":      assembly.DomainScope.VaultOn,
+	"upload":          assembly.DomainScope.UploadOn,
+	"download":        assembly.DomainScope.UploadOn,
+	"pins":            assembly.DomainScope.PinsOn,
+	"publish_website": assembly.DomainScope.WebsitesOn,
+	"update_website":  assembly.DomainScope.WebsitesOn,
+	"ens_publish":     assembly.DomainScope.ENSOn,
 }
 
-// filterGuideFlows drops resolved flows whose surface flag is disabled.
-func filterGuideFlows(guide AgentGuide, s assembly.Surface) AgentGuide {
-	if s.IsZero() {
+// filterGuideFlows drops resolved flows whose scope flag is disabled.
+func filterGuideFlows(guide AgentGuide, scope assembly.DomainScope) AgentGuide {
+	if scope.IsZero() {
 		return guide
 	}
 	kept := guide.Flows[:0]
 	for _, f := range guide.Flows {
-		if gate, ok := flowSurface[f.Name]; ok {
-			if !gate(s) {
+		if gate, ok := flowScope[f.Name]; ok {
+			if !gate(scope) {
 				continue
 			}
 		}
@@ -486,7 +487,7 @@ const agentGuideDescription = "Orientation for autonomous agents: the primary Pi
 // DSL and adapted based on the calling client's platform profile so
 // file-input and download-sink guidance match the transport's capabilities;
 // because it is host-aware it is re-resolved per request rather than at
-// assembly. surface and hosted are the assembled server's construction-time
+// assembly. scope and hosted are the assembled server's construction-time
 // properties (Config fields) — the de-globalized replacements for the source
 // package's activeSurface()/activeHosted() read.
 //
@@ -497,7 +498,7 @@ const agentGuideDescription = "Orientation for autonomous agents: the primary Pi
 // FeatSinkDrop before resolution, mirroring assemble's strip closure: with no
 // FileDrop coordinator wired no download tool accepts sink=drop, so the
 // guide's drop-bearing prose must not render either.
-func AgentGuideDescriptor(surface assembly.Surface, hosted bool, dropSinkAvailable bool) model.ToolDescriptor {
+func AgentGuideDescriptor(scope assembly.DomainScope, hosted bool, dropSinkAvailable bool) model.ToolDescriptor {
 	return model.ToolDescriptor{
 		Name:          "agent_guide",
 		Title:         "Pinner agent guide",
@@ -515,7 +516,7 @@ func AgentGuideDescriptor(surface assembly.Surface, hosted bool, dropSinkAvailab
 				// declare FeatSinkDrop on hosts, so re-apply the gate here.
 				delete(profile.Features, FeatSinkDrop)
 			}
-			guide := BuildAgentGuide(profile, surface, hosted)
+			guide := BuildAgentGuide(profile, scope, hosted)
 			return model.ToolResult{StructuredContent: guide, Text: toolargs.ResultJSONText(guide)}, nil
 		},
 	}

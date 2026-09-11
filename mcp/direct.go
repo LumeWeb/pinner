@@ -5,11 +5,11 @@ import (
 	"go.lumeweb.com/pinner/catalogmcp"
 )
 
-// compiledCuratedToolNames is the product surface of operations exposed
+// compiledDirectToolNames is the product surface of operations exposed
 // directly (tools/list) in addition to progressive discovery, for the FULL
-// surface (CLI / local MCP). It is the single source of truth for which
+// domain scope (CLI / local MCP). It is the single source of truth for which
 // catalog tools are directly visible; applying it to the compiled catalog
-// surface stamps each descriptor's DirectVisible flag (see stampCurated).
+// surface stamps each descriptor's DirectVisible flag (see stampDirect).
 // Keep the names in a stable, human-reviewable order.
 //
 // This is a deliberately small front door. The full tool catalog (~170 ops)
@@ -21,7 +21,7 @@ import (
 // file ops, DNS, IPNS, admin, wizards — are discoverable via search. The
 // agent_guide tool names the daily-use verbs in its flows, so an agent
 // reading the guide learns which tools to search for.
-var compiledCuratedToolNames = []string{
+var compiledDirectToolNames = []string{
 	"auth_status",
 	"vault_create",
 	"vault_restore",
@@ -31,25 +31,25 @@ var compiledCuratedToolNames = []string{
 	"websites_get",
 }
 
-// CuratedToolNames returns the curated tools/list names for the given surface.
-// The full surface is compiledCuratedToolNames (auth status + vault lifecycle
-// + website publishing). A surface without the Sia vault drops the vault
-// lifecycle/share entries, leaving auth status and website publishing — the
-// hosted (account/IPFS/websites) facing set.
-func CuratedToolNames(s assembly.Surface) []string {
+// DirectToolNames returns the direct tools/list names for the given domain
+// scope. The full scope is compiledDirectToolNames (auth status + vault
+// lifecycle + website publishing). A scope without the Sia vault drops the
+// vault lifecycle/share entries, leaving auth status and website publishing —
+// the hosted (account/IPFS/websites) facing set.
+func DirectToolNames(s assembly.DomainScope) []string {
 	if s.AccountOn() && !s.VaultOn() && s.WebsitesOn() {
 		return []string{"auth_status", "websites_create", "websites_get"}
 	}
-	return compiledCuratedToolNames
+	return compiledDirectToolNames
 }
 
-// stampCurated stamps DirectVisible=true on the assembled catalog descriptors
-// named by the curated set for the configured surface. The presentation layer
-// reads DirectVisible rather than re-checking a name predicate, so visibility
-// is a property of the descriptor; a curated name absent from the surface
-// (e.g. a vault tool on a hosted surface) is simply never stamped and never
-// advertised, exactly as the surface gate already excluded it.
-func stampCurated(names []string, descriptors []CatalogPresentation) {
+// stampDirect stamps DirectVisible=true on the assembled catalog descriptors
+// named by the direct set for the configured domain scope. The presentation
+// layer reads DirectVisible rather than re-checking a name predicate, so
+// visibility is a property of the descriptor; a direct name absent from the
+// scope (e.g. a vault tool on a hosted scope) is simply never stamped and
+// never advertised, exactly as the scope gate already excluded it.
+func stampDirect(names []string, descriptors []CatalogPresentation) {
 	visible := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		visible[name] = struct{}{}

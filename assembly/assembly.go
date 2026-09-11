@@ -127,15 +127,15 @@ func assembleCatalogOps(cat opmesh.Catalog, ops []opmesh.Operation) error {
 // unavailable" error at execution time, so registration never fails purely
 // because a dependency is missing.
 //
-// surface controls which domains are registered. A domain whose surface flag
-// is disabled is simply not added to the catalog, so a restricted surface
+// scope controls which domains are registered. A domain whose scope flag
+// is disabled is simply not added to the catalog, so a restricted scope
 // (e.g. hosted mode, which excludes the Sia vault and portal admin) never
-// advertises — or can invoke — those operations. The zero surface is the full
-// surface.
+// advertises — or can invoke — those operations. The zero scope is the full
+// scope.
 //
 // hosted declares whether this is a hosted (Portal-embedded) assembly. It is
 // passed explicitly by the caller's server-construction path rather than
-// inferred from surface equality or the presence of a CredentialResolver,
+// inferred from scope equality or the presence of a CredentialResolver,
 // which are orthogonal to deployment context. When hosted, operations whose
 // Environment is EnvCLIOnly or EnvLocalOnly (e.g. auth_login/auth_logout,
 // which mutate shared local config a stateless hosted server does not have)
@@ -148,14 +148,14 @@ func assembleCatalogOps(cat opmesh.Catalog, ops []opmesh.Operation) error {
 // catalogops operation definitions. Their Environment metadata (the
 // carve-outs) is consumed from the catalogmeta boundary package, keyed by
 // the stable operation ID.
-func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (opmesh.Catalog, error) {
+func AssembleCatalogOps(deps *CatalogDepsBundle, scope DomainScope, hosted bool) (opmesh.Catalog, error) {
 	if deps == nil {
 		return nil, fmt.Errorf("catalog assembly: nil catalog deps bundle")
 	}
 
 	cat := opmesh.NewCatalog()
 
-	// Map each catalogops domain to its surface flag. A disabled domain's
+	// Map each catalogops domain to its scope flag. A disabled domain's
 	// operations are never produced, so they are absent from search/describe/
 	// invoke and their hand-off/setup handlers are never reachable.
 	domains := []struct {
@@ -163,21 +163,21 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (
 		enabled bool
 		ops     []opmesh.Operation
 	}{
-		{"auth", surface.AccountOn(), catalogops.AuthOperations(deps.Auth)},
-		{"account", surface.AccountOn(), catalogops.AccountOperations(deps.Account)},
-		{"api-keys", surface.AccountOn(), catalogops.APIKeysOperations(deps.APIKeys)},
-		{"vault-setup", surface.VaultOn(), catalogops.VaultSetupOperations(deps.VaultSetup)},
-		{"vault", surface.VaultOn(), catalogops.VaultOperations(deps.Vault)},
-		{"pins", surface.PinsOn(), catalogops.PinsOperations(deps.Pins)},
-		{"websites", surface.WebsitesOn(), catalogops.WebsitesOperations(deps.Websites)},
-		{"dns", surface.DNSOn(), catalogops.DNSOperations(deps.DNS)},
-		{"ipns", surface.IPNSOn(), catalogops.IPNSOperations(deps.IPNS)},
-		{"ens", surface.ENSOn(), catalogops.ENSOperations(deps.ENS)},
-		{"operations", surface.OperationsOn(), catalogops.OperationsOperations(deps.Operations)},
-		{"admin", surface.AdminOn(), catalogops.AdminOperations(deps.Admin)},
+		{"auth", scope.AccountOn(), catalogops.AuthOperations(deps.Auth)},
+		{"account", scope.AccountOn(), catalogops.AccountOperations(deps.Account)},
+		{"api-keys", scope.AccountOn(), catalogops.APIKeysOperations(deps.APIKeys)},
+		{"vault-setup", scope.VaultOn(), catalogops.VaultSetupOperations(deps.VaultSetup)},
+		{"vault", scope.VaultOn(), catalogops.VaultOperations(deps.Vault)},
+		{"pins", scope.PinsOn(), catalogops.PinsOperations(deps.Pins)},
+		{"websites", scope.WebsitesOn(), catalogops.WebsitesOperations(deps.Websites)},
+		{"dns", scope.DNSOn(), catalogops.DNSOperations(deps.DNS)},
+		{"ipns", scope.IPNSOn(), catalogops.IPNSOperations(deps.IPNS)},
+		{"ens", scope.ENSOn(), catalogops.ENSOperations(deps.ENS)},
+		{"operations", scope.OperationsOn(), catalogops.OperationsOperations(deps.Operations)},
+		{"admin", scope.AdminOn(), catalogops.AdminOperations(deps.Admin)},
 	}
 
-	// An operation's Environment restricts which surfaces may register it.
+	// An operation's Environment restricts which scopes may register it.
 	// The Environment carve-outs are frontend metadata
 	// (catalogmeta.EnvironmentOf, keyed by the stable operation ID) — the
 	// opmesh core model deliberately carries none. Hosted mode is a
@@ -185,7 +185,7 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (
 	// advertise CLI-local complexity (EnvLocalOnly, EnvCLIOnly) — e.g.
 	// auth_login/auth_logout, which mutate shared local config that a stateless
 	// hosted server does not have. The hosted flag is declared explicitly by
-	// the caller's construction path rather than inferred from surface equality
+	// the caller's construction path rather than inferred from scope equality
 	// or CredentialResolver presence, so a local stdio server that disables
 	// Vault/Admin is never misclassified as hosted. The CLI/local path
 	// registers everything except hosted-only ops.
@@ -203,7 +203,7 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, surface Surface, hosted bool) (
 }
 
 // filterOpsForEnvironment drops operations that are not valid on the active
-// surface. In hosted mode the EnvLocalOnly and EnvCLIOnly operations are
+// scope. In hosted mode the EnvLocalOnly and EnvCLIOnly operations are
 // excluded (they mutate or depend on shared local config / are CLI frontend
 // only). In CLI/local mode every operation is kept except EnvHostedOnly, which
 // none are declared to be today.
