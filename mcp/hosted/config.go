@@ -2,6 +2,9 @@ package hosted
 
 import (
 	"fmt"
+	"reflect"
+
+	"go.lumeweb.com/opmesh"
 
 	"go.lumeweb.com/pinner/assembly"
 	"go.lumeweb.com/pinner/mcp"
@@ -34,6 +37,15 @@ type Config struct {
 	// Invoked once per Catalog materialization/seed; the returned bundle's
 	// closures re-read config and resolve services lazily.
 	CatalogDeps func() *assembly.CatalogDepsBundle
+
+	// Catalog, when set, is consumed as-is instead of assembling from the
+	// CatalogDeps factory. It exists so a composition root that already owns an
+	// assembled opmesh.Catalog can bridge it without a second registration
+	// pass, mirroring mcp.Config.Catalog. When both Catalog and CatalogDeps are
+	// set, the pre-assembled Catalog wins. A typed-nil Catalog (an interface
+	// variable holding a nil concrete value) reads as UNSET — the CatalogDeps
+	// path applies, since a nil concrete catalog is not a usable registry.
+	Catalog opmesh.Catalog
 
 	// CredentialResolver maps the OAuth-authenticated caller of a request onto
 	// the Portal API token used to serve that request. It is threaded through
@@ -82,8 +94,31 @@ func (c Config) HostedDomainScope() DomainScope {
 // catalog is the source of the compiled tool surface. It returns nil for a
 // valid construction and a descriptive error otherwise.
 func (c Config) Validate() error {
-	if c.CatalogDeps == nil {
-		return fmt.Errorf("hosted MCP server: no catalog deps: set Config.CatalogDeps (or supply a pre-assembled catalog)")
+	if c.CatalogDeps == nil && isNilCatalog(c.Catalog) {
+		return fmt.Errorf("hosted MCP server: no catalog source: set Config.CatalogDeps or Config.Catalog")
 	}
 	return nil
+}
+
+// isNilCatalog reports whether cat is a nil interface or an interface holding
+// a typed nil (nil pointer/map/... value). An interface variable carrying a
+// nil concrete value is non-nil as an interface yet unusable, so validation
+// must treat it as the absent catalog it effectively is (mirrors the mcp
+// package's typed-nil guard).
+func isNilCatalog(cat opmesh.Catalog) bool {
+	return isNilValue(cat)
+}
+
+// isNilValue reports whether v is a nil interface or an interface holding a
+// typed nil concrete value.
+func isNilValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return rv.IsNil()
+	}
+	return false
 }
