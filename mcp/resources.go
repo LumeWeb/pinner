@@ -143,7 +143,7 @@ type ResourceProviders struct {
 
 // ResourceDescriptors builds the SDK-neutral pinner:// resource and
 // resource-template descriptors from the given providers, for the full
-// surface. The adapter registers them on the protocol server.
+// scope. The adapter registers them on the protocol server.
 //
 // Static resources: pinner://account/status, pinner://vault/status
 // Resource templates:
@@ -151,14 +151,14 @@ type ResourceProviders struct {
 //   - pinner://websites/{id}/validation-status
 //   - pinner://wizard/{session_id}/state
 func ResourceDescriptors(provs ResourceProviders) ([]model.ResourceDescriptor, []model.ResourceTemplateDescriptor) {
-	return ResourceDescriptorsForSurface(provs, FullSurface())
+	return ResourceDescriptorsForScope(provs, FullDomainScope())
 }
 
-// ResourceDescriptorsForSurface builds the pinner:// resource descriptors for
-// the given surface. The single surface-sensitive entry is pinner://vault/
-// status, which is omitted when the Sia vault surface is disabled (hosted
+// ResourceDescriptorsForScope builds the pinner:// resource descriptors for
+// the given scope. The single scope-sensitive entry is pinner://vault/
+// status, which is omitted when the Sia vault scope is disabled (hosted
 // mode) so a hosted server never advertises a vault resource.
-func ResourceDescriptorsForSurface(provs ResourceProviders, surface assembly.Surface) ([]model.ResourceDescriptor, []model.ResourceTemplateDescriptor) {
+func ResourceDescriptorsForScope(provs ResourceProviders, scope assembly.DomainScope) ([]model.ResourceDescriptor, []model.ResourceTemplateDescriptor) {
 	resources := []model.ResourceDescriptor{
 		{
 			URI:         AccountStatusURI,
@@ -175,7 +175,7 @@ func ResourceDescriptorsForSurface(provs ResourceProviders, surface assembly.Sur
 			Handler:     platformDomainsHandler(provs.Websites),
 		},
 	}
-	if surface.VaultOn() {
+	if scope.VaultOn() {
 		resources = append(resources, model.ResourceDescriptor{
 			URI:         VaultStatusURI,
 			Name:        "vault-status",

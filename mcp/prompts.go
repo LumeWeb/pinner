@@ -81,21 +81,21 @@ const (
 	ArgENSName = "name"
 )
 
-// PromptDescriptors returns the prompt descriptors for the full surface.
+// PromptDescriptors returns the prompt descriptors for the full scope.
 func PromptDescriptors() []model.PromptDescriptor {
-	return PromptDescriptorsForSurface(FullSurface())
+	return PromptDescriptorsForScope(FullDomainScope())
 }
 
-// FullSurface is a convenience alias for assembly.FullSurface so prompt
-// callers do not need the assembly import for the common full-surface case.
-func FullSurface() assembly.Surface { return assembly.FullSurface }
+// FullDomainScope is a convenience alias for assembly.FullDomainScope so prompt
+// callers do not need the assembly import for the common full-scope case.
+func FullDomainScope() assembly.DomainScope { return assembly.FullDomainScope }
 
-// PromptDescriptorsForSurface returns the prompt descriptors enabled for the
-// given surface. Each prompt maps to a domain flag: website onboarding/update
-// need the websites surface, setup needs the account surface, and ENS publish
-// needs the ENS surface. A restricted surface (e.g. hosted) omits the prompts
+// PromptDescriptorsForScope returns the prompt descriptors enabled for the
+// given scope. Each prompt maps to a domain flag: website onboarding/update
+// need the websites scope, setup needs the account scope, and ENS publish
+// needs the ENS scope. A restricted scope (e.g. hosted) omits the prompts
 // whose underlying tools are not registered.
-func PromptDescriptorsForSurface(surface assembly.Surface) []model.PromptDescriptor {
+func PromptDescriptorsForScope(scope assembly.DomainScope) []model.PromptDescriptor {
 	all := []model.PromptDescriptor{
 		{
 			Name:        PromptWebsiteOnboarding,
@@ -143,11 +143,11 @@ func PromptDescriptorsForSurface(surface assembly.Surface) []model.PromptDescrip
 		var on bool
 		switch p.Name {
 		case PromptWebsiteOnboarding, PromptWebsiteUpdate:
-			on = surface.WebsitesOn()
+			on = scope.WebsitesOn()
 		case PromptSetup:
-			on = surface.AccountOn()
+			on = scope.AccountOn()
 		case PromptENSPublish:
-			on = surface.ENSOn()
+			on = scope.ENSOn()
 		default:
 			on = true
 		}

@@ -14,7 +14,7 @@ import (
 )
 
 // Characterization tests for the agent guide. The guide is host-aware and
-// re-resolved per request; the surface and hosted flags (Config fields) are
+// re-resolved per request; the scope and hosted flags (Config fields) are
 // overlaid onto the request profile.
 
 func guideFlowByName(t *testing.T, guide AgentGuide, name string) GuideFlow {
@@ -28,10 +28,10 @@ func guideFlowByName(t *testing.T, guide AgentGuide, name string) GuideFlow {
 	return GuideFlow{}
 }
 
-// TestAgentGuideDescriptorFullSurface pins the full-surface guide:
-// the full surface carries all 13 flows, sane structure, clean serialization.
+// TestAgentGuideDescriptorFullSurface pins the full-scope guide:
+// the full scope carries all 13 flows, sane structure, clean serialization.
 func TestAgentGuideDescriptorFullSurface(t *testing.T) {
-	desc := AgentGuideDescriptor(assembly.FullSurface, false, true)
+	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true)
 	require.Equal(t, "agent_guide", desc.Name)
 	require.EqualValues(t, model.CategoryCore, desc.Category)
 
@@ -42,7 +42,7 @@ func TestAgentGuideDescriptorFullSurface(t *testing.T) {
 	guid, ok := res.StructuredContent.(AgentGuide)
 	require.True(t, ok, "StructuredContent must be an AgentGuide")
 	require.NotEmpty(t, guid.Summary)
-	require.Len(t, guid.Flows, 13, "the full surface must cover all primary flows")
+	require.Len(t, guid.Flows, 13, "the full scope must cover all primary flows")
 
 	names := make([]string, 0, len(guid.Flows))
 	for _, f := range guid.Flows {
@@ -68,16 +68,16 @@ func TestAgentGuideDescriptorFullSurface(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestAgentGuideHostedSurfaceDropsVaultFlows pins the surface gating.
+// TestAgentGuideHostedSurfaceDropsVaultFlows pins the scope gating.
 func TestAgentGuideHostedSurfaceDropsVaultFlows(t *testing.T) {
-	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.HostedSurface, true)
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.HostedDomainScope, true)
 	for _, f := range guid.Flows {
 		require.NotContains(t, []string{"vault_create", "vault_restore", "vault_upload", "vault_download", "vault_share", "vault_sync"}, f.Name,
-			"the hosted surface must never advertise a vault flow")
+			"the hosted scope must never advertise a vault flow")
 	}
 	// Hosted notice renders.
 	require.Contains(t, strings.Join(guid.Rules, "\n"), "Hosted instance notice")
-	// Synthetic restricted surface keeps non-vault flows.
+	// Synthetic restricted scope keeps non-vault flows.
 	for _, want := range []string{"auth", "upload", "download", "pins", "publish_website", "update_website", "ens_publish"} {
 		require.Contains(t, flowNames(guid), want)
 	}
@@ -120,7 +120,7 @@ func TestAgentGuideModesMatchProfile(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			guide := BuildAgentGuide(tc.profile, assembly.FullSurface, false)
+			guide := BuildAgentGuide(tc.profile, assembly.FullDomainScope, false)
 			for _, name := range []string{"upload", "vault_upload"} {
 				flow := guideFlowByName(t, guide, name)
 				for _, want := range tc.mustHave {
@@ -139,19 +139,19 @@ func TestAgentGuideModesMatchProfile(t *testing.T) {
 // TestAgentGuideClaudeWebNoticeScoped mirrors the hosted-scoping pin of the
 // Claude Web no-curl notice.
 func TestAgentGuideClaudeWebNoticeScoped(t *testing.T) {
-	web := BuildAgentGuide(claudeHTTPProfile(), assembly.FullSurface, false)
+	web := BuildAgentGuide(claudeHTTPProfile(), assembly.FullDomainScope, false)
 	rules := strings.Join(web.Rules, "\n")
 	require.Contains(t, rules, "Host capability notice (Claude Web)")
 	require.Contains(t, rules, "upload_data")
 
-	desktop := BuildAgentGuide(stdioAppsProfile(), assembly.FullSurface, false)
+	desktop := BuildAgentGuide(stdioAppsProfile(), assembly.FullDomainScope, false)
 	require.NotContains(t, strings.Join(desktop.Rules, "\n"), "Host capability notice (Claude Web)")
 
-	generic := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullSurface, false)
+	generic := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false)
 	require.NotContains(t, strings.Join(generic.Rules, "\n"), "Host capability notice (Claude Web)")
 
 	// Hosted Claude Web is NOT special-cased: no notice, generic mint guidance.
-	hostedWeb := BuildAgentGuide(claudeHTTPProfile(), assembly.FullSurface, true)
+	hostedWeb := BuildAgentGuide(claudeHTTPProfile(), assembly.FullDomainScope, true)
 	require.NotContains(t, strings.Join(hostedWeb.Rules, "\n"), "Host capability notice (Claude Web)")
 	upload := guideFlowByName(t, hostedWeb, "upload")
 	require.Contains(t, upload.Detail, "curl -sS -T")
@@ -164,7 +164,7 @@ func TestAgentGuideClaudeWebNoticeScoped(t *testing.T) {
 // TestAgentGuidePublishChainContainsRealTools pins the publish/ens decision
 // chains: every branch ends at real tools, byte route first.
 func TestAgentGuidePublishChainContainsRealTools(t *testing.T) {
-	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullSurface, false)
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false)
 	pub := guideFlowByName(t, guid, "publish_website")
 	require.NotNil(t, pub.Decision)
 	require.Equal(t, "Where are the bytes?", pub.Decision.Question,
@@ -237,7 +237,7 @@ func segHasToken(segs []string, tok string) bool {
 // TestAgentGuideSubstitution pins the {{SOURCES}} interpolation: the profile's
 // transport modes are substituted, never a generic enumeration.
 func TestAgentGuideSubstitution(t *testing.T) {
-	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullSurface, false)
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false)
 	require.Contains(t, guid.Summary, "source.mode=mint")
 	require.NotContains(t, guid.Summary, "{{SOURCES}}")
 	require.NotContains(t, guid.Summary, "source.mode=path/mint/url/data")

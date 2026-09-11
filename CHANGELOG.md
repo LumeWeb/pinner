@@ -23,17 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - new `pinnermcp` subpackage: the Pinner MCP PRESENTATION layer over
-  `pinnerops` + `catalogmcp` (prompts, resources, curated tool names,
+  `pinnerops` + `catalogmcp` (prompts, resources, direct tool names,
   capabilities, agent guide, transfer-tool descriptors), dependent only on
   the plane libraries (mcpplane, canimcp, mcpforge, opmesh) and this module —
   no CLI framework, terminal-UI library, or MCP SDK imports. `Assemble(Config)`
   is the single construction seam producing an instance-scoped `Server`
-  (fitness rule 13: surface, hosted flag, platform profile, transfer wiring,
-  and resource providers are all Config fields; the historic pinner-cli
+  (fitness rule 13: domain scope, hosted flag, platform profile, transfer
+  wiring, and resource providers are all Config fields; the historic
+  pinner-cli
   package-global setters are superseded, with no equivalent setters). It
   compiles the catalog tool surface via `catalogmcp.NewCompilerForProfile`
   and projects it to `model.ToolDescriptor` presentations (safety-derived wire
-  hints, curated stamping via `CuratedToolNames`,
+  hints, direct stamping via `DirectToolNames`,
   `catalogmeta.EnvironmentOf` carve-out skips), plus the direct-only tools
   outside the catalog: agent_guide (`BuildAgentGuide`/`AgentGuideDescriptor`
   with host-profile fragments), the honest capabilities report
@@ -41,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registration flags), and the transfer-tool descriptor halves
   (`NewUploadFileDescriptor`/`DataURIUploadDescriptor`/
   `NewDownloadFileDescriptor`) with executor/coordinator function types
-  injected via `TransferDeps`. The surface-gated prompt set renders the
+  injected via `TransferDeps`. The domain-scope-gated prompt set renders the
   embedded `prompttemplates/` (`website-onboarding`, `website-update`,
   `setup`, `ens-publish`) and the `pinner://` resources flow through the
   injected `ResourceProviders` (zero value = descriptors with a clear
@@ -69,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `upload_data`) and the vault transfer stay in pinner-cli for future
   pinnermcp/CLI homes.
 - new `catalogmeta` subpackage (stdlib-only): the frontend-metadata boundary
-  keyed by stable operation ID — `EnvironmentOf` for the surface carve-outs
+  keyed by stable operation ID — `EnvironmentOf` for the scope carve-outs
   (`EnvBoth`/`EnvCLIOnly`/`EnvLocalOnly`/`EnvHostedOnly`, relocated verbatim
   from the former inline `pinner.Environment` declarations) and
   `ArgFrontendFor`/`ArgFrontendForArg` for the per-argument frontend metadata
@@ -113,11 +114,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - new `pinnerops` subpackage: the Pinner operation ASSEMBLY layer extracted
   from pinner-cli's internal/mcp (catalogassembly.go, CatalogDepsBundle, and
   the frontend-free CredentialResolver seam). `AssembleCatalogOps(deps,
-  surface, hosted)` builds one runnable `pinner.Catalog` from the catalogops
-  domain providers, gated by a `Surface` (zero value = full surface;
-  `FullSurface`/`HostedSurface` presets) and an explicit hosted flag that
-  drops `EnvCLIOnly`/`EnvLocalOnly` operations in hosted mode. Behavior is
-  unchanged from the original; no pterm/urfave/MCP/pinner-cli dependencies.
+  scope, hosted)` builds one runnable `pinner.Catalog` from the catalogops
+  domain providers, gated by a `DomainScope` (zero value = full scope;
+  `FullDomainScope`/`HostedDomainScope` presets) and an explicit hosted flag
+  that drops `EnvCLIOnly`/`EnvLocalOnly` operations in hosted mode. Behavior
+  is unchanged from the original; no pterm/urfave/MCP/pinner-cli dependencies.
 - new `pinnerservices` subpackage: the OS service-management machinery
   (thin install/start/stop/status/connect adapter over systemd user units,
   launchd LaunchAgents, and the Windows SCM) extracted from pinner-cli's
