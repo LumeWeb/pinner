@@ -76,10 +76,16 @@ func TestAsyncUploadStatusLifecycle(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestAsyncUploadCancelRejectsUnknownAndCompletes asserts cancel fails for an
-// unknown handle and reports success for a live one.
+// TestAsyncUploadCancelLifecycle asserts cancel fails for an unknown handle
+// and reports success for a live one. A relay that blocks until the cancel
+// assertion has run pins the task in the running state: the immediate-complete
+// executor would otherwise race the cancel handler and fail under load.
 func TestAsyncUploadCancelLifecycle(t *testing.T) {
-	mgr := newTestUploadManager()
+	release := make(chan struct{})
+	mgr := transfer.NewUploadTaskManager(func(context.Context, io.Reader, int64, string, bool, string, bool) (any, error) {
+		<-release
+		return map[string]any{"cid": "QmTest"}, nil
+	}, 0)
 	descs := NewAsyncUploadTools(mgr)
 	var cancel *model.ToolDescriptor
 	for i := range descs {
@@ -96,6 +102,9 @@ func TestAsyncUploadCancelLifecycle(t *testing.T) {
 	res, err := cancel.Handler(context.Background(), model.ToolRequest{Arguments: map[string]any{"handle": id}})
 	require.NoError(t, err)
 	require.Contains(t, string(mustJSON(t, res.StructuredContent)), "cancelled")
+
+	// Let the pinned run goroutine finish so the test leaves nothing behind.
+	close(release)
 }
 
 // TestNewAsyncUploadToolsMissingHandle pins status/cancel reject an empty
