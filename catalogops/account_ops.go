@@ -46,6 +46,20 @@ type AccountDeps struct {
 	HostedPlugin bool
 }
 
+// Message strings for the subscription/quota result payloads. The phrasing is
+// behavior — hosted vs local carriage and the hosted no-subscription-claim
+// boundary are pinned by characterization tests — so the strings live here,
+// next to the gate that chooses them, not inline in the handlers.
+const (
+	msgSubscribedHosted     = "Subscribed."
+	msgNotSubscribedHosted  = "Not subscribed."
+	msgSubscribedLocal      = "Subscribed. Manage your subscription in the web app."
+	msgNotSubscribedLocal   = "Not subscribed. Open the web app to choose a plan and subscribe."
+	msgQuotaCovered         = "Account is covered by granted quota; no subscription required."
+	msgQuotaExhaustedHosted = "Paid actions are unavailable on this account: no remaining granted usage."
+	msgQuotaExhaustedLocal  = "No usable quota remaining. A subscription (or additional granted usage) is needed to continue."
+)
+
 // config returns the live config manager for this invocation, or nil.
 func (d AccountDeps) config() config.Manager {
 	if d.CfgMgr != nil {
@@ -324,16 +338,16 @@ func accountSubscription(d AccountDeps) opmesh.Operation {
 			// policy); they state the entitlement fact plainly instead.
 			if d.HostedPlugin {
 				if out.IsSubscribed {
-					out.Message = "Subscribed."
+					out.Message = msgSubscribedHosted
 				} else {
-					out.Message = "Not subscribed."
+					out.Message = msgNotSubscribedHosted
 				}
 			} else {
 				out.WebURL = d.portalURL()
 				if out.IsSubscribed {
-					out.Message = "Subscribed. Manage your subscription in the web app."
+					out.Message = msgSubscribedLocal
 				} else {
-					out.Message = "Not subscribed. Open the web app to choose a plan and subscribe."
+					out.Message = msgNotSubscribedLocal
 				}
 			}
 			return out, nil
@@ -421,13 +435,17 @@ func accountQuota(d AccountDeps) opmesh.Operation {
 				out.HasQuota = remainingUsable(quota.Upload.Remaining) || remainingUsable(quota.Download.Remaining) || remainingUsable(quota.Storage.Remaining)
 			}
 			if out.HasQuota {
-				out.Message = "Account is covered by granted quota; no subscription required."
+				out.Message = msgQuotaCovered
 			} else if d.HostedPlugin {
 				// Plugin policy permits only an explanation of why the
-				// feature is unavailable — no subscribe prompting.
-				out.Message = "Paid actions are unavailable on this account: no remaining granted usage and no active subscription."
+				// feature is unavailable — no subscribe prompting. Phrase
+				// it purely as quota exhaustion: this handler never
+				// observes subscription state (that lives in
+				// account_subscription), so asserting one would be a
+				// factual claim the data doesn't back.
+				out.Message = msgQuotaExhaustedHosted
 			} else {
-				out.Message = "No usable quota remaining. A subscription (or additional granted usage) is needed to continue."
+				out.Message = msgQuotaExhaustedLocal
 			}
 			if !d.HostedPlugin {
 				out.WebURL = d.portalURL()

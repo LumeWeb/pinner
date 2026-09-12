@@ -250,8 +250,8 @@ func TestAccountSubscriptionHostedSuppressesDeepLink(t *testing.T) {
 		subscribed  bool
 		wantMessage string
 	}{
-		{"subscribed", true, "Subscribed."},
-		{"not subscribed", false, "Not subscribed."},
+		{"subscribed", true, msgSubscribedHosted},
+		{"not subscribed", false, msgNotSubscribedHosted},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeAuthService{
@@ -292,8 +292,8 @@ func TestAccountSubscriptionLocalKeepsDeepLink(t *testing.T) {
 		subscribed  bool
 		wantMessage string
 	}{
-		{"subscribed", true, "Subscribed. Manage your subscription in the web app."},
-		{"not subscribed", false, "Not subscribed. Open the web app to choose a plan and subscribe."},
+		{"subscribed", true, msgSubscribedLocal},
+		{"not subscribed", false, msgNotSubscribedLocal},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeAuthService{
@@ -350,7 +350,7 @@ func TestAccountQuotaHostedSuppressesDeepLink(t *testing.T) {
 	if got.WebURL != "" {
 		t.Errorf("hosted result WebURL = %q, want empty (plugin policy forbids subscription deep-links)", got.WebURL)
 	}
-	if got.Message != "Paid actions are unavailable on this account: no remaining granted usage and no active subscription." {
+	if got.Message != msgQuotaExhaustedHosted {
 		t.Errorf("hosted result Message = %q", got.Message)
 	}
 }
