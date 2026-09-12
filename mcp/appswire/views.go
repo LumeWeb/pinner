@@ -106,10 +106,12 @@ type ViewSpec struct {
 	Requires Capability
 
 	// CustomDescriptor marks views whose launcher descriptor is
-	// composition-owned (currently the two upload managers: they carry input
-	// schemas and live coordinators). The table still declares their launch
-	// identity so inventory and gating stay centralized; a deployment builds
-	// those descriptors itself and passes them to Register.
+	// dependency-bound rather than the generic NewLauncherDescriptorFor
+	// skeleton (currently the two upload managers: they carry input schemas and
+	// live coordinators). The table still declares their launch identity so
+	// inventory and gating stay centralized; a deployment builds those
+	// descriptors via the shared seam (UploadManagerDescriptor /
+	// UploadManagerInstaller) instead of from scratch.
 	CustomDescriptor bool
 }
 
@@ -242,8 +244,8 @@ var all = []ViewSpec{
 		ResourceDescription: "Pick a file and upload it to Pinner over IPFS.",
 		View:                canvas.ViewIPFSUpload,
 		PrefersBorder:       true,
-		// Presigned-PUT input schema and a live coordinator: the descriptor is
-		// composition-owned.
+		// Presigned-PUT input schema and a live coordinator: dependency-bound
+		// via the shared UploadManagerDescriptor / UploadManagerInstaller seam.
 		CustomDescriptor: true,
 		Requires:         0,
 	},

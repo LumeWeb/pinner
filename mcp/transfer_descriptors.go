@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/invopop/jsonschema"
 
@@ -621,15 +620,12 @@ func NewUploadFileDescriptor(features mcpforge.FeatureSet, coLocated, tunnelOpen
 				if name == "" {
 					name = transfer.DefaultUploadName
 				}
-				ttl := transfer.DefaultHTTPUploadTTL
-				if in.TTL != "" {
-					d, derr := time.ParseDuration(in.TTL)
-					if derr != nil {
-						return model.ToolResult{}, fmt.Errorf("invalid ttl %q: %w", in.TTL, derr)
-					}
-					if d > 0 {
-						ttl = d
-					}
+				// ONE canonical presign-TTL parser shared with the open_upload_manager
+				// launcher and the upload App helpers — empty → default, non-positive
+				// → default, unparseable → the stable `invalid ttl "..."` error.
+				ttl, ttlErr := pinnertransfer.ParsePresignTTL(in.TTL)
+				if ttlErr != nil {
+					return model.ToolResult{}, ttlErr
 				}
 				// Prepare mints the presigned URL AND pre-creates a single
 				// canonical upload handle in the shared UploadTaskManager. The
