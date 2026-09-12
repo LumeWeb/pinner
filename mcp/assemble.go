@@ -75,7 +75,7 @@ func Assemble(cfg Config) (*Server, error) {
 
 	directNames := DirectToolNames(cfg.DomainScope)
 	if listing.Strategy == ListingFlat {
-		directNames = flatToolNames(presentations)
+		directNames = flatToolNames(presentations, cfg.DomainScope)
 	}
 	stampDirect(directNames, presentations)
 

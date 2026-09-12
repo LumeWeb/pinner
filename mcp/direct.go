@@ -1,8 +1,17 @@
 package mcp
 
 import (
+	"strings"
+
+	"go.lumeweb.com/mcpplane/model"
+
 	"go.lumeweb.com/pinner/assembly"
 	"go.lumeweb.com/pinner/catalogmcp"
+)
+
+const (
+	catalogCategoryVault model.ToolCategory = "vault"
+	catalogCategoryIPNS  model.ToolCategory = "ipns"
 )
 
 // compiledDirectToolNames is the product surface of operations exposed
@@ -44,16 +53,60 @@ func DirectToolNames(s assembly.DomainScope) []string {
 }
 
 // flatToolNames returns the compiled presentation names promoted by a flat
-// listing policy. The projection has already excluded model-ineligible,
-// admin, wizard, and non-agent-safe operations.
-func flatToolNames(descriptors []CatalogPresentation) []string {
+// listing policy and allowed by the deployment scope. The projection has
+// already excluded model-ineligible, admin, wizard, and non-agent-safe
+// operations; the scope check remains necessary for caller-supplied catalogs
+// that were not assembled through the normal scope-filtering path.
+func flatToolNames(descriptors []CatalogPresentation, scope assembly.DomainScope) []string {
 	names := make([]string, 0, len(descriptors))
 	for _, descriptor := range descriptors {
-		if descriptor.DirectVisible {
+		if descriptor.DirectVisible && scopeAllowsTool(scope, descriptor.Name, descriptor.Category) {
 			names = append(names, descriptor.Name)
 		}
 	}
 	return names
+}
+
+func scopeAllowsTool(scope assembly.DomainScope, name string, category model.ToolCategory) bool {
+	if scope.IsZero() {
+		return true
+	}
+
+	switch category {
+	case model.CategoryAccount:
+		return scope.AccountOn()
+	case model.CategoryStorage, catalogCategoryVault:
+		return scope.VaultOn()
+	case model.CategoryNames, catalogCategoryIPNS:
+		return scope.IPNSOn()
+	case model.CategoryOperations:
+		return scope.OperationsOn()
+	case model.CategoryAdmin:
+		return scope.AdminOn()
+	}
+
+	prefixes := []struct {
+		prefix  string
+		enabled func() bool
+	}{
+		{"auth_", scope.AccountOn},
+		{"apikeys_", scope.AccountOn},
+		{"account_", scope.AccountOn},
+		{"vault_", scope.VaultOn},
+		{"pins_", scope.PinsOn},
+		{"websites_", scope.WebsitesOn},
+		{"dns_", scope.DNSOn},
+		{"ipns_", scope.IPNSOn},
+		{"ens_", scope.ENSOn},
+		{"operations_", scope.OperationsOn},
+		{"admin_", scope.AdminOn},
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(name, p.prefix) {
+			return p.enabled()
+		}
+	}
+	return true
 }
 
 // stampDirect stamps DirectVisible=true on the assembled catalog descriptors
