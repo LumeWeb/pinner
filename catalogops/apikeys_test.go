@@ -24,7 +24,7 @@ func (f *fakeAPIKeysService) CreateAPIKey(ctx context.Context, name string) (*po
 	if f.createFn != nil {
 		return f.createFn(ctx, name)
 	}
-	return portalsdk.NewAPIKey(name, "sdk-token-value"), nil
+	return portalsdk.NewAPIKey(name, "sdk-test-value"), nil
 }
 
 // recordingKeyDrop is a fake APIKeyDrop coordinator pinning the one-time OOB
@@ -70,7 +70,7 @@ func TestAPIKeysCreateOOBDropNeverCarriesToken(t *testing.T) {
 	require.Equal(t, "test-key", result.Name)
 	require.NotEmpty(t, result.UUID)
 	require.NotNil(t, drop.gotKey, "coordinator must receive the created key for one-time human retrieval")
-	require.Equal(t, "sdk-token-value", drop.gotKey.Token)
+	require.Equal(t, "sdk-test-value", drop.gotKey.Token)
 }
 
 // TestAPIKeysCreateCLIDeliversToken pins the human-at-terminal wiring: with
@@ -85,7 +85,7 @@ func TestAPIKeysCreateCLIDeliversToken(t *testing.T) {
 	result, ok := res.(*APIKeyCreateResult)
 	require.True(t, ok, "result type = %T, want *APIKeyCreateResult", res)
 
-	require.Equal(t, "sdk-token-value", result.Token)
+	require.Equal(t, "sdk-test-value", result.Token)
 	require.Empty(t, result.DropURL)
 }
 

@@ -130,6 +130,8 @@ func TestEnvironmentCarveOuts(t *testing.T) {
 	for id, want := range map[string]catalogmeta.Environment{
 		"account_update_email":    catalogmeta.EnvCLIOnly,
 		"account_update_password": catalogmeta.EnvCLIOnly,
+		"account_otp_disable":     catalogmeta.EnvCLIOnly,
+		"api_keys_create":         catalogmeta.EnvCLIOnly,
 		"auth_login":              catalogmeta.EnvLocalOnly,
 		"auth_logout":             catalogmeta.EnvLocalOnly,
 	} {

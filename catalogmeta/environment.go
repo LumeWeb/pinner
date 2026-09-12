@@ -34,6 +34,7 @@ const (
 // default for operations that make no carve-out.
 var opEnvironments = map[string]Environment{
 	"account_otp_disable":     EnvCLIOnly,
+	"api_keys_create":         EnvCLIOnly,
 	"account_update_email":    EnvCLIOnly,
 	"account_update_password": EnvCLIOnly,
 	"auth_login":              EnvLocalOnly,
