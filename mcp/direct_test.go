@@ -58,3 +58,20 @@ func TestStampDirectMarksOnlyDirectNames(t *testing.T) {
 	require.True(t, descs[2].DirectVisible, "websites_create must be direct-visible")
 	require.False(t, descs[3].DirectVisible, "non-direct ops stay progressive-discovery only")
 }
+
+func TestFlatToolNamesHonorsDomainScope(t *testing.T) {
+	descs := []CatalogPresentation{
+		{Name: "auth_status", DirectVisible: true},
+		{Name: "api_keys_list", DirectVisible: true},
+		{Name: "vault_status", DirectVisible: true},
+		{Name: "websites_get", DirectVisible: true},
+		{Name: "pins_list", DirectVisible: true},
+	}
+
+	restricted := assembly.DomainScope{Account: true, Websites: true}
+	hosted := flatToolNames(descs, restricted)
+	require.Equal(t, []string{"auth_status", "api_keys_list", "websites_get"}, hosted)
+
+	full := flatToolNames(descs, assembly.FullDomainScope)
+	require.Equal(t, []string{"auth_status", "api_keys_list", "vault_status", "websites_get", "pins_list"}, full)
+}

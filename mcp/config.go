@@ -28,6 +28,19 @@ type Config struct {
 	// to deployment context.
 	Hosted bool
 
+	// Listing, when set, is the explicit tool-listing policy for this
+	// assembly (the tools/list materialization strategy and the meta-on-flat
+	// switch). It is the shared ListingPolicy of this package: a hosted
+	// composition root that knows which listing behavior its audience needs
+	// (or which host it serves declaratively) passes the policy it resolved —
+	// e.g. via PolicyForHost. When nil, the assembly resolves DefaultPolicy
+	// (progressive, safe meta-on-flat default); no host inference applies
+	// here, because profiles that carry only feature facts (ForgeFeatureCarrier
+	// shapes) do not identify a host. The assembled Server exposes the
+	// resolved policy via Server.ListingPolicy so a registration/materialization
+	// loop consults exactly what was declared.
+	Listing *ListingPolicy
+
 	// Profile is the platform profile the presentation resolves against at
 	// assembly time. It is opaque; accepted shapes (see AdaptHostProfile):
 	//   - nil — intentionally profile-less: feature-gated description segments
