@@ -2,6 +2,7 @@ package canvasassets
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"sync"
 
@@ -72,24 +73,35 @@ func canvasBody(view canvas.View) mcpcanvas.BodyComponent {
 	return nil
 }
 
-// RenderAppDoc renders the complete, self-contained ui:// MCP App document for
-// view, delegating to the shared canvas.Renderer: the <title>, the inline
+// RenderDoc renders the complete, self-contained ui:// MCP App document for
+// view with an explicit title and an explicit version for the handshake
+// global, delegating to the shared canvas.Renderer: the <title>, the inline
 // ThemeCSS theme, the view's static templ body from go.lumeweb.com/pinner/canvas,
 // and the view's ESM bundle resolved (and sha256-verified) through the
 // embedded appsassets manifest, prefixed with the version handshake global.
-// The version is the module's default (mcpcanvas normalizes non-semver values
-// to "1.0.0").
+//
+// It is the seam for hosts — such as the reference CLI or a hosted composition
+// root — that render a view with their own title and their own build version
+// while reusing the shared embedded source + theme, keeping app documents
+// byte-identical. mcpcanvas normalizes non-semver versions to "1.0.0".
 //
 // Unknown views wrap canvas.ErrUnknownView and bundle/manifest problems wrap
-// the mcpcanvas sentinels; these are build/programming errors, so they panic
-// rather than leak an error into the RenderFunc signature
-// (func(canvas.View) string) that appswire.Install consumers use.
-func RenderAppDoc(view canvas.View, title string) string {
+// the mcpcanvas sentinels.
+func RenderDoc(view canvas.View, title, version string) (string, error) {
 	body := canvasBody(view)
 	if body == nil {
-		panic("canvasassets: no canvas body for view " + string(view))
+		return "", fmt.Errorf("%w: %q", canvas.ErrUnknownView, string(view))
 	}
-	doc, err := canvasRenderer().RenderDoc(context.Background(), view, title, body, "develop")
+	return canvasRenderer().RenderDoc(context.Background(), view, title, body, version)
+}
+
+// RenderAppDoc renders view's complete document via RenderDoc with the
+// module's default version. Unknown views and bundle/manifest problems are
+// build/programming errors, so it panics rather than leak an error into the
+// RenderFunc signature (func(canvas.View) string) that appswire.Install
+// consumers use.
+func RenderAppDoc(view canvas.View, title string) string {
+	doc, err := RenderDoc(view, title, "develop")
 	if err != nil {
 		panic("canvasassets: render app doc for view " + string(view) + ": " + err.Error())
 	}

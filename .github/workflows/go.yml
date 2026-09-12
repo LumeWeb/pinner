@@ -95,3 +95,65 @@ jobs:
           Generated from commit: ${{ github.sha }}
           **Repository:** ${{ github.repository }}
         edit-mode: replace
+
+  mcp-test:
+    # Host-level integration tests for pinner's own MCP server harness
+    # (tests/sunpeak). Builds the runnable cmd/mcpharness, then runs the stdio
+    # protocol + ui:// MCP App render suite (real browser via sunpeak's
+    # inspector fixture). mcpharness fakes all core services in-process, so no
+    # separate API double or network is needed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Generate app assets
+        # The harness embeds canvasassets (bundles + theme + manifest), so the
+        # gitignored assets must exist before build/test.
+        run: make assets
+
+      - name: Build harness binary
+        run: make mcpharness
+
+      - name: Install suite deps
+        working-directory: tests/sunpeak
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        working-directory: tests/sunpeak
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: sunpeak stdio + app render suite
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        working-directory: tests/sunpeak
+        run: pnpm test
+
+      - name: HTTP static-bearer suite
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        working-directory: tests/sunpeak
+        run: pnpm test:http-bearer
+
+      - name: OAuth suite
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+        working-directory: tests/sunpeak
+        run: pnpm test:oauth
