@@ -61,6 +61,41 @@ derive their command/tool surfaces from the same descriptors.
   `dns`, `ipns`, `pinning`, `vault`, `websites`, ...). Generated mocks for the
   config manager live in `core/config/mocks`.
 - **`dnsutil/`**: pure DNS string validators shared with consumers.
+- **`canvasassets/`**: the importable asset + render seam for ui:// MCP Apps —
+  the pinner-side mirror of pinner-cli's `internal/mcpapp`. It embeds the
+  per-app ESM bundles (`canvasassets/appsassets/dist/*.js`), the generated
+  mcpcanvas manifest (`canvasassets/appsassets/manifest.json`), and the compiled
+  Tailwind theme (`canvasassets/css/tailwind.css`), and exposes
+  `RenderAppDoc(view, title) string` (plus the shared `canvas.Renderer`) for
+  hosts that must render every `canvas.View` document importing only
+  `go.lumeweb.com/pinner/*`.
+
+### MCP App JS Build (`packages/apps`)
+pinner owns the full MCP Apps JS ecosystem: the app source lives at
+`packages/apps/` (entries + logic + bootstrap), built by `pnpm build` (tsdown)
+into one self-contained ESM bundle per app in `packages/apps/dist/`. The root
+`package.json` + `pnpm-workspace.yaml` (dependency catalog) + `pnpm-lock.yaml`
+make it a self-contained pnpm workspace — no external JS checkout is needed.
+`pnpm test` runs the apps vitest suite. CI builds and tests this JS before the
+Go build.
+
+### Asset Generation (`make assets`)
+The embedded canvasassets artifacts are gitignored and generated at build time
+— the same runtime-generation model pinner-cli's `mcpembed`/`mcpapp` seam used.
+They must exist before any `go build`/`go test`; `go generate ./canvasassets`
+(or `make build`/`make test`, which depend on `assets`) regenerates them:
+
+- `make jsbuild` — builds the MCP App JS bundles from this module's own
+  `packages/apps` (`pnpm build` via tsdown) and stages them into
+  `canvasassets/appsassets/dist/`;
+- `make cssbuild` — compiles `canvasassets/css/input.css` into the embedded
+  `css/tailwind.css` (`pnpm build:css`);
+- `make genappmanifest` — writes `canvasassets/appsassets/manifest.json`
+  (`go run ./canvasassets/cmd/genappmanifest`).
+
+Consuming modules that fetch pinner from the proxy get the source without the
+generated assets; they regenerate them in the module cache before building,
+exactly as the Portal plugin did against pinner-cli's `mcpembed`.
 
 ### Hard Boundaries (do not violate)
 - **No `pterm`** — terminal rendering stays in pinner-cli.

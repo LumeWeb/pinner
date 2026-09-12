@@ -1,0 +1,17 @@
+{
+  "name": "pinner",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "build": "pnpm --filter @pinner/apps build",
+    "build:css": "tailwindcss -i canvasassets/css/input.css -o canvasassets/css/tailwind.css --minify",
+    "test": "pnpm --filter @pinner/apps test"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "type": "module"
+}
