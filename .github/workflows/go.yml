@@ -25,6 +25,37 @@ jobs:
     - name: Verify dependencies
       run: go mod verify
 
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Set up pnpm
+      # Needed by `make assets`: pinner owns the MCP App JS source
+      # (packages/apps), so `make jsbuild` builds the bundles from this repo
+      # itself (pnpm build via tsdown) and stages them into
+      # canvasassets/appsassets/dist/. `make cssbuild` compiles the Tailwind
+      # theme. No external JS checkout is needed.
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.33.2
+
+    - name: Install repo JS deps
+      # Installs the repo-root devDependencies (tailwindcss, @tailwindcss/cli)
+      # so `make cssbuild` has the Tailwind binaries, plus the packages/apps
+      # catalog deps that `make jsbuild` builds the bundles with.
+      run: pnpm install --frozen-lockfile
+
+    - name: Generate app assets
+      # Regenerates the gitignored embedded assets (canvasassets/appsassets/
+      # bundles + manifest and css/tailwind.css) that the go:embed directives
+      # require at build time: `make assets` = jsbuild (this repo's apps build)
+      # + cssbuild + genappmanifest.
+      run: make assets
+
+    - name: JS tests
+      run: pnpm test
+
     - name: Build
       run: go build -v ./...
 

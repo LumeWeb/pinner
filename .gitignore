@@ -30,3 +30,17 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Node / pnpm workspace (JS app bundle build; never published)
+node_modules/
+.pnpm-store/
+**/dist/
+
+# Compiled MCP Apps Tailwind theme (produced by `make cssbuild`; Go embeds it)
+canvasassets/css/tailwind.css
+
+# Generated mcpcanvas AssetSource manifest for the embedded MCP App bundles
+# (produced by `go run ./canvasassets/cmd/genappmanifest`, wired into the
+# `make assets` target; Go embeds it, so it must exist at build time but is not
+# committed)
+canvasassets/appsassets/
