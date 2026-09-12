@@ -10,6 +10,7 @@ import (
 	"go.lumeweb.com/mcpplane/toolargs"
 	"go.lumeweb.com/mcpplane/transfer"
 	"go.lumeweb.com/pinner/assembly"
+	"go.lumeweb.com/pinner/mcp/appswire"
 )
 
 // The guide wire-model types (AgentGuide, GuideFlow, GuideDecision,
@@ -76,7 +77,7 @@ var uploadDetailDesc = mcpforge.Static[HostProfile](
 		"1) PUT your agent-local file to the returned url (curl -sS -T <file> \"<url>\")",
 	).
 	WhenSentence(FeatSourceMint,
-		"2) poll upload_status with the returned upload_handle until it reports completed",
+		"2) "+appswire.UploadMintPoll,
 	).
 	WhenSentence(FeatSourceMint,
 		"3) the completed CID is already pinned — use it directly; do NOT call pins_add. Treat the mint response as the START of the upload, not the end.",

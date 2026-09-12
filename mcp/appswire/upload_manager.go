@@ -32,14 +32,22 @@ type uploadManagerInput struct {
 	TTL    string `json:"ttl,omitempty" jsonschema:"description=Optional presigned endpoint lifetime, e.g. 5m (default 5m). Only used when a fresh operation is prepared."`
 }
 
+// UploadMintPoll is the ONE canonical completion-wait clause for the
+// upload_file mint (presigned HTTP PUT) flow: which tool to poll, with which
+// handle, until which terminal status. The upload_file descriptor, the agent
+// guide's mint step, and the Upload to IPFS launcher description all compose
+// this fragment instead of hand-paraphrasing it, so the poll contract cannot
+// drift between surfaces.
+const UploadMintPoll = "poll upload_status with the returned upload_handle until it reports completed"
+
 // UploadManagerLauncherDescription builds the launcher description for the
 // shared Upload to IPFS row, composing the canonical launcher skeleton with
-// the returned-handle/poll tail (which tool, with which handle, until which
-// terminal status).
+// the canonical UploadMintPoll fragment (which tool, with which handle, until
+// which terminal status) plus the pinned-CID durability note.
 func UploadManagerLauncherDescription() string {
 	return OpenLauncherDescriptionBody("Upload to IPFS file picker", "pick a file",
 		"Pass an optional 'handle' from a prior upload_file mint call to continue that exact operation; if the handle is stale/expired a fresh one is prepared. "+
-			"Returns an upload_handle; poll upload_status with that handle until it reports completed (the completed CID is already pinned).",
+			"Returns an upload_handle; "+UploadMintPoll+" (the completed CID is already pinned).",
 		"upload_file for autonomous uploads without a rendered file picker")
 }
 
