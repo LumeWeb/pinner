@@ -69,30 +69,26 @@ func TestStrategyForHostOtherHostsStayProgressive(t *testing.T) {
 	}
 }
 
-func TestPolicyForHostKeepsSafeMetaDefault(t *testing.T) {
+func TestPolicyForHostOmitsMetaByDefault(t *testing.T) {
 	// The host selector only decides the strategy; it never layers an
-	// onboarding override, and the meta-on-flat switch stays at the safe
-	// default (nil resolves true) so flat always keeps the discovery
-	// meta-tools unless a consumer explicitly opts out.
+	// onboarding override, and the meta-on-flat switch stays disabled by
+	// default so flat omits discovery meta-tools unless a consumer opts in.
 	flat := PolicyForHost(canimcp.HostClaude, canimcp.TransportHTTP)
 	require.Equal(t, ListingFlat, flat.Strategy)
-	require.Nil(t, flat.IncludeMetaOnFlat)
-	require.True(t, flat.ResolveIncludeMetaOnFlat(),
-		"flat host policy keeps the discovery meta-tools (safe default)")
+	require.False(t, flat.ResolveIncludeMetaOnFlat(),
+		"flat host policy omits discovery meta-tools by default")
 	require.Empty(t, flat.Onboarding,
 		"the host selector must not set an onboarding override")
 
 	prog := PolicyForHost(canimcp.HostCodex, canimcp.TransportStdio)
 	require.Equal(t, ListingProgressive, prog.Strategy)
-	require.Nil(t, prog.IncludeMetaOnFlat)
-	require.True(t, prog.ResolveIncludeMetaOnFlat())
+	require.False(t, prog.ResolveIncludeMetaOnFlat())
 }
 
-func TestDefaultPolicyIsProgressiveWithSafeMeta(t *testing.T) {
+func TestDefaultPolicyIsProgressiveWithFlatMetaOmitted(t *testing.T) {
 	p := DefaultPolicy()
 	require.Equal(t, ListingProgressive, p.Strategy)
-	require.Nil(t, p.IncludeMetaOnFlat)
-	require.True(t, p.ResolveIncludeMetaOnFlat())
+	require.False(t, p.ResolveIncludeMetaOnFlat())
 	require.NoError(t, p.Validate())
 }
 
@@ -109,7 +105,7 @@ func TestAssembleResolvesListingPolicy(t *testing.T) {
 	srv, err := Assemble(Config{Catalog: testCatalog()})
 	require.NoError(t, err)
 	require.Equal(t, ListingProgressive, srv.ListingPolicy().Strategy)
-	require.True(t, srv.ListingPolicy().ResolveIncludeMetaOnFlat())
+	require.False(t, srv.ListingPolicy().ResolveIncludeMetaOnFlat())
 
 	// Explicit flat policy is adopted verbatim.
 	flat := ListingPolicy{Strategy: ListingFlat}
