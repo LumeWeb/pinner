@@ -153,6 +153,12 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, scope DomainScope, hosted bool)
 		return nil, fmt.Errorf("catalog assembly: nil catalog deps bundle")
 	}
 
+	// Hosted plugin surfaces must not carry subscription/plan-management
+	// deep-links or subscribe prompting in operation results (platform
+	// commerce policy); the account handlers gate on this stamped flag and
+	// CLI/local assemblies keep the zero value (full deep-link UX).
+	deps.Account.HostedPlugin = hosted
+
 	cat := opmesh.NewCatalog()
 
 	// Map each catalogops domain to its scope flag. A disabled domain's

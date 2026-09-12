@@ -2,9 +2,9 @@ package catalogmcp
 
 // opTargets maps an operation ID to its MCP per-profile targets.
 // Every entry carries a Fallback (universal, feature-independent) target so
-// description resolution always succeeds; websites_create additionally
-// routes through the feature-gated description DSL (websitesCreateDesc) via
-// FallbackFunc.
+// description resolution always succeeds; websites_create and the
+// subscription-related account operations additionally route through the
+// feature-gated description DSL via FallbackFunc.
 var opTargets = map[string][]Target{
 	"account_info": {
 		Fallback("Call account_info to read the authenticated user's profile (email, name, user id, verified, otp_enabled). Read-only."),
@@ -12,12 +12,8 @@ var opTargets = map[string][]Target{
 	"account_otp_disable": {
 		Fallback("Call account_otp_disable to turn off the account's two-factor authentication. Requires the user's current account password."),
 	},
-	"account_quota": {
-		Fallback("Call account_quota to read the account's quota status and whether it is covered by granted usage (has_quota). Quota trumps a subscription: when has_quota is true the user needs no subscription. When has_quota is false the result relates to account_subscription; when that reports not-subscribed the response carries a web_url deep-link that the human opens in the web app to subscribe — the model acting alone cannot subscribe on their behalf."),
-	},
-	"account_subscription": {
-		Fallback("Call account_subscription to read the user's active subscription status (is_subscribed, plan period, gateway, cancellation/pause state) and the response's web_url field: the HTTPS deep-link to the deployment's account console subscription management page. The URL is returned as data only; a human must open it in a browser to subscribe or change plans — the model acting alone cannot subscribe on the user's behalf."),
-	},
+	"account_quota":        accountQuotaTargets,
+	"account_subscription": accountSubscriptionTargets,
 	"api_keys_create": {
 		Fallback("Call api_keys_create to create a new named API key. The key value is never returned on this channel: the response carries drop_url, a one-time link the human opens to view the freshly created key (the value is held in memory server-side only until first retrieval and shown exactly once). Make sure the human opens drop_url; a key value no human retrieved cannot be reused, and a lost value is replaced by deleting the key via api_keys_delete and creating a new one."),
 	},

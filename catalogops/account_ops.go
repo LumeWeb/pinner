@@ -36,6 +36,14 @@ type AccountDeps struct {
 	// (e.g. https://account.<portal>/account/subscription). When nil, the
 	// portal/deep-link operations fail with a clear error.
 	PortalURL func(cfgMgr config.Manager) string
+	// HostedPlugin marks a hosted (plugin) assembly. Platform commerce policy
+	// forbids hosted agent surfaces from displaying subscription plans,
+	// initiating subscriptions, or promoting upgrades, so hosted handlers
+	// leave WebURL empty and phrase subscription messages as neutral
+	// entitlement explanations; CLI/local assemblies keep the full deep-link
+	// UX. Stamped centrally by assembly.AssembleCatalogOps from the hosted
+	// construction flag; frontends never set it themselves.
+	HostedPlugin bool
 }
 
 // config returns the live config manager for this invocation, or nil.
@@ -311,11 +319,22 @@ func accountSubscription(d AccountDeps) opmesh.Operation {
 				out.CreatedAt = timePtrStr(status.CreatedAt)
 				out.UpdatedAt = timePtrStr(status.UpdatedAt)
 			}
-			out.WebURL = d.portalURL()
-			if out.IsSubscribed {
-				out.Message = "Subscribed. Manage your subscription in the web app."
+			// Hosted plugin surfaces must not carry a subscription-management
+			// deep-link or any subscribe prompting (platform commerce
+			// policy); they state the entitlement fact plainly instead.
+			if d.HostedPlugin {
+				if out.IsSubscribed {
+					out.Message = "Subscribed."
+				} else {
+					out.Message = "Not subscribed."
+				}
 			} else {
-				out.Message = "Not subscribed. Open the web app to choose a plan and subscribe."
+				out.WebURL = d.portalURL()
+				if out.IsSubscribed {
+					out.Message = "Subscribed. Manage your subscription in the web app."
+				} else {
+					out.Message = "Not subscribed. Open the web app to choose a plan and subscribe."
+				}
 			}
 			return out, nil
 		}),
@@ -339,8 +358,9 @@ type AccountQuotaType struct {
 // per-dimension usage plus a derived has_quota signal. has_quota reports
 // whether the account has any usable granted/remaining allowance, which TRUMPS
 // subscription state: a user with quota does not need a subscription. When
-// has_quota is false the caller should consult account_subscription; the
-// human (not the agent) follows web_url to subscribe.
+// has_quota is false the caller should consult account_subscription; on
+// non-hosted assemblies the human (not the agent) follows web_url to
+// subscribe. Hosted assemblies leave WebURL empty (plugin commerce policy).
 type AccountQuotaResult struct {
 	Upload   AccountQuotaType `json:"upload"`
 	Download AccountQuotaType `json:"download"`
@@ -400,12 +420,17 @@ func accountQuota(d AccountDeps) opmesh.Operation {
 				out.Storage = quotaTypeFrom(quota.Storage.Used, quota.Storage.Limit, quota.Storage.Remaining, quota.Storage.Reserved, quota.Storage.Threshold, quota.Storage.Percentage)
 				out.HasQuota = remainingUsable(quota.Upload.Remaining) || remainingUsable(quota.Download.Remaining) || remainingUsable(quota.Storage.Remaining)
 			}
-			out.WebURL = d.portalURL()
-			out.WebURL = d.portalURL()
 			if out.HasQuota {
 				out.Message = "Account is covered by granted quota; no subscription required."
+			} else if d.HostedPlugin {
+				// Plugin policy permits only an explanation of why the
+				// feature is unavailable — no subscribe prompting.
+				out.Message = "Paid actions are unavailable on this account: no remaining granted usage and no active subscription."
 			} else {
 				out.Message = "No usable quota remaining. A subscription (or additional granted usage) is needed to continue."
+			}
+			if !d.HostedPlugin {
+				out.WebURL = d.portalURL()
 			}
 			return out, nil
 		}),

@@ -25,6 +25,12 @@ Rules:
 {{define "setup_auth_status_check"}}Read the pinner://account/status resource above. If "authenticated" is true and "token_valid" is true, the user may skip the auth step. Otherwise, they will need to sign in or create an account. When the flow leads to a paid/metered action, verify access up front: call account_quota (search_tools query "quota"); if its has_quota is true the user is covered by granted usage and needs no subscription — only check account_subscription and surface its web_url deep-link to the human when has_quota is false and they are not subscribed.
 {{end}}
 
+{{/* Hosted (plugin) variant: platform commerce policy forbids subscription
+     promotion, plan display, or upgrade-flow links on that surface, so the
+     hosted wording stops at the policy-sanctioned entitlement explanation. */}}
+{{define "setup_auth_status_check_hosted"}}Read the pinner://account/status resource above. If "authenticated" is true, the user may skip the auth step. Otherwise, authentication has already been established by the host. When the flow leads to a paid/metered action, verify access up front: call account_quota (search_tools query "quota"); if its has_quota is true the user is covered by granted usage — proceed without asking about a subscription. Only when has_quota is false, check account_subscription (search_tools query "subscription"); if the user is not subscribed, explain only that the feature requires an active subscription and is unavailable on this account. Do not offer, link to, or point toward any subscription, plan, pricing, or upgrade page — subscription changes are handled entirely outside this server.
+{{end}}
+
 {{define "setup_start"}}Call the `setup_wizard_start` tool (no arguments). It returns a session_id and the first step (auth). Store the session_id for subsequent calls.
 {{end}}
 

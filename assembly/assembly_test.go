@@ -163,6 +163,25 @@ func TestAssembleCatalogOpsRejectsNilBundle(t *testing.T) {
 	assert.Nil(t, cat)
 }
 
+// TestAssembleCatalogOpsStampsHostedPlugin pins the deployment-context stamp
+// the hosted-plugin subscription gate depends on: AssembleCatalogOps mirrors
+// its hosted construction flag onto the account domain deps so account
+// handlers can suppress subscription deep-links on hosted (plugin)
+// assemblies; a local assembly keeps HostedPlugin false.
+func TestAssembleCatalogOpsStampsHostedPlugin(t *testing.T) {
+	bundle := testBundle()
+	_, err := AssembleCatalogOps(bundle, HostedDomainScope, true)
+	require.NoError(t, err, "hosted-preset catalog must assemble")
+	require.True(t, bundle.Account.HostedPlugin,
+		"a hosted assembly must stamp HostedPlugin=true onto the account deps")
+
+	networkBundle := testBundle()
+	_, err = AssembleCatalogOps(networkBundle, FullDomainScope, false)
+	require.NoError(t, err, "local catalog must assemble")
+	require.False(t, networkBundle.Account.HostedPlugin,
+		"a local assembly must leave HostedPlugin false")
+}
+
 // TestAssembleCatalogOpsZeroSurfaceIsFull pins that the zero DomainScope (all
 // fields unset) assembles the same set of domains as FullDomainScope.
 func TestAssembleCatalogOpsZeroSurfaceIsFull(t *testing.T) {

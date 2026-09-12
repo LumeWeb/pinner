@@ -43,6 +43,12 @@ ENS name: {{.ENSName}}{{end}}{{end}}
 {{define "ens_publish_auth_status"}}Read the pinner://account/status resource above. If "authenticated" is false, instruct the user to authenticate first. Do not proceed until authentication is confirmed. Before publishing, verify access: call account_quota (search_tools query "quota"); if has_quota is true the user is covered by granted usage and needs no subscription. Only when has_quota is false, check account_subscription; if not subscribed, surface the returned web_url deep-link so the human can subscribe (you cannot subscribe for them).
 {{end}}
 
+{{/* Hosted (plugin) variant: platform commerce policy forbids subscription
+     promotion, plan display, or upgrade-flow links on that surface, so the
+     hosted wording stops at the policy-sanctioned entitlement explanation. */}}
+{{define "ens_publish_auth_status_hosted"}}Read the pinner://account/status resource above; authentication has already been established by the host. Before publishing, verify access: call account_quota (search_tools query "quota"); if has_quota is true the user is covered by granted usage — proceed without asking about a subscription. Only when has_quota is false, check account_subscription (search_tools query "subscription"); if the user is not subscribed, explain only that the feature requires an active subscription and is unavailable on this account. Do not offer, link to, or point toward any subscription, plan, pricing, or upgrade page — subscription changes are handled entirely outside this server.
+{{end}}
+
 {{define "ens_publish_content_upload"}}Step: content
 No CID was provided. Upload the content first to obtain a publishable directory CID:
   - For a static website bundle (ZIP containing index.html, CSS, JS, images, nested pages):
