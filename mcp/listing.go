@@ -139,9 +139,10 @@ func DefaultPolicy() ListingPolicy {
 // ---
 
 // StrategyForHost resolves the shared tools/list policy for a detected host
-// on the declared transport. Claude Web, ChatGPT Web, and Grok Web use flat
-// listings because MCP publishing requirements and host behavior make
-// progressive discovery unreliable or unacceptable on cloud-hosted clients.
+// on the declared transport. Claude Web, ChatGPT Web, Grok Web, and the
+// Manufact Cloud dashboard use flat listings because MCP publishing
+// requirements and host behavior make progressive discovery unreliable or
+// unacceptable on cloud-hosted clients.
 // Other hosts retain progressive discovery by default.
 //
 // This selector does not materialize tools/list itself. The composition root
@@ -152,6 +153,9 @@ func StrategyForHost(host canimcp.HostType, transport canimcp.TransportKind) Too
 	switch {
 	case host == canimcp.HostClaude && transport == canimcp.TransportHTTP,
 		host == canimcp.HostGrok && transport == canimcp.TransportHTTP,
+		// Manufact Cloud is a remote web-dashboard client (HTTP-only profile);
+		// exclude it from progressive discovery alongside the other web hosts.
+		host == canimcp.HostManufact && transport == canimcp.TransportHTTP,
 		(host == canimcp.HostOpenAI || host == canimcp.HostChatGPT) &&
 			(transport == canimcp.TransportHTTP || transport == canimcp.TransportOpenAI):
 		return ListingFlat

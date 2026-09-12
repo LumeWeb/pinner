@@ -13,7 +13,7 @@ require (
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
-	go.lumeweb.com/canimcp v0.0.0-20260907101331-ba497f0bb72a
+	go.lumeweb.com/canimcp v0.0.0-20260912112527-1c27fd5becdd
 	go.lumeweb.com/configmanager v0.3.30
 	go.lumeweb.com/ipfs-content v0.1.18
 	go.lumeweb.com/ipfs-sdk v0.1.97
