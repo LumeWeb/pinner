@@ -158,7 +158,7 @@ func apiKeysCreate(d APIKeysDeps) opmesh.Operation {
 func apiKeysDelete(d APIKeysDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_delete", Title: "Delete an API key", Summary: "Delete an API key",
-		Description: "Delete an API key by name or UUID. Deleting the key currently used for authentication is blocked unless confirm=true.",
+		Description: "Delete an API key by name or UUID. DESTRUCTIVE: the key is revoked immediately — every access made with it stops working right away — and it cannot be recovered or reused; the only remediation is creating a replacement with api_keys_create. Agent surfaces require a human-confirmed delete (confirm=true in the confirmation hand-off) for EVERY key, not just the one currently authenticating; the CLI requires --force only to delete the key currently used for authentication.",
 		Category:    "account", Safety: opmesh.SafetyDestructive, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<id>",
 		Args: []opmesh.OperationArg{
@@ -174,7 +174,15 @@ func apiKeysDelete(d APIKeysDeps) opmesh.Operation {
 			if id == "" {
 				return nil, fmt.Errorf("api_keys_delete: key name or UUID is required")
 			}
-			if err := svc.DeleteAPIKey(ctx, id, opmesh.BoolArg(input, "confirm", false)); err != nil {
+			// The confirm arg is the CLI's self-delete override (--force): the
+			// core service blocks deleting the key currently authenticating
+			// the caller unless it is set, and is the sole judge of that
+			// (no handler-level friction here — deletes of OTHER keys must
+			// keep running without it). Agent (MCP) surfaces never reach the
+			// handler unconfirmed: Invoke refuses destructive ops for a model
+			// actor, so every MCP deletion goes through the human hand-off.
+			force := opmesh.BoolArg(input, "confirm", false)
+			if err := svc.DeleteAPIKey(ctx, id, force); err != nil {
 				return nil, err
 			}
 			return &APIKeyDeleteResult{ID: id}, nil

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.lumeweb.com/mcpplane/model"
 	"go.lumeweb.com/mcpplane/sdk"
 	"go.lumeweb.com/mcpplane/toolargs"
@@ -156,13 +157,27 @@ func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
 		ResourceURI: v.URI,
 		Visibility:  []model.ToolVisibility{model.ToolVisibilityApp},
 	})
+	// toolInvocationMeta clones the app _meta and adds the OpenAI
+	// toolInvocation labels (present-tense/finished) hosts render for the
+	// tool call.
+	toolInvocationMeta := func(invoking, invoked string) mcp.Meta {
+		meta := mcp.Meta{}
+		for k, val := range appMeta {
+			meta[k] = val
+		}
+		meta["openai/toolInvocation"] = map[string]any{
+			"invoking": invoking,
+			"invoked":  invoked,
+		}
+		return meta
+	}
 	return []model.ToolDescriptor{
 		{
 			Name:        "ipfs_upload_submit",
 			Title:       "Prepare a one-time upload endpoint",
 			Description: "Prepare (or continue) a one-time presigned HTTP PUT endpoint bound to a canonical upload handle; the app's Uppy XHR uploader writes file bytes to it out of band. Passing a handle prepared by upload_file fulfills that same operation. App-only helper for the Upload to IPFS view.",
 			InputSchema: toolargs.ToolSchemaFor[uploadSubmitInput](),
-			Meta:        appMeta,
+			Meta:        toolInvocationMeta("Preparing upload…", "Upload endpoint prepared"),
 			Handler: func(ctx context.Context, req model.ToolRequest) (model.ToolResult, error) {
 				in, err := toolargs.DecodeToolArgs[uploadSubmitInput](req)
 				if err != nil {
@@ -253,7 +268,7 @@ func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
 			Title:       "Get upload status",
 			Description: "Return the status of an async upload by handle: prepared, queued, running, completed (with CID), failed, cancelled, or expired. App-only helper for the Upload to IPFS view.",
 			InputSchema: toolargs.ToolSchemaFor[uploadHandleArg](),
-			Meta:        appMeta,
+			Meta:        toolInvocationMeta("Checking upload status…", "Upload status checked"),
 			Handler: func(ctx context.Context, req model.ToolRequest) (model.ToolResult, error) {
 				in, err := toolargs.DecodeToolArgs[uploadHandleArg](req)
 				if err != nil {
