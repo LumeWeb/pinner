@@ -152,23 +152,36 @@ func applyAgentArgHelp(op opmesh.Operation, desc *opmesh.ToolDescriptor) error {
 		return nil
 	}
 	var agentRequired []string
+	var cliOnly []string
 	for _, arg := range op.Args() {
 		// RawSchema args keep the author-provided property object verbatim,
-		// including its description and own requiredness.
+		// including its description and own requiredness. A RawSchema arg is
+		// never CLIOnly: no RawSchema arg carries the flag today, and an
+		// author-supplied schema wins verbatim by contract.
 		if len(arg.RawSchema) > 0 {
 			continue
 		}
 		if arg.AgentRequired {
 			agentRequired = append(agentRequired, arg.Name)
 		}
+		if meta := catalogmeta.ArgFrontendForArg(op.Name(), arg.Name); meta != nil && meta.CLIOnly {
+			cliOnly = append(cliOnly, arg.Name)
+		}
 	}
 	addRequired(schema, agentRequired)
+	// CLIOnly args never appear on the agent/MCP channel: the value must not
+	// be transmittable (e.g. private-key import), so the property is removed
+	// from the compiled input schema (and defensively from "required").
+	for _, name := range cliOnly {
+		delete(props, name)
+	}
+	removeRequired(schema, cliOnly)
 	for _, arg := range op.Args() {
 		if len(arg.RawSchema) > 0 {
 			continue // author-supplied raw schema (and its description) wins verbatim
 		}
 		meta := catalogmeta.ArgFrontendForArg(op.Name(), arg.Name)
-		if meta == nil || meta.AgentHelp == "" {
+		if meta == nil || meta.AgentHelp == "" || meta.CLIOnly {
 			continue
 		}
 		p, ok := props[arg.Name].(map[string]any)
@@ -208,6 +221,35 @@ func addRequired(schema map[string]any, names []string) {
 		return
 	}
 	schema["required"] = required
+}
+
+// removeRequired filters the given arg names out of the schema's top-level
+// "required" array (defensive complement of addRequired: an op whose arg is
+// required at the core level but CLIOnly must not advertise it on the agent
+// surface at all). Removes the key entirely when the array drains, keeping
+// the schema minimal and deterministic.
+func removeRequired(schema map[string]any, names []string) {
+	if len(names) == 0 {
+		return
+	}
+	drop := make(map[string]bool, len(names))
+	for _, n := range names {
+		drop[n] = true
+	}
+	required, _ := schema["required"].([]any)
+	kept := make([]any, 0, len(required))
+	for _, r := range required {
+		s, ok := r.(string)
+		if ok && drop[s] {
+			continue
+		}
+		kept = append(kept, r)
+	}
+	if len(kept) == 0 {
+		delete(schema, "required")
+		return
+	}
+	schema["required"] = kept
 }
 
 // fallbackDescription returns the fallback target's Description from targets

@@ -35,22 +35,40 @@ var profileFileHostFakeHost = profileWith(FeatFileHostInput)
 func TestWebsitesCreateDescNoFileHost(t *testing.T) {
 	desc := websitesCreateDesc.Resolve(profileWith())
 
-	require.Contains(t, desc, "Create a website that serves an IPFS CID")
-	require.Contains(t, desc, "directory whose root contains index.html")
-	require.Contains(t, desc, "rejects a CID whose root has no index.html")
-	require.Contains(t, desc, "A multi-file website is published as its component files")
+		require.Contains(t, desc, "Create a website that serves an IPFS CID")
+	require.Contains(t, desc, "root must contain index.html")
+	require.Contains(t, desc, "site.zip/index.html")
+	require.Contains(t, desc, "component files")
 	require.Contains(t, desc, "archive_mode=convert")
 	require.Contains(t, desc, "wrap=true")
-	require.Contains(t, desc, "auto-names wrapped HTML to index.html")
 	require.Contains(t, desc, "starter-site")
 	require.Contains(t, desc, `{"cid":"<cid>"}`)
 	require.Contains(t, desc, "platform subdomain is auto-minted")
-	require.Contains(t, desc, "a domain or label is not invented for a generic request")
-	require.Contains(t, desc, "the upload already pinned it, so pins_add after upload is unnecessary")
+	require.Contains(t, desc, "never invent a domain or label")
+	require.Contains(t, desc, "originated outside Pinner")
 	require.Contains(t, desc, "publish_website flow")
 	require.Contains(t, desc, "Returns the created website")
 
 	require.NotContains(t, desc, "file parameter is the preferred byte path")
+}
+
+// TestWebsitesCreateDescWithinMetadataLimit pins the two-KiB host metadata
+// constraint: the resolved description must stay at or below Claude Code's
+// 2048-byte description truncation point in BOTH feature states (the
+// FeatFileHostInput state resolves longer, so it is the binding case).
+func TestWebsitesCreateDescWithinMetadataLimit(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		desc string
+	}{
+		{"no-file-host", websitesCreateDesc.Resolve(profileWith())},
+		{"file-host", websitesCreateDesc.Resolve(profileFileHostFakeHost)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.LessOrEqual(t, len(tc.desc), 2048,
+				"description exceeds the 2048-byte host metadata truncation point: %d bytes", len(tc.desc))
+		})
+	}
 }
 
 // TestWebsitesCreateDescFileHost verifies the per-profile MCP description for
@@ -60,11 +78,11 @@ func TestWebsitesCreateDescFileHost(t *testing.T) {
 	desc := websitesCreateDesc.Resolve(profileFileHostFakeHost)
 
 	require.Contains(t, desc, "Create a website that serves an IPFS CID")
-	require.Contains(t, desc, "directory whose root contains index.html")
-	require.Contains(t, desc, "A multi-file website is published as its component files")
+	require.Contains(t, desc, "root must contain index.html")
+	require.Contains(t, desc, "component files")
 	require.Contains(t, desc, "archive_mode=convert")
 	require.Contains(t, desc, "wrap=true")
-	require.Contains(t, desc, "the upload already pinned it, so pins_add after upload is unnecessary")
+	require.Contains(t, desc, "originated outside Pinner")
 	require.Contains(t, desc, "file parameter is the preferred byte path",
 		"hosts with FeatFileHostInput must see the file-parameter clause")
 }

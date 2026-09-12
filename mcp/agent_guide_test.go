@@ -30,6 +30,22 @@ func guideFlowByName(t *testing.T, guide AgentGuide, name string) GuideFlow {
 
 // TestAgentGuideDescriptorFullSurface pins the full-scope guide:
 // the full scope carries all 13 flows, sane structure, clean serialization.
+// TestAgentGuideDescriptorDescriptionPolicies pins the platform-contract
+// guarantees on the descriptor description: it must stay at or below the
+// 2048-byte Claude Code metadata truncation point, and it must not carry a
+// blanket triggering directive ("Call this first") — the guide is optional
+// orientation, so the description defers to directly relevant tools for
+// explicit requests.
+func TestAgentGuideDescriptorDescriptionPolicies(t *testing.T) {
+	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true)
+	require.LessOrEqual(t, len(desc.Description), 2048,
+		"agent_guide description exceeds the 2048-byte metadata truncation point: %d bytes", len(desc.Description))
+	require.NotContains(t, desc.Description, "Call this first",
+		"description must not recommend broad triggering beyond explicit user intent")
+	require.Contains(t, desc.Description, "Optional orientation",
+		"description must frame the guide as optional orientation")
+}
+
 func TestAgentGuideDescriptorFullSurface(t *testing.T) {
 	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true)
 	require.Equal(t, "agent_guide", desc.Name)

@@ -16,7 +16,13 @@ var opTargets = map[string][]Target{
 		Fallback("Call account_quota to read the account's quota status and whether it is covered by granted usage (has_quota). Quota trumps a subscription: when has_quota is true the user needs no subscription. When has_quota is false the result relates to account_subscription; when that reports not-subscribed the response carries a web_url deep-link that the human opens in the web app to subscribe — the model acting alone cannot subscribe on their behalf."),
 	},
 	"account_subscription": {
-		Fallback("Call account_subscription to read the user's active subscription status and obtain the web_url deep-link to https://account.<portal>/account/subscription where they sign in and manage/subscribe. The URL is returned as data; a human must open it in a browser to actually subscribe or change their plan."),
+		Fallback("Call account_subscription to read the user's active subscription status (is_subscribed, plan period, gateway, cancellation/pause state) and the response's web_url field: the HTTPS deep-link to the deployment's account console subscription management page. The URL is returned as data only; a human must open it in a browser to subscribe or change plans — the model acting alone cannot subscribe on the user's behalf."),
+	},
+	"api_keys_create": {
+		Fallback("Call api_keys_create to create a new named API key. The key value is never returned on this channel: the response carries drop_url, a one-time link the human opens to view the freshly created key (the value is held in memory server-side only until first retrieval and shown exactly once). Make sure the human opens drop_url; a key value no human retrieved cannot be reused, and a lost value is replaced by deleting the key via api_keys_delete and creating a new one."),
+	},
+	"ipns_keys_create": {
+		Fallback("Call ipns_keys_create to create a new IPNS key by name. Importing an existing private key is not available on this channel; if the user wants to reuse an existing key, direct them to the out-of-band key import flow in their account console or the CLI."),
 	},
 	"account_update_email": {
 		Fallback("Call account_update_email to change the account's email address. Requires the current password for verification. On success the user must confirm via the verification email sent to the new address."),

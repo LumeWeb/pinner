@@ -13,9 +13,10 @@ const (
 	EnvBoth Environment = iota
 	// EnvCLIOnly is valid only on the urfave CLI frontend; it is omitted from
 	// every MCP surface. Used for plain SDK-call account credential ops that
-	// duplicate an OOB hand-off tool (e.g. account_update_email /
-	// account_update_password), which stay reachable from the CLI but must
-	// never be advertised to a model.
+	// collect an access credential (password) or duplicate an OOB hand-off
+	// tool (account_update_email / account_update_password /
+	// account_otp_disable). They stay reachable from the CLI but must never
+	// accept credentials on, or be advertised to, a model channel.
 	EnvCLIOnly
 	// EnvLocalOnly is valid on the CLI frontend and the local (stdio) MCP
 	// server, but is excluded from the hosted MCP surface. Used for operations
@@ -32,6 +33,8 @@ const (
 // absent from the map are EnvBoth (valid on every surface), which is the
 // default for operations that make no carve-out.
 var opEnvironments = map[string]Environment{
+	"account_otp_disable":     EnvCLIOnly,
+	"api_keys_create":         EnvCLIOnly,
 	"account_update_email":    EnvCLIOnly,
 	"account_update_password": EnvCLIOnly,
 	"auth_login":              EnvLocalOnly,

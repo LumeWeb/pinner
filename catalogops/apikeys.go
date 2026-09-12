@@ -12,11 +12,38 @@ import (
 	"go.lumeweb.com/pinner/core/apikeys"
 )
 
+// APIKeyDrop is the out-of-band one-time hand-off seam for freshly created
+// API-key values. Implementations hold the secret in memory only, until the
+// human opens the returned URL once; the agent/MCP tool channel never carries
+// the value. This is the api-keys analogue of the vault setup's OOB
+// coordinators (vault_setup.go): catalogops deposits the secret through this
+// seam and returns only typed hand-off data, so no per-frontend parsing or a
+// second secret store is needed — composition roots wire the same one-time
+// drop machinery they already run for vault seeds.
+type APIKeyDrop interface {
+	// Drop stores the key value for one-time human retrieval and returns the
+	// HTTPS URL the human opens to view it. The value must never be served
+	// back through any agent tool channel, and the store must expire the
+	// entry after first retrieval.
+	Drop(ctx context.Context, key *portalsdk.APIKey) (dropURL string, err error)
+}
+
 // APIKeysDeps injects the dependencies for building an apikeys.Service.
 type APIKeysDeps struct {
 	// Service returns a live apikeys.Service for the current invocation,
 	// honoring the per-invocation auth-token override in the input map.
 	Service func(input map[string]any) apikeys.Service
+
+	// OOBKeyDropBuild returns the OOB drop coordinator for the current
+	// invocation, or nil when this assembly is the human-at-terminal CLI
+	// surface (where returning the key value once in process stdout is the
+	// delivery). Every model-facing assembly — local stdio MCP and hosted
+	// MCP alike — MUST wire this to its one-time in-memory drop store; the
+	// policy contract forbids the key value on an agent channel, so an MCP
+	// assembly without a wired drop must not advertise api_keys_create.
+	// Handlers resolve the coordinator per invocation so live config/token
+	// changes are honored, matching the lazy-deps pattern used throughout.
+	OOBKeyDropBuild func(input map[string]any) APIKeyDrop
 }
 
 // APIKeysOperations returns the catalog operations for the api-keys domain
@@ -64,10 +91,32 @@ func apiKeysList(d APIKeysDeps) opmesh.Operation {
 	})
 }
 
+// APIKeyCreateResult is the data returned by api_keys_create. The freshly
+// created key value is delivered exactly once on the channel the assembly
+// declared at wiring time: `token` is set only on the human-at-terminal CLI
+// surface (OOBKeyDropBuild nil), `drop_url` only when the value was handed to
+// a one-time out-of-band drop. A model-facing channel never sees `token`.
+type APIKeyCreateResult struct {
+	UUID    string `json:"uuid"`
+	Name    string `json:"name"`
+	Token   string `json:"token,omitempty"`    // CLI human-terminal delivery only
+	DropURL string `json:"drop_url,omitempty"` // one-time OOB retrieval only
+	Message string `json:"message,omitempty"`
+}
+
+// oobKeyDrop resolves the OOB drop coordinator for this invocation, or nil
+// when the assembly did not wire one (human-at-terminal CLI surface).
+func (d APIKeysDeps) oobKeyDrop(input map[string]any) APIKeyDrop {
+	if d.OOBKeyDropBuild == nil {
+		return nil
+	}
+	return d.OOBKeyDropBuild(input)
+}
+
 func apiKeysCreate(d APIKeysDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_create", Title: "Create an API key", Summary: "Create a new API key",
-		Description: "Create a new API key for your account. The created key value (the secret) is returned exactly once in the response: it cannot be retrieved again, only deleted and recreated. The value is a credential that is not displayed again after creation; if it is exposed, it is deleted and recreated via api_keys_delete.",
+		Description: "Create a new API key for your account. The key value is delivered exactly once and is not restorable: on the CLI it is printed to your terminal once; on agent surfaces the value is never sent through the tool channel — it is held in memory for one-time out-of-band retrieval and the response carries the drop_url for the human to open. If a key is exposed, delete it via api_keys_delete and create a new one.",
 		Category:    "account", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
 		Args: []opmesh.OperationArg{
@@ -82,7 +131,26 @@ func apiKeysCreate(d APIKeysDeps) opmesh.Operation {
 			if name == "" {
 				return nil, fmt.Errorf("api_keys_create: key name is required")
 			}
-			return svc.CreateAPIKey(ctx, name)
+			key, err := svc.CreateAPIKey(ctx, name)
+			if err != nil {
+				return nil, err
+			}
+			if key == nil {
+				return nil, fmt.Errorf("api_keys_create: empty key returned for %q", name)
+			}
+			out := &APIKeyCreateResult{UUID: key.Uuid.String(), Name: key.Name}
+			if drop := d.oobKeyDrop(input); drop != nil {
+				dropURL, derr := drop.Drop(ctx, key)
+				if derr != nil {
+					return nil, fmt.Errorf("api_keys_create: %w", derr)
+				}
+				out.DropURL = dropURL
+				out.Message = "Key created. Open drop_url once to view the key value: it is held in memory only until first retrieval and is shown exactly once."
+				return out, nil
+			}
+			out.Token = key.Token
+			out.Message = "Key created. The key value is shown exactly once and cannot be retrieved again."
+			return out, nil
 		}),
 	})
 }

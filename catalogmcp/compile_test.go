@@ -277,3 +277,38 @@ func TestCompilerAgentHelpDoesNotOverrideRawSchemaDescription(t *testing.T) {
 	require.NotContains(t, reqs, "cids",
 		"RawSchema args are excluded from the AgentRequired projection, so cids must stay out of required")
 }
+
+// TestCompilerStripsCLIOnlyArgsFromInputSchema pins the catalogmeta CLIOnly
+// arg projection: an arg flagged CLIOnly (ipns_keys_create's private-key
+// import) must be absent from the compiled MCP input schema entirely — its
+// value must not even be transmittable on the agent channel — while every
+// non-flagged arg survives unchanged. The op name matches catalogmeta's
+// declared entry so the real production lookup path is exercised.
+func TestCompilerStripsCLIOnlyArgsFromInputSchema(t *testing.T) {
+	cat := opmesh.NewCatalog()
+	require.NoError(t, cat.Add(opmesh.NewOperation(opmesh.OperationSpec{
+		Name:        "ipns_keys_create",
+		Description: "Create a new IPNS key, optionally importing an existing private key via the key field.",
+		Positional:  "<name>",
+		Args: []opmesh.OperationArg{
+			{Name: "name", Type: opmesh.ArgTypeString, Required: true, Help: "Key name"},
+			{Name: "key", Type: opmesh.ArgTypeString, Sensitive: true, Help: "Private key to import (optional)"},
+		},
+	})))
+
+	tools, err := NewCompiler().Compile(cat)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+
+	var parsed struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	require.NoError(t, json.Unmarshal(tools[0].InputSchema, &parsed))
+	require.NotContains(t, parsed.Properties, "key",
+		"CLIOnly arg (private key) must be stripped from the compiled MCP input schema")
+	require.Contains(t, parsed.Properties, "name",
+		"non-CLIOnly args must survive the CLIOnly projection")
+	require.Equal(t, []string{"name"}, parsed.Required,
+		"required array must keep only non-CLIOnly args")
+}

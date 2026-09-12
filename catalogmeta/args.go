@@ -7,7 +7,8 @@
 //   - EnvironmentOf: which runtime surfaces (CLI, local MCP, hosted MCP) an
 //     operation is valid on (EnvCLIOnly / EnvLocalOnly / EnvHostedOnly flags).
 //   - ArgFrontendFor: per-argument audience metadata — AgentHelp (agent-surface
-//     arg prose), AgentOnly (agent-surface-only arg), PositionalOnly (arg fed by
+//     arg prose), AgentOnly (agent-surface-only arg), CLIOnly (arg omitted from
+//     the agent/MCP schema entirely), PositionalOnly (arg fed by
 //     the CLI positional rather than a --flag), Sources (CLI env-var sources).
 //
 // The package is pure data and dependency-free, so consumers can perform
@@ -28,6 +29,10 @@ package catalogmeta
 //     generic Help carried by the core model).
 //   - AgentOnly: the arg is exposed on the agent/MCP surface only; a CLI
 //     invocation never supplies it and the handler must tolerate absence.
+//   - CLIOnly: the arg exists on the CLI surface only; MCP compilers must
+//     omit it from the compiled input schema entirely (the channel must not
+//     transmit its value — e.g. private-key imports). Handlers tolerate its
+//     absence because the arg stays optional at the core level.
 //   - PositionalOnly: the arg value is supplied by the command's positional
 //     argument rather than a --flag (only meaningful for arguments of
 //     operations that declare a Positional binding).
@@ -38,6 +43,9 @@ type ArgFrontend struct {
 	AgentOnly      bool
 	PositionalOnly bool
 	Sources        []string
+	// CLIOnly excludes the arg from the agent/MCP compiled input schema. See
+	// the package-level bullet above for the audience contract.
+	CLIOnly bool
 }
 
 // argFrontend maps an operation ID to the frontend metadata of its arguments,
@@ -229,6 +237,13 @@ var argFrontend = map[string][]ArgFrontend{
 	},
 	"ens_unpoint": {
 		{Name: "confirm", AgentHelp: "Must be true to delete the key; this is destructive and cannot be undone. Only a human sets this on confirmation; a model alone cannot confirm a destructive delete."},
+	},
+	"ipns_keys_create": {
+		// CLIOnly keeps private-key import off the agent/MCP channel: the
+		// MCP surface advertises create-by-name only, and existing-key
+		// import stays a user-controlled CLI flow. The arg remains optional
+		// in the core model, so the handler tolerates its absence.
+		{Name: "key", CLIOnly: true},
 	},
 	"ipns_keys_delete": {
 		{Name: "confirm", AgentHelp: "Must be true to delete the key; this is destructive and cannot be undone. Only a human sets this on confirmation; a model alone cannot confirm a destructive delete."},
