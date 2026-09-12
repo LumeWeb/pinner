@@ -241,7 +241,7 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		strip(FeatSinkDrop)
 	}
 
-	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.DomainScope, s.config.Hosted, dropAvailable)}
+	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.DomainScope, s.config.Hosted, dropAvailable, s.config.InstalledApps)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{
 		CoLocated:     wiring.CoLocated,
 		TunnelOpenAI:  wiring.TunnelOpenAI,

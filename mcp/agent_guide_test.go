@@ -37,7 +37,7 @@ func guideFlowByName(t *testing.T, guide AgentGuide, name string) GuideFlow {
 // orientation, so the description defers to directly relevant tools for
 // explicit requests.
 func TestAgentGuideDescriptorDescriptionPolicies(t *testing.T) {
-	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true)
+	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true, nil)
 	require.LessOrEqual(t, len(desc.Description), 2048,
 		"agent_guide description exceeds the 2048-byte metadata truncation point: %d bytes", len(desc.Description))
 	require.NotContains(t, desc.Description, "Call this first",
@@ -47,7 +47,7 @@ func TestAgentGuideDescriptorDescriptionPolicies(t *testing.T) {
 }
 
 func TestAgentGuideDescriptorFullSurface(t *testing.T) {
-	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true)
+	desc := AgentGuideDescriptor(assembly.FullDomainScope, false, true, nil)
 	require.Equal(t, "agent_guide", desc.Name)
 	require.EqualValues(t, model.CategoryCore, desc.Category)
 
@@ -86,7 +86,7 @@ func TestAgentGuideDescriptorFullSurface(t *testing.T) {
 
 // TestAgentGuideHostedSurfaceDropsVaultFlows pins the scope gating.
 func TestAgentGuideHostedSurfaceDropsVaultFlows(t *testing.T) {
-	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.HostedDomainScope, true)
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.HostedDomainScope, true, nil)
 	for _, f := range guid.Flows {
 		require.NotContains(t, []string{"vault_create", "vault_restore", "vault_upload", "vault_download", "vault_share", "vault_sync"}, f.Name,
 			"the hosted scope must never advertise a vault flow")
@@ -136,7 +136,7 @@ func TestAgentGuideModesMatchProfile(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			guide := BuildAgentGuide(tc.profile, assembly.FullDomainScope, false)
+			guide := BuildAgentGuide(tc.profile, assembly.FullDomainScope, false, nil)
 			for _, name := range []string{"upload", "vault_upload"} {
 				flow := guideFlowByName(t, guide, name)
 				for _, want := range tc.mustHave {
@@ -155,19 +155,19 @@ func TestAgentGuideModesMatchProfile(t *testing.T) {
 // TestAgentGuideClaudeWebNoticeScoped mirrors the hosted-scoping pin of the
 // Claude Web no-curl notice.
 func TestAgentGuideClaudeWebNoticeScoped(t *testing.T) {
-	web := BuildAgentGuide(claudeHTTPProfile(), assembly.FullDomainScope, false)
+	web := BuildAgentGuide(claudeHTTPProfile(), assembly.FullDomainScope, false, nil)
 	rules := strings.Join(web.Rules, "\n")
 	require.Contains(t, rules, "Host capability notice (Claude Web)")
 	require.Contains(t, rules, "upload_data")
 
-	desktop := BuildAgentGuide(stdioAppsProfile(), assembly.FullDomainScope, false)
+	desktop := BuildAgentGuide(stdioAppsProfile(), assembly.FullDomainScope, false, nil)
 	require.NotContains(t, strings.Join(desktop.Rules, "\n"), "Host capability notice (Claude Web)")
 
-	generic := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false)
+	generic := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false, nil)
 	require.NotContains(t, strings.Join(generic.Rules, "\n"), "Host capability notice (Claude Web)")
 
 	// Hosted Claude Web is NOT special-cased: no notice, generic mint guidance.
-	hostedWeb := BuildAgentGuide(claudeHTTPProfile(), assembly.FullDomainScope, true)
+	hostedWeb := BuildAgentGuide(claudeHTTPProfile(), assembly.FullDomainScope, true, nil)
 	require.NotContains(t, strings.Join(hostedWeb.Rules, "\n"), "Host capability notice (Claude Web)")
 	upload := guideFlowByName(t, hostedWeb, "upload")
 	require.Contains(t, upload.Detail, "curl -sS -T")
@@ -180,7 +180,7 @@ func TestAgentGuideClaudeWebNoticeScoped(t *testing.T) {
 // TestAgentGuidePublishChainContainsRealTools pins the publish/ens decision
 // chains: every branch ends at real tools, byte route first.
 func TestAgentGuidePublishChainContainsRealTools(t *testing.T) {
-	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false)
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false, nil)
 	pub := guideFlowByName(t, guid, "publish_website")
 	require.NotNil(t, pub.Decision)
 	require.Equal(t, "Where are the bytes?", pub.Decision.Question,
@@ -253,7 +253,7 @@ func segHasToken(segs []string, tok string) bool {
 // TestAgentGuideSubstitution pins the {{SOURCES}} interpolation: the profile's
 // transport modes are substituted, never a generic enumeration.
 func TestAgentGuideSubstitution(t *testing.T) {
-	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false)
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false, nil)
 	require.Contains(t, guid.Summary, "source.mode=mint")
 	require.NotContains(t, guid.Summary, "{{SOURCES}}")
 	require.NotContains(t, guid.Summary, "source.mode=path/mint/url/data")
@@ -305,7 +305,7 @@ func stdioAppsProfile() HostProfile {
 // pointer), while the non-hosted guide keeps the unchanged web_url deep-link
 // guidance.
 func TestAgentGuideSubscriptionPromotionHostedSplit(t *testing.T) {
-	hostedRules := strings.Join(BuildAgentGuide(profileForTransport(canimcp.TransportOpenAI), assembly.HostedDomainScope, true).Rules, "\n")
+	hostedRules := strings.Join(BuildAgentGuide(profileForTransport(canimcp.TransportOpenAI), assembly.HostedDomainScope, true, nil).Rules, "\n")
 	require.NotContains(t, hostedRules, "web_url",
 		"hosted guide must never point the agent at a subscription deep-link")
 	require.NotContains(t, hostedRules, "so the human opens the web app to subscribe",
@@ -313,7 +313,7 @@ func TestAgentGuideSubscriptionPromotionHostedSplit(t *testing.T) {
 	require.Contains(t, hostedRules, "unavailable on this account",
 		"hosted guide carries the sanctioned entitlement explanation")
 
-	localRules := strings.Join(BuildAgentGuide(profileForTransport(canimcp.TransportOpenAI), assembly.HostedDomainScope, false).Rules, "\n")
+	localRules := strings.Join(BuildAgentGuide(profileForTransport(canimcp.TransportOpenAI), assembly.HostedDomainScope, false, nil).Rules, "\n")
 	require.Contains(t, localRules, "surface the returned web_url deep-link",
 		"non-hosted guide keeps the documented deep-link guidance")
 }
