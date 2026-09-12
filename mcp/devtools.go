@@ -261,28 +261,35 @@ func devHostEnvHandler(_ context.Context, request model.ToolRequest) (model.Tool
 	return devResult(out), nil
 }
 
-// sensitiveHeaders are credential-bearing headers whose values must never
-// leave the server: a dev dump that echoes them lands the bearer token in the
-// persisted conversation logs MCP hosts keep for tool results. The header
-// names stay (presence is useful debug signal); only the values are masked.
-var sensitiveHeaders = map[string]struct{}{
-	"Authorization":       {},
-	"Proxy-Authorization": {},
-	"Cookie":              {},
-	"Set-Cookie":          {},
+// safeHeaderNames is the allowlist of headers whose values are safe to echo
+// in a dev dump. Redaction runs on an allowlist rather than a deny-list of
+// credential-bearing headers: dump targets keep inventing new credential
+// header names (Authorization, Cookie, X-Api-Key, X-Auth-Token, ...), and a
+// deny-list inevitably lags them. An allowlist masks everything it has not
+// explicitly cleared. The header names still appear, so the presence of a
+// masked header remains useful debug signal.
+var safeHeaderNames = map[string]struct{}{
+	"User-Agent":      {},
+	"Accept":          {},
+	"Accept-Encoding": {},
+	"Accept-Language": {},
+	"Content-Type":    {},
+	"Referer":         {},
+	"Origin":          {},
+	"Host":            {},
 }
 
-// safeHeaders copies a profile's headers with credential-bearing values
-// replaced by a redaction marker, so the dev dump is safe for both the
+// safeHeaders copies a profile's headers, masking the values of every header
+// not on the explicit safe allowlist, so the dev dump is safe for both the
 // structured and the plain-text result form.
 func safeHeaders(h http.Header) http.Header {
 	out := make(http.Header, len(h))
 	for k, vs := range h {
-		if _, ok := sensitiveHeaders[http.CanonicalHeaderKey(k)]; ok {
-			out[k] = []string{"[redacted]"}
+		if _, ok := safeHeaderNames[http.CanonicalHeaderKey(k)]; ok {
+			out[k] = vs
 			continue
 		}
-		out[k] = vs
+		out[k] = []string{"[redacted]"}
 	}
 	return out
 }

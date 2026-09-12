@@ -104,27 +104,33 @@ func TestDevHostEnvHandlerNilsAreSafe(t *testing.T) {
 }
 
 // TestDevHostEnvRedactsCredentialHeaders pins the security contract: the
-// header dump must never expose credential-bearing values (a dev tool whose
-// plain-text result echoes the Authorization header lands the bearer token in
-// the host's persisted conversation logs). Header names keep their presence
-// so the debug signal survives; only values are masked.
+// header dump masks every header value not explicitly allowlisted (an
+// allowlist, not a credential deny-list, so newly invented credential header
+// names are masked by default) — a dev tool whose plain-text result echoes an
+// Authorization header lands the bearer token in the host's persisted
+// conversation logs. Header names keep their presence so the debug signal
+// survives; only values are masked.
 func TestDevHostEnvRedactsCredentialHeaders(t *testing.T) {
 	secret := "secret-bearer-token-do-not-leak"
 	caps := devCaps()
 	caps.Profile.Headers = http.Header{
-		"User-Agent":          []string{"grok-client/1.2.3"},
-		"Authorization":       []string{"Bearer " + secret},
-		"Proxy-Authorization": []string{"Bearer " + secret},
-		"Cookie":              []string{"session=" + secret},
-		"Accept":              []string{"application/json"},
+		"User-Agent":           []string{"grok-client/1.2.3"},
+		"Authorization":        []string{"Bearer " + secret},
+		"Proxy-Authorization":  []string{"Bearer " + secret},
+		"Cookie":               []string{"session=" + secret},
+		"X-Api-Key":            []string{secret},
+		"X-Auth-Token":         []string{secret},
+		"X-Goog-Api-Key":       []string{secret},
+		"X-Amz-Security-Token": []string{secret},
+		"Accept":               []string{"application/json"},
 	}
 	res, err := devHostEnvHandler(context.Background(), devReq("dev_host_env", nil, caps))
 	require.NoError(t, err)
 
 	out := res.StructuredContent.(*devHostEnvOutput)
-	require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders["Authorization"])
-	require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders["Proxy-Authorization"])
-	require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders["Cookie"])
+	for _, h := range []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "X-Auth-Token", "X-Goog-Api-Key", "X-Amz-Security-Token"} {
+		require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders[h], h)
+	}
 	// Non-sensitive headers keep their values; the UA multi-value detail that
 	// dev_user_agent_from relies on is untouched.
 	require.Equal(t, []string{"grok-client/1.2.3"}, out.HTTPHeaders["User-Agent"])
