@@ -33,8 +33,10 @@ var accountQuotaDesc = mcpforge.Static[mcpforge.FeatureCarrier](
 ).
 	// Non-hosted surfaces may hand the human the subscription deep-link.
 	Unless(FeatHosted, "; when that reports not-subscribed the response carries a web_url deep-link that the human opens in the web app to subscribe — the model acting alone cannot subscribe on their behalf").
-	// Hosted plugin surfaces may only explain why the feature is unavailable.
-	When(FeatHosted, ". If has_quota is false and the account is not subscribed, explain only that paid actions are unavailable because the entitlement is exhausted — never offer, link to, or point toward any subscription, plan, pricing, or upgrade page")
+	// Hosted plugin surfaces get a factual statement of the returned result
+	// only: descriptions must describe what the tool does, not direct the
+	// model's response.
+	When(FeatHosted, ". When has_quota is false, the response reports the exhausted entitlement only — it carries no subscription state, no plan information, and no links; subscription state is read separately with account_subscription")
 
 // accountSubscriptionDesc is the per-profile MCP description for
 // account_subscription. The subscription-management deep-link clause is
@@ -44,7 +46,7 @@ var accountSubscriptionDesc = mcpforge.Static[mcpforge.FeatureCarrier](
 	"Call account_subscription to read the user's active subscription status (is_subscribed, plan period, gateway, cancellation/pause state)",
 ).
 	Unless(FeatHosted, " and the response's web_url field: the HTTPS deep-link to the deployment's account console subscription management page. The URL is returned as data only; a human must open it in a browser to subscribe or change plans — the model acting alone cannot subscribe on the user's behalf").
-	When(FeatHosted, ". Purely informational: the response carries no way to start or change a subscription, and no link to one may be surfaced")
+	When(FeatHosted, ". Purely informational: the response carries no subscription link and no way to start or change a subscription")
 
 // accountQuotaTargets is the MCPTargets slice for account_quota. The
 // FallbackFunc target resolves the DescBuilder per-request so the description
