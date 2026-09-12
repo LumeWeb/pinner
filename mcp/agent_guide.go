@@ -186,8 +186,12 @@ var guideSummary = mcpforge.Static[HostProfile](
 		"Byte route order is in the upload flow: a local file → mint + PUT, a public HTTPS URL → upload_url, raw bytes → upload_data.",
 	).
 	StaticSentence("For autonomous website publishing after an upload, run the publish_website flow directly. For explicitly requested guided website onboarding (human-in-the-loop, step-by-step DNS setup), use the website-onboarding prompt and the websites_wizard tools (websites_wizard_start → websites_wizard_step) instead. Once a wizard session is active, stay in it: always call the returned next_step_schema via the wizard step tool — do not abandon the wizard to rediscover low-level tools.").
-	When(FeatMCPApps,
-		"This host renders MCP Apps: interactive app views are available via open_app for human-facing interactions (vault_browser, sso_signin, pin_creator, upload_manager, pin_list, account, vault_create, vault_restore, account_password, account_email). Prefer headless primitives for autonomous workflows; call open_app only when a human-facing screen is needed.")
+	// Inventory-gated, not FeatMCPApps-gated: a host may signal the MCP Apps
+	// capability while its composition root registered no app views (no apps
+	// registry wired). {{APPS}} enumerates the actual installed launchers, so
+	// the summary can never name a view tools/list does not carry.
+	WhenPred(appsGate(AppsInstalled()),
+		"This host renders MCP Apps: interactive app views are available via open_app for human-facing interactions ({{APPS}}). Prefer headless primitives for autonomous workflows; call open_app only when a human-facing screen is needed.")
 
 // guideArchiveInvariant and guideCIDStructure are the two operational website
 // rules every agent must honor. Kept as named fragments so branch guidance can
@@ -317,14 +321,24 @@ func publishDomainDecision() *mcpforge.GuideDecisionBuilder[HostProfile] {
 // the guide can never advertise a tool or source mode the resolved scope
 // rejects
 // (e.g. upload_status only appears on mint transports).
-func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted bool) AgentGuide {
+//
+// installedApps is the composition root's registered app-view inventory
+// (Config.InstalledApps): the guide's open_app-bearing clauses gate on it,
+// so an inventory of zero (no apps registry wired) yields no open_app prose
+// regardless of the profile's FeatMCPApps capability signal.
+func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted bool, installedApps []string) AgentGuide {
 	p := profile.CloneFeatures()
 	// The deployment mode is a construction-time property (owned by Config);
 	// overlay it so the guide reflects the actual deployment, which the
 	// request profile carries only as a wire signal.
 	p.Hosted = hosted
+	// The app inventory is construction-time state like hosted: overlay the
+	// registered launcher names so the inventory predicates (AppIs,
+	// AppsInstalled) resolve against what THIS server actually registered.
+	p.KnownApps = installedApps
 	substitute := func(s string) string {
-		return strings.ReplaceAll(s, "{{SOURCES}}", sourceModesText(p))
+		s = strings.ReplaceAll(s, "{{SOURCES}}", sourceModesText(p))
+		return strings.ReplaceAll(s, "{{APPS}}", strings.Join(p.KnownApps, ", "))
 	}
 
 	spec := mcpforge.Guide[HostProfile]().
@@ -332,8 +346,11 @@ func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted boo
 		Summary(guideSummary).
 		Rule(guideArchiveInvariant).
 		Rule(guideCIDStructure).
-		RuleWhen(FeatMCPApps,
-			"MCP Apps rule: this host renders interactive app views. When a user explicitly requests a visual interface, call open_app with the app name (vault_browser, sso_signin, pin_creator, upload_manager, pin_list, account, vault_create, vault_restore, account_password, account_email). open_app returns a ui:// view the host renders as an iframe. Prefer headless primitives (vault_status, vault_put_file, pins_list, auth_sso, ...) for autonomous workflows — call open_app only when a human-facing screen is needed.").
+		// Inventory-gated like the summary: the rule lists only the launchers
+		// the assembled server actually registered ({{APPS}}), so an apps-less
+		// composition root never advertises open_app at all.
+		RuleWhenPred(appsGate(AppsInstalled()),
+			"MCP Apps rule: this host renders interactive app views. When a user explicitly requests a visual interface, call open_app with the app name ({{APPS}}). open_app returns a ui:// view the host renders as an iframe. Prefer headless primitives (vault_status, vault_put_file, pins_list, auth_sso, ...) for autonomous workflows — call open_app only when a human-facing screen is needed.").
 		// Claude Web (host "claude") on a self-hosted (non-hosted) deployment
 		// cannot exercise the transport-derived mint/sink endpoints, so the
 		// only working upload is the base64 upload_data relay and downloads
@@ -362,17 +379,17 @@ func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted boo
 		Flow(mcpforge.Flow[HostProfile]("auth", "Authenticate").
 			Steps("auth_status", "auth_sso", "auth_resume", "auth_status").
 			Detail(mcpforge.Static[HostProfile]("Run auth_status; if unauthenticated, call auth_sso and poll auth_resume with the returned handle until the human completes the browser sign-in.").
-				When(FeatMCPApps,
+				WhenPred(appsGate(AppIs("sso_signin")),
 					"On this host you can also call open_app with app=\"sso_signin\" to render an interactive sign-in card for the human."))).
 		Flow(mcpforge.Flow[HostProfile]("vault_create", "Create a vault").
 			Steps("vault_create", "vault_create_resume", "vault_status").
 			Detail(mcpforge.Static[HostProfile]("Call vault_create with a profile name; poll vault_create_resume with the returned handle; confirm with vault_status until unlocked.").
-				When(FeatMCPApps,
+				WhenPred(appsGate(AppIs("vault_create")),
 					"On this host you can also call open_app with app=\"vault_create\" to render the interactive vault creation wizard."))).
 		Flow(mcpforge.Flow[HostProfile]("vault_restore", "Restore a vault").
 			Steps("vault_restore", "vault_restore_resume", "vault_status").
 			Detail(mcpforge.Static[HostProfile]("Call vault_restore; poll vault_restore_resume with the returned handle; confirm with vault_status until unlocked.").
-				When(FeatMCPApps,
+				WhenPred(appsGate(AppIs("vault_restore")),
 					"On this host you can also call open_app with app=\"vault_restore\" to render the interactive restore wizard."))).
 		Flow(mcpforge.Flow[HostProfile]("upload", "Upload new content (creates + pins)").
 			Steps("capabilities").
@@ -489,7 +506,7 @@ func filterGuideFlows(guide AgentGuide, scope assembly.DomainScope) AgentGuide {
 // description must not recommend broad triggering (a blanket "call this
 // first" directive can override an explicit request already served by a
 // specific tool), so it defers to directly relevant tools for clear intents.
-const agentGuideDescription = "Orientation material for agents: the primary Pinner flows (auth, vault_create, vault_restore, upload, vault_upload, download, vault_download, vault_share, vault_sync, pins, publish_website, ens_publish) as ordered tool chains or decision trees, plus operational rules. On hosts that render MCP Apps, the guide includes open_app as the single launcher for human-facing interactive views. Optional orientation when unfamiliar with Pinner or driving a multi-step flow; for an explicit, already-clear request, prefer the directly relevant tool instead of consulting the guide."
+const agentGuideDescription = "Orientation material for agents: the primary Pinner flows (auth, vault_create, vault_restore, upload, vault_upload, download, vault_download, vault_share, vault_sync, pins, publish_website, ens_publish) as ordered tool chains or decision trees, plus operational rules. When the server has app views registered, the guide includes open_app as the single launcher for the human-facing interactive views actually installed. Optional orientation when unfamiliar with Pinner or driving a multi-step flow; for an explicit, already-clear request, prefer the directly relevant tool instead of consulting the guide."
 
 // AgentGuideDescriptor returns a static, no-input tool that orients an agent
 // to the primary Pinner flows and how to chain them. It is deterministic
@@ -509,7 +526,12 @@ const agentGuideDescription = "Orientation material for agents: the primary Pinn
 // FeatSinkDrop before resolution, mirroring assemble's strip closure: with no
 // FileDrop coordinator wired no download tool accepts sink=drop, so the
 // guide's drop-bearing prose must not render either.
-func AgentGuideDescriptor(scope assembly.DomainScope, hosted bool, dropSinkAvailable bool) model.ToolDescriptor {
+//
+// installedApps is the assembly's registered app-view inventory;
+// Config.InstalledApps supplies it (empty by default). Every open_app-bearing
+// clause gates on it, so the guide claims the open_app launcher only when the
+// launching surface actually exists on the assembled server.
+func AgentGuideDescriptor(scope assembly.DomainScope, hosted bool, dropSinkAvailable bool, installedApps []string) model.ToolDescriptor {
 	return model.ToolDescriptor{
 		Name:          "agent_guide",
 		Title:         "Pinner agent guide",
@@ -527,7 +549,7 @@ func AgentGuideDescriptor(scope assembly.DomainScope, hosted bool, dropSinkAvail
 				// declare FeatSinkDrop on hosts, so re-apply the gate here.
 				delete(profile.Features, FeatSinkDrop)
 			}
-			guide := BuildAgentGuide(profile, scope, hosted)
+			guide := BuildAgentGuide(profile, scope, hosted, installedApps)
 			return model.ToolResult{StructuredContent: guide, Text: toolargs.ResultJSONText(guide)}, nil
 		},
 	}

@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"fmt"
+	"slices"
 
 	"go.lumeweb.com/canimcp"
 	"go.lumeweb.com/mcpforge"
@@ -66,6 +67,15 @@ type HostProfile struct {
 	// It is a server-construction-time property overlaid by Config.Hosted,
 	// never inferred from a per-request wire signal.
 	Hosted bool
+	// KnownApps names the app views whose open_app launcher is actually
+	// registered on the assembled server — the same per-server inventory
+	// materialization captures when app views install. Like Hosted it is a
+	// server-construction-time property (Config.InstalledApps), overlaid on
+	// the per-request profile before guide resolution so guide prose can
+	// never claim a launcher the hosting surface did not register. An empty
+	// inventory (the default for any composition root without an apps
+	// registry) gates every open_app-bearing guide clause off.
+	KnownApps []string
 }
 
 // FeatureSet implements mcpforge.FeatureCarrier.
@@ -117,6 +127,34 @@ func HostIs(h canimcp.HostType) mcpforge.Predicate[HostProfile] {
 // HostedIs matches profiles from a hosted (Portal-embedded) deployment.
 func HostedIs(hosted bool) mcpforge.Predicate[HostProfile] {
 	return func(p HostProfile) bool { return p.Hosted == hosted }
+}
+
+// AppIs matches profiles whose installed app inventory contains app — the
+// guide may name open_app(app) only when that launcher actually registered.
+func AppIs(app string) mcpforge.Predicate[HostProfile] {
+	return func(p HostProfile) bool { return slices.Contains(p.KnownApps, app) }
+}
+
+// AppsInstalled matches profiles carrying at least one installed app view.
+// It composes with the host's FeatMCPApps capability signal: a host that
+// renders apps but registered none (or declared the feature with no registry
+// wired) gets no open_app prose.
+func AppsInstalled() mcpforge.Predicate[HostProfile] {
+	return func(p HostProfile) bool { return len(p.KnownApps) > 0 }
+}
+
+// featIs lifts a feature gate into a predicate so it can compose with
+// inventory/host predicates under mcpforge.And/Or/Not.
+func featIs(f mcpforge.Feature) mcpforge.Predicate[HostProfile] {
+	return func(p HostProfile) bool { return p.Has(f) }
+}
+
+// appsGate composes the host's MCP Apps capability flag with an inventory
+// term: the shared guide mentions open_app only when the host both signals
+// the apps capability and the composition root registered the referenced
+// launcher.
+func appsGate(term mcpforge.Predicate[HostProfile]) mcpforge.Predicate[HostProfile] {
+	return mcpforge.And[HostProfile](featIs(FeatMCPApps), term)
 }
 
 // TransportIs matches profiles running on the given transport.

@@ -36,6 +36,22 @@ func Assemble(cfg Config) (*Server, error) {
 	// catalog compiler below. Errors propagate loudly — an un-adaptable
 	// profile is the assembly mistake it is, never a silently featureless
 	// description surface (see ProfileAdapterError).
+	// The app inventory is the guide's truth input for MCP Apps prose, so it
+	// is validated before anything reads it: unknown launcher names fail the
+	// assembly (a table-vocabulary lie is a provable one), and a composition
+	// root that can see its registry asserts the listed set against the
+	// registered one via VerifyInstalledApps. The blessed inventory source is
+	// mcp/appswire/install's Install — the names whose views actually
+	// registered — which keeps the guide's claims and the wire surface in
+	// lockstep by construction.
+	if err := validateInstalledApps(cfg.InstalledApps); err != nil {
+		return nil, fmt.Errorf("mcp: assemble: %w", err)
+	}
+	if cfg.VerifyInstalledApps != nil {
+		if err := cfg.VerifyInstalledApps(cfg.InstalledApps); err != nil {
+			return nil, fmt.Errorf("mcp: assemble: %w", err)
+		}
+	}
 	profile, err := HostProfileOf(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: assemble: %w", err)
@@ -241,7 +257,7 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 		strip(FeatSinkDrop)
 	}
 
-	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.DomainScope, s.config.Hosted, dropAvailable)}
+	direct := []model.ToolDescriptor{AgentGuideDescriptor(s.config.DomainScope, s.config.Hosted, dropAvailable, s.config.InstalledApps)}
 	direct = append(direct, NewCapabilitiesDescriptor(CapabilityWiring{
 		CoLocated:     wiring.CoLocated,
 		TunnelOpenAI:  wiring.TunnelOpenAI,
