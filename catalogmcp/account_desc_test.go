@@ -38,6 +38,10 @@ func TestAccountQuotaDescriptionGatesSubscriptionPromotion(t *testing.T) {
 	require.NotContains(t, hosted, "to subscribe", "hosted description must not promote subscribing")
 	require.Contains(t, hosted, "account_subscription",
 		"the entitlement explanation may still point at the informational status tool")
+	require.NotContains(t, hosted, "never offer",
+		"descriptions describe the tool; response-policy directives do not belong here")
+	require.Contains(t, hosted, "carries no subscription state",
+		"hosted wording states the factual limitation of the returned result")
 
 	local := accountQuotaDesc.Resolve(accountProfile(false))
 	require.Contains(t, local, "web_url deep-link",
@@ -57,6 +61,8 @@ func TestAccountSubscriptionDescriptionGatesSubscriptionPromotion(t *testing.T) 
 	require.NotContains(t, hosted, "deep-link")
 	require.NotContains(t, hosted, "to subscribe", "hosted description must not promote subscribing")
 	require.Contains(t, hosted, "Purely informational")
+	require.NotContains(t, hosted, "may be surfaced",
+		"hosted wording stays factual about the response, not directive about the model")
 
 	local := accountSubscriptionDesc.Resolve(accountProfile(false))
 	require.Contains(t, local, "web_url field",

@@ -54,17 +54,14 @@ type CatalogPresentation = model.ToolDescriptor
 // readOnlyOverride records the platform-required annotation values for tools
 // whose wire hints cannot be derived from the catalog Safety tier alone.
 //
-// auth_status is the only one so far: it can trigger out-of-band sign-in
-// communication (the SSO hand-off emails the human a verification link, which
-// cannot be unsent), so the Claude/MCP directory validators classify it as
-// non-read, destructive and open-world — a sent message is irreversible. Its
-// hints must declare that contract rather than the local "reads config only"
-// shape.
+// Empty so far: auth_status was previously forced to destructive/open-world
+// on the premise that it triggers out-of-band sign-in communication, but that
+// contract belongs to auth_sso — auth_status only validates the stored token
+// and reads the account subject (SafetyRead), so the SafetyRead derivation
+// (readOnly=true, destructive/openWorld=false) is accurate and must apply.
 var readOnlyOverride = map[string]struct {
 	readOnly, destructive, openWorld bool
-}{
-	"auth_status": {readOnly: false, destructive: true, openWorld: true},
-}
+}{}
 
 // catalogEnvelopeSchema is the typed shape of a catalog tool's *success*
 // StructuredContent: an object whose `status` is always "ok" and whose optional
