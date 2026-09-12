@@ -86,6 +86,34 @@ func TestDevHostEnvHandlerReportsHost(t *testing.T) {
 	require.NotEmpty(t, out.InitializeParams)
 	// Features are listed, sorted, and enabled-only.
 	require.Equal(t, []string{"sink-drop", "source-mint"}, out.Features)
+	// Redacted auth state: token presence only — the token material itself
+	// (user ID, scopes, claims) must never appear in the dump.
+	require.True(t, out.TokenPresent)
+	require.NotContains(t, res.Text, "u-42")
+	require.NotContains(t, res.Text, "pins:read")
+	require.NotContains(t, res.Text, "oauth_token")
+}
+
+// TestDevHostEnvOmitsTokenMaterial pins the security contract: the auth dump
+// is a redacted state (auth method + token presence), never the OAuth token
+// info itself — echoing token claims into the result puts authentication
+// material into the host's persisted conversation logs.
+func TestDevHostEnvOmitsTokenMaterial(t *testing.T) {
+	caps := devCaps()
+	caps.Profile.TokenInfo = &model.TokenInfo{
+		UserID: "u-42",
+		Scopes: []string{"pins:read", "pins:write"},
+		Extra:  map[string]any{"email": "secret@example.com"},
+	}
+	res, err := devHostEnvHandler(context.Background(), devReq("dev_host_env", nil, caps))
+	require.NoError(t, err)
+
+	out := res.StructuredContent.(*devHostEnvOutput)
+	require.True(t, out.TokenPresent, "token presence is the redacted auth state")
+	require.Equal(t, "bearer", out.AuthMethod)
+	for _, secret := range []string{"u-42", "pins:read", "pins:write", "secret@example.com"} {
+		require.NotContains(t, res.Text, secret)
+	}
 }
 
 func TestDevHostEnvHandlerNilsAreSafe(t *testing.T) {

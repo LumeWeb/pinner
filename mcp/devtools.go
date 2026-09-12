@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
-	"time"
 
 	"go.lumeweb.com/mcpplane/model"
 )
@@ -71,34 +70,6 @@ func devUserAgentFrom(profile *model.Profile) *devUserAgent {
 	return &devUserAgent{Raw: profile.UserAgent, Values: values}
 }
 
-// devTokenInfo is the structured form of the OAuth bearer token info attached
-// to the call.
-type devTokenInfo struct {
-	UserID     string         `json:"user_id,omitempty"`
-	Scopes     []string       `json:"scopes,omitempty"`
-	Expiration time.Time      `json:"expiration,omitempty"`
-	Extra      map[string]any `json:"extra,omitempty"`
-}
-
-// devTokenInfoFrom converts model token info into the structured form,
-// returning nil when there is none.
-func devTokenInfoFrom(ti *model.TokenInfo) *devTokenInfo {
-	if ti == nil {
-		return nil
-	}
-	info := &devTokenInfo{UserID: ti.UserID}
-	if len(ti.Scopes) > 0 {
-		info.Scopes = ti.Scopes
-	}
-	if !ti.Expiration.IsZero() {
-		info.Expiration = ti.Expiration
-	}
-	if len(ti.Extra) > 0 {
-		info.Extra = ti.Extra
-	}
-	return info
-}
-
 // devHostEnvOutput is the StructuredContent of dev_host_env.
 type devHostEnvOutput struct {
 	ProtocolVersion    string              `json:"protocol_version,omitempty"`
@@ -111,8 +82,12 @@ type devHostEnvOutput struct {
 	UserAgent          *devUserAgent       `json:"user_agent,omitempty"`
 	ClientCapabilities map[string]any      `json:"client_capabilities,omitempty"`
 	InitializeParams   map[string]any      `json:"initialize_params,omitempty"`
-	OAuthToken         *devTokenInfo       `json:"oauth_token,omitempty"`
-	HTTPHeaders        map[string][]string `json:"http_headers,omitempty"`
+	// TokenPresent is the redacted auth state: whether the call carries an
+	// OAuth token. The token material itself (user ID, scopes, claims) is
+	// never echoed — a dev dump must not land credentials in the host's
+	// persisted conversation logs.
+	TokenPresent bool                `json:"token_present,omitempty"`
+	HTTPHeaders  map[string][]string `json:"http_headers,omitempty"`
 }
 
 // devProfileOutput is the StructuredContent of dev_profile.
@@ -213,7 +188,7 @@ func devToolDescriptors() []model.ToolDescriptor {
 		desc(
 			"dev_host_env",
 			"Dev: Host Environment",
-			"Dump everything the MCP server observes about the CALLING MODEL HOST, as raw facts with no interpretation: the client implementation (name/title/version/description), the negotiated MCP protocol version, the full raw client capabilities, the raw initialize params, the OAuth token info attached to this call, and the HTTP request headers including User-Agent, plus the profile resolution (host type, transport, auth method, and enabled features). Over HTTP/OAuth transports the server's own process environment is unrelated to the remote host, so this reports only the signals the host advertises on the wire. Use it (with dev tools enabled) to identify which platform/agent is actually connected.",
+			"Dump everything the MCP server observes about the CALLING MODEL HOST, as raw facts with no interpretation: the client implementation (name/title/version/description), the negotiated MCP protocol version, the full raw client capabilities, the raw initialize params, the HTTP request headers with credential-bearing header values (Authorization, Cookie, API keys, ...) masked to [redacted] (only an allowlist of non-sensitive headers such as User-Agent keeps its values), and the redacted auth state (auth method and whether a token is attached — no token material), plus the profile resolution (host type, transport, auth method, and enabled features). Over HTTP/OAuth transports the server's own process environment is unrelated to the remote host, so this reports only the signals the host advertises on the wire. Use it (with dev tools enabled) to identify which platform/agent is actually connected.",
 			devHostEnvHandler,
 		),
 		desc(
@@ -246,7 +221,7 @@ func devHostEnvHandler(_ context.Context, request model.ToolRequest) (model.Tool
 		Features:        enabledModelFeatures(profile),
 		ClientInfo:      devClientInfoFrom(profile.ClientInfo),
 		UserAgent:       devUserAgentFrom(profile),
-		OAuthToken:      devTokenInfoFrom(profile.TokenInfo),
+		TokenPresent:    profile.TokenInfo != nil,
 	}
 	if cc := capsClientCapabilities(request); len(cc) > 0 {
 		out.ClientCapabilities = cc
