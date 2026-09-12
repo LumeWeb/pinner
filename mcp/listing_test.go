@@ -28,6 +28,7 @@ func TestStrategyForHostWebHostsGoFlat(t *testing.T) {
 		{"Grok web connector over HTTP", canimcp.HostGrok, canimcp.TransportHTTP},
 		{"OpenAI web (openai-mcp) over HTTP", canimcp.HostOpenAI, canimcp.TransportHTTP},
 		{"ChatGPT over the embedded OpenAI tunnel", canimcp.HostChatGPT, canimcp.TransportOpenAI},
+		{"Manufact Cloud dashboard over HTTP", canimcp.HostManufact, canimcp.TransportHTTP},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
