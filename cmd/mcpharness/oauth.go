@@ -33,12 +33,12 @@ type oauthClient struct {
 }
 
 type oauthAuthCode struct {
-	clientID   string
-	redirect   string
-	challenge  string
-	resource   string
-	used       bool
-	expiresAt  time.Time
+	clientID  string
+	redirect  string
+	challenge string
+	resource  string
+	used      bool
+	expiresAt time.Time
 }
 
 type oauthAccessToken struct {
@@ -100,20 +100,20 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func (o *oauthProvider) handleMetadata(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"issuer":                 o.base,
-		"authorization_endpoint": o.base + "/oauth/authorize",
-		"token_endpoint":         o.base + "/oauth/token",
-		"registration_endpoint":  o.base + "/oauth/register",
-		"grant_types_supported":  []string{"authorization_code"},
-		"response_types_supported": []string{"code"},
+		"issuer":                                o.base,
+		"authorization_endpoint":                o.base + "/oauth/authorize",
+		"token_endpoint":                        o.base + "/oauth/token",
+		"registration_endpoint":                 o.base + "/oauth/register",
+		"grant_types_supported":                 []string{"authorization_code"},
+		"response_types_supported":              []string{"code"},
 		"token_endpoint_auth_methods_supported": []string{"none"},
 	})
 }
 
 func (o *oauthProvider) handleProtectedResource(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"resource":           o.resource,
-		"resource_metadata":  o.base + "/.well-known/oauth-protected-resource",
+		"resource":          o.resource,
+		"resource_metadata": o.base + "/.well-known/oauth-protected-resource",
 	})
 }
 

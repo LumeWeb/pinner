@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
@@ -57,7 +58,10 @@ type FakeServices struct {
 	cfgMgr config.Manager
 
 	// mu guards the mutable stores below. The fakes are invoked from MCP tool
-	// handlers that may run concurrently (streamable HTTP + app helpers).
+	// handlers that may run concurrently (streamable HTTP + app helpers); every
+	// fake method that reads or writes these maps must hold mu.
+	mu sync.Mutex
+
 	pins     map[string]pinning.Pin
 	pinOrder []string
 
@@ -76,6 +80,22 @@ type FakeServices struct {
 // fakeError is the uniform "not implemented by the harness fake" error.
 func fakeError(what string) error {
 	return fmt.Errorf("harness fake: %s is not implemented (test-only in-memory server)", what)
+}
+
+// harnessTokenEnv names the env var that overrides the faked bearer token so
+// no token literal is hard-coded into source. The deterministic
+// "token-<email>" default stays for the sunpeak e2e suite and its fixture
+// configs (which reference token-e2e@example.com).
+const harnessTokenEnv = "MCPHARNESS_TOKEN"
+
+// tokenFor derives the faked auth token for the seeded account: the
+// MCPHARNESS_TOKEN env var wins, otherwise the deterministic "token-<email>"
+// default is used. Every place that builds the fake token goes through this.
+func tokenFor(email string) string {
+	if t := os.Getenv(harnessTokenEnv); t != "" {
+		return t
+	}
+	return "token-" + email
 }
 
 // CfgMgr returns the shared config manager (the lazy-deps getter).
@@ -104,7 +124,7 @@ func NewFakeServices(email string) (*FakeServices, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fakes: config manager: %w", err)
 	}
-	token := "token-" + email
+	token := tokenFor(email)
 	if err := mgr.SetBaseEndpoint(fakeBaseEndpoint); err != nil {
 		return nil, fmt.Errorf("fakes: set base endpoint: %w", err)
 	}
@@ -210,6 +230,8 @@ func newFakePinningService(svc *FakeServices) pinning.PinningService {
 func (f *fakePinningService) RequireAuthenticated() error { return nil }
 
 func (f *fakePinningService) List(_ context.Context, opts pinning.ListOptions) ([]pinning.Pin, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	out := make([]pinning.Pin, 0, len(f.svc.pinOrder))
 	for _, cid := range f.svc.pinOrder {
 		p, ok := f.svc.pins[cid]
@@ -231,6 +253,13 @@ func (f *fakePinningService) List(_ context.Context, opts pinning.ListOptions) (
 }
 
 func (f *fakePinningService) Pin(_ context.Context, cid, name string, _ bool) (*pinning.PinResult, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	return f.pinLocked(cid, name), nil
+}
+
+// pinLocked mutates the pin stores; caller must hold f.svc.mu.
+func (f *fakePinningService) pinLocked(cid, name string) *pinning.PinResult {
 	if name == "" {
 		name = "pin-" + cid
 	}
@@ -241,10 +270,12 @@ func (f *fakePinningService) Pin(_ context.Context, cid, name string, _ bool) (*
 		Created: fakePortalTime.Format(time.RFC3339),
 	}
 	f.svc.pinOrder = append(f.svc.pinOrder, cid)
-	return &pinning.PinResult{CID: cid, Status: "pinned", RequestID: "fake-" + name}, nil
+	return &pinning.PinResult{CID: cid, Status: "pinned", RequestID: "fake-" + name}
 }
 
 func (f *fakePinningService) Status(_ context.Context, cid string, _ bool) (*pinning.PinStatus, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	p, ok := f.svc.pins[cid]
 	if !ok {
 		return nil, fmt.Errorf("pin %q not found", cid)
@@ -253,6 +284,13 @@ func (f *fakePinningService) Status(_ context.Context, cid string, _ bool) (*pin
 }
 
 func (f *fakePinningService) Unpin(_ context.Context, cid string, _ bool) (*pinning.UnpinResult, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	return f.unpinLocked(cid)
+}
+
+// unpinLocked removes a pin; caller must hold f.svc.mu.
+func (f *fakePinningService) unpinLocked(cid string) (*pinning.UnpinResult, error) {
 	if _, ok := f.svc.pins[cid]; !ok {
 		return nil, fmt.Errorf("pin %q not found", cid)
 	}
@@ -277,6 +315,8 @@ func (f *fakePinningService) UnpinBatch(_ context.Context, cids []string, _ pinn
 }
 
 func (f *fakePinningService) UnpinAll(context.Context, string, pinning.BatchOptions) (*pinning.BatchResult, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	n := len(f.svc.pins)
 	f.svc.pins = map[string]pinning.Pin{}
 	f.svc.pinOrder = nil
@@ -304,6 +344,8 @@ func newFakeDNSService(svc *FakeServices) dns.Service { return &fakeDNSService{s
 func (f *fakeDNSService) RequireAuthenticated() error { return nil }
 
 func (f *fakeDNSService) ListZones(context.Context) ([]ipfs.ZoneListResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	out := make([]ipfs.ZoneListResponse, 0, len(f.svc.zones))
 	seen := map[int]bool{}
 	for _, z := range f.svc.zones {
@@ -317,6 +359,8 @@ func (f *fakeDNSService) ListZones(context.Context) ([]ipfs.ZoneListResponse, er
 }
 
 func (f *fakeDNSService) CreateZone(_ context.Context, domain string, _ []string) (*ipfs.ZoneResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	zone := ipfs.ZoneListResponse{
 		Id:        len(f.svc.zones) + 2,
 		Domain:    domain,
@@ -330,6 +374,8 @@ func (f *fakeDNSService) CreateZone(_ context.Context, domain string, _ []string
 }
 
 func (f *fakeDNSService) GetZone(_ context.Context, id string) (*ipfs.ZoneResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	z, ok := f.svc.zones[id]
 	if !ok {
 		return nil, fmt.Errorf("zone %q not found", id)
@@ -340,6 +386,8 @@ func (f *fakeDNSService) GetZone(_ context.Context, id string) (*ipfs.ZoneRespon
 func (f *fakeDNSService) DeleteZone(context.Context, string) error { return nil }
 
 func (f *fakeDNSService) ValidateZone(_ context.Context, id string) (*ipfs.ValidationResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	if _, ok := f.svc.zones[id]; !ok {
 		return nil, fmt.Errorf("zone %q not found", id)
 	}
@@ -407,6 +455,8 @@ func (f *fakeIPNSService) ListKeys(_ context.Context, opts ...ipfs.ListKeyOption
 			filter = o.FilterName
 		}
 	}
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	out := make([]ipfs.IPNSKeyResponse, 0, len(f.svc.keys))
 	keys := sortedKeys(f.svc.keys)
 	for _, name := range keys {
@@ -420,6 +470,8 @@ func (f *fakeIPNSService) ListKeys(_ context.Context, opts ...ipfs.ListKeyOption
 }
 
 func (f *fakeIPNSService) CreateKey(_ context.Context, name string, _ *string) (*ipfs.IPNSKeyResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	if _, exists := f.svc.keys[name]; exists {
 		return nil, fmt.Errorf("key %q already exists", name)
 	}
@@ -435,6 +487,8 @@ func (f *fakeIPNSService) CreateKey(_ context.Context, name string, _ *string) (
 }
 
 func (f *fakeIPNSService) GetKey(_ context.Context, id string) (*ipfs.IPNSKeyResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	k, ok := f.svc.keys[id]
 	if !ok {
 		return nil, fmt.Errorf("key %q not found", id)
@@ -443,6 +497,8 @@ func (f *fakeIPNSService) GetKey(_ context.Context, id string) (*ipfs.IPNSKeyRes
 }
 
 func (f *fakeIPNSService) DeleteKey(_ context.Context, id string) error {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	if _, ok := f.svc.keys[id]; !ok {
 		return fmt.Errorf("key %q not found", id)
 	}
@@ -451,6 +507,8 @@ func (f *fakeIPNSService) DeleteKey(_ context.Context, id string) error {
 }
 
 func (f *fakeIPNSService) Publish(_ context.Context, _, keyName string, _ *string) (*ipfs.IPNSPublishResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	k, ok := f.svc.keys[keyName]
 	if !ok {
 		return nil, fmt.Errorf("key %q not found", keyName)
@@ -508,6 +566,8 @@ func newFakeWebsitesService(svc *FakeServices) websites.Service {
 func (f *fakeWebsitesService) RequireAuthenticated() error { return nil }
 
 func (f *fakeWebsitesService) List(context.Context, websites.ListOptions) ([]ipfs.WebsiteItem, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	out := make([]ipfs.WebsiteItem, 0, len(f.svc.websites))
 	domains := make([]string, 0, len(f.svc.websites))
 	for d := range f.svc.websites {
@@ -521,6 +581,8 @@ func (f *fakeWebsitesService) List(context.Context, websites.ListOptions) ([]ipf
 }
 
 func (f *fakeWebsitesService) Create(_ context.Context, domain, targetHash, targetType string) (*ipfs.WebsiteItem, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	now := time.Now()
 	w := ipfs.WebsiteItem{
 		Id:         len(f.svc.websites) + 2,
@@ -536,6 +598,8 @@ func (f *fakeWebsitesService) Create(_ context.Context, domain, targetHash, targ
 }
 
 func (f *fakeWebsitesService) Get(_ context.Context, id string) (*ipfs.WebsiteItem, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	w, ok := f.svc.websites[id]
 	if !ok {
 		return nil, fmt.Errorf("website %q not found", id)
@@ -589,6 +653,8 @@ type fakeAPIKeysService struct {
 func (f *fakeAPIKeysService) RequireAuthenticated() error { return nil }
 
 func (f *fakeAPIKeysService) ListAPIKeys(context.Context, string) ([]*portalsdk.APIKey, int, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	names := make([]string, 0, len(f.svc.apiKeys))
 	for name := range f.svc.apiKeys {
 		names = append(names, name)
@@ -602,6 +668,8 @@ func (f *fakeAPIKeysService) ListAPIKeys(context.Context, string) ([]*portalsdk.
 }
 
 func (f *fakeAPIKeysService) CreateAPIKey(_ context.Context, name string) (*portalsdk.APIKey, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	if _, exists := f.svc.apiKeys[name]; exists {
 		return nil, fmt.Errorf("api key %q already exists", name)
 	}
@@ -611,6 +679,8 @@ func (f *fakeAPIKeysService) CreateAPIKey(_ context.Context, name string) (*port
 }
 
 func (f *fakeAPIKeysService) DeleteAPIKey(_ context.Context, idOrName string, _ bool) error {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
 	k, ok := f.svc.apiKeys[idOrName]
 	if !ok {
 		return fmt.Errorf("api key %q not found", idOrName)
