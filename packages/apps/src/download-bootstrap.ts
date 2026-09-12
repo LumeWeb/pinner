@@ -116,12 +116,21 @@ export function runDownloadEntry(opts: DownloadEntryOptions) {
       opts.elements.outLink.style.display = "";
       // Unhide the containing result card (its inline style is display:none).
       opts.elements.outLink.closest?.(".card")?.setAttribute("style", "");
+    } else {
+      // Leaving Ok/error/idle: clear any stale readout from a previous run so a
+      // reset or failed re-download never surfaces an outdated fetch link.
+      opts.elements.outLink.href = undefined;
+      opts.elements.outLink.textContent = "";
+      opts.elements.outLink.style.display = "none";
     }
     if (r.setOutPath && ctx.outputPathResult) {
       opts.elements.outPath.textContent = ctx.outputPathResult;
       opts.elements.outPath.style.display = "";
       // Unhide the containing result card.
       opts.elements.outPath.closest?.(".card")?.setAttribute("style", "");
+    } else {
+      opts.elements.outPath.textContent = "";
+      opts.elements.outPath.style.display = "none";
     }
   });
 
@@ -137,7 +146,10 @@ export function runDownloadEntry(opts: DownloadEntryOptions) {
 
   opts.elements.form.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const sink = opts.elements.sinkDrop.checked ? "drop" : "local";
+    // Honor dropAvailable: a local-only form (dropAvailable:false) must never
+    // offer or select the drop sink even if the (hidden) drop radio is checked.
+    const drop = opts.config.dropAvailable && opts.elements.sinkDrop.checked;
+    const sink = drop ? "drop" : "local";
     submit(
       opts.elements.sourceInput.value.trim(),
       opts.elements.nameInput.value.trim(),
