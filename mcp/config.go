@@ -97,7 +97,23 @@ type Config struct {
 	// default) gates every open_app-bearing clause off, so the guide never
 	// advertises a launcher tools/list does not carry. Zero value is the
 	// correct choice for any assembly that registered no app views.
+	//
+	// Entries are assembly- asserted before the guide reads them: duplicated
+	// names fail, a composition root whose seam can see its registry asserts
+	// the listed set against the registered one via VerifyInstalledApps, and
+	// the launcher-vocabulary check (an entry that names no declared
+	// app-view launcher fails the assembly) rides in with the appswire table.
+	// The blessed way to populate the slice is the launcher names the shared
+	// app-view wiring returns when views actually install — never a
+	// hand-maintained list.
 	InstalledApps []string
+
+	// VerifyInstalledApps, when set, is the composition root's registry-side
+	// assertion for InstalledApps: Assemble calls it after the table-vocabulary
+	// validation with the same inventory, and a non-nil error fails the
+	// assembly loudly. Supply it whenever the composition root can diff the
+	// names against the app registry it installed views through.
+	VerifyInstalledApps func(installedApps []string) error
 
 	// NOTE: no AppRegistry field. The MCP Apps registry (mcpplane/apps.
 	// AppRegistry) sits behind mcpplane/sdk, which imports the MCP SDK —
