@@ -286,6 +286,11 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 			wiring.TunnelOpenAI,
 		))
 	}
+	// The dev_* introspection tools are direct-only diagnostics: never part of
+	// the production surface, appended only when Config.DevTools declares them.
+	if s.config.DevTools {
+		direct = append(direct, devToolDescriptors()...)
+	}
 	return direct
 }
 

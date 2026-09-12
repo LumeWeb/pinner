@@ -80,6 +80,17 @@ type Config struct {
 	// that fail a read with a clear "provider not configured" error.
 	ResourceProviders ResourceProviders
 
+	// DevTools, when set, appends the dev_* introspection tools
+	// (dev_host_env, dev_profile, dev_request) to the assembled direct
+	// surface. They are read-only diagnostics for debugging the MCP server
+	// and the connected host; the production surface must never carry them.
+	// A composition root that enables DevTools should also populate the
+	// per-request RequestCaps raw wire snapshot (Capabilities and
+	// InitializeParams) so dev_host_env can report them; the tools degrade
+	// gracefully when the snapshot is absent. The assembled Server exposes
+	// the setting read-only via Server.DevEnabled.
+	DevTools bool
+
 	// NOTE: no AppRegistry field. The MCP Apps registry (mcpplane/apps.
 	// AppRegistry) sits behind mcpplane/sdk, which imports the MCP SDK —
 	// including a *apps.AppRegistry here would pull that SDK into every
