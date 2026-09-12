@@ -37,6 +37,10 @@ type InstallContext struct {
 	Registry *Registry
 	// Render builds an app view's HTML document from its canvas screen.
 	Render RenderFunc
+	// Helpers are the app-only tool descriptors each view needs at install
+	// time (e.g. the pin-create view's polling helper), keyed by launcher
+	// name; a nil or missing key means the view is helper-free.
+	Helpers map[string][]model.ToolDescriptor
 }
 
 // Installer installs ONE table row's app view onto the context Install
@@ -62,7 +66,8 @@ type InstallOptions struct {
 	Render RenderFunc
 	// Helpers supplies the app-only tool descriptors a view needs at install
 	// time (e.g. the pin-create view's polling helper); keyed by launcher
-	// name, nil for helper-free views.
+	// name, nil for helper-free views. Threaded to installers through
+	// InstallContext, like every other option here.
 	Helpers map[string][]model.ToolDescriptor
 }
 
@@ -95,6 +100,7 @@ func Install(srv *sdk.Server, catalog AppCatalog, rows []ViewSpec, installers In
 		Catalog:  catalog,
 		Registry: opts.Registry,
 		Render:   opts.Render,
+		Helpers:  opts.Helpers,
 	}
 	var installed []string
 	for _, v := range rows {
@@ -112,13 +118,14 @@ func Install(srv *sdk.Server, catalog AppCatalog, rows []ViewSpec, installers In
 
 // ViewInstaller returns an Installer bound to one row: on the install
 // context it builds the row's AppView from the table (rendered via the
-// context's render func, with bound helpers) and registers it on the
-// context's registry — the template for every helper-free, coordinator-free
-// view (pin list, auth status, vault browser, download managers). Views with
-// live dependencies wrap this installer with their dep binding and opt
-// init.InstallContext.
-func (v ViewSpec) ViewInstaller(helpers []model.ToolDescriptor) Installer {
+// context's render func, with the context's per-row helpers) and registers it
+// on the context's registry — the template for every helper-free,
+// coordinator-free view (pin list, auth status, vault browser, download
+// managers) and any view whose helpers were supplied through
+// InstallOptions.Helpers. Views with live dependencies wrap this installer
+// with their dependency binding and control-flow skips.
+func (v ViewSpec) ViewInstaller() Installer {
 	return func(ic InstallContext) error {
-		return ic.Registry.RegisterAppView(ic.Server, ic.Catalog, v.AppViewFor(ic.Render, helpers))
+		return ic.Registry.RegisterAppView(ic.Server, ic.Catalog, v.AppViewFor(ic.Render, ic.Helpers[v.Launcher]))
 	}
 }

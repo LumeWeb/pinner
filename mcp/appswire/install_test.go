@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.lumeweb.com/mcpplane/model"
 	"go.lumeweb.com/mcpplane/sdk"
 	"go.lumeweb.com/pinner/canvas"
 )
@@ -61,6 +62,28 @@ func TestInstallContextCarriesValidatedOptions(t *testing.T) {
 	require.Same(t, registry, seen.Registry)
 	require.NotNil(t, seen.Render)
 	require.NotNil(t, seen.Server)
+}
+
+// TestHelpersThreadedThroughContext pins the helpers contract: InstallOptions
+// .Helpers reaches installers via InstallContext — the single path
+// ViewInstaller reads a row's helpers from — never sidestepped.
+func TestHelpersThreadedThroughContext(t *testing.T) {
+	registry := &Registry{}
+	var seen InstallContext
+	installer := func(ic InstallContext) error {
+		seen = ic
+		return nil
+	}
+	v := firstRow()
+	helpers := []model.ToolDescriptor{{Name: "pin_status"}}
+	_, err := Install(&sdk.Server{}, nil, []ViewSpec{v}, Installers{
+		v.Launcher: installer,
+	}, InstallOptions{Registry: registry, Render: renderStub(), Helpers: map[string][]model.ToolDescriptor{
+		v.Launcher: helpers,
+	}})
+	require.NoError(t, err)
+	require.Equal(t, helpers, seen.Helpers[v.Launcher],
+		"the row's helpers must arrive through the install context, exactly as supplied")
 }
 
 func TestMissingInstallerSkipsRow(t *testing.T) {
