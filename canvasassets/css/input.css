@@ -20,9 +20,8 @@
  * the utilities either surface uses.
  */
 
-@source "./../**/*.templ";
-@source "../../mcp/**/*.templ";
-@source "../../../packages/apps/src/**/*.ts";
+@source "../../canvas/**/*.templ";
+@source "../../packages/apps/src/**/*.ts";
 
 @theme {
   /* ---- Pinner brand surface (was OOB brand.css :root) ------------------- */

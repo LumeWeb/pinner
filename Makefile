@@ -46,8 +46,8 @@ templinstall:
 generate:
 	templ generate
 
-build:
+build: assets
 	go build -v ./...
 
-test:
+test: assets
 	go test -v ./...

@@ -40,6 +40,12 @@ jobs:
       with:
         version: 10.33.2
 
+    - name: Install repo JS deps
+      # Installs the repo-root devDependencies (tailwindcss, @tailwindcss/cli)
+      # so `make cssbuild` has the Tailwind binaries, plus the packages/apps
+      # catalog deps that `make jsbuild` builds the bundles with.
+      run: pnpm install --frozen-lockfile
+
     - name: Generate app assets
       # Regenerates the gitignored embedded assets (canvasassets/appsassets/
       # bundles + manifest and css/tailwind.css) that the go:embed directives
