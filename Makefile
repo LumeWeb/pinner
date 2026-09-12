@@ -51,3 +51,12 @@ build: assets
 
 test: assets
 	go test -v ./...
+
+# mcpharness builds the runnable MCP server harness (cmd/mcpharness) that the
+# sunpeak integration suite (tests/sunpeak) drives over stdio. It stands up the
+# complete pinner MCP surface over faked core services — no network — so it is
+# the single, in-module test substrate for the MCP Apps render/asset seam.
+.PHONY: mcpharness
+mcpharness:
+	mkdir -p bin
+	go build -o bin/mcpharness ./cmd/mcpharness

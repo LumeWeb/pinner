@@ -1,6 +1,7 @@
 package canvasassets
 
 import (
+	"errors"
 	"io/fs"
 	"regexp"
 	"sort"
@@ -284,5 +285,48 @@ func TestRenderAppDocVersionGlobal(t *testing.T) {
 	module := extractModuleScript(t, canvas.ViewPin, doc)
 	if !strings.HasPrefix(module, docVersionGlobalPrefix) {
 		t.Fatalf("version global is not the module script's prefix")
+	}
+}
+
+// TestRenderDocExplicitTitleAndVersion pins the RenderDoc seam renders a view
+// with an explicit title and version (the surface the reference CLI and a
+// hosted composition root use to keep their own titles/build version while
+// reusing the shared embedded source + theme), and that the version stamp is
+// normalized semver.
+func TestRenderDocExplicitTitleAndVersion(t *testing.T) {
+	doc, err := RenderDoc(canvas.ViewPin, "My Custom Title", "1.2.3")
+	if err != nil {
+		t.Fatalf("RenderDoc: %v", err)
+	}
+	if !strings.Contains(doc, "<title>My Custom Title</title>") {
+		t.Errorf("RenderDoc did not use the explicit title")
+	}
+	idx := strings.Index(doc, docVersionGlobalPrefix)
+	if idx < 0 {
+		t.Fatalf("RenderDoc did not inject %s", docVersionGlobalPrefix)
+	}
+	rest := doc[idx+len(docVersionGlobalPrefix):]
+	end := strings.IndexByte(rest, ';')
+	if end <= 0 {
+		t.Fatalf("version global assignment unterminated")
+	}
+	val := strings.Trim(rest[:end], `" `)
+	if val != "1.2.3" {
+		t.Errorf("RenderDoc version stamp = %q, want %q", val, "1.2.3")
+	}
+	if !versionGlobalSemverRe.MatchString(val) {
+		t.Errorf("RenderDoc version %q is not normalized semver", val)
+	}
+}
+
+// TestRenderDocUnknownView pins that an unregistered view errors (wrapping
+// canvas.ErrUnknownView) rather than silently rendering an empty document.
+func TestRenderDocUnknownView(t *testing.T) {
+	_, err := RenderDoc(canvas.View("no-such-view"), "Title", "1.0.0")
+	if err == nil {
+		t.Fatal("RenderDoc returned no error for an unknown view")
+	}
+	if !errors.Is(err, canvas.ErrUnknownView) {
+		t.Fatalf("RenderDoc error = %v, want it to wrap canvas.ErrUnknownView", err)
 	}
 }
