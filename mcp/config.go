@@ -34,7 +34,7 @@ type Config struct {
 	// composition root that knows which listing behavior its audience needs
 	// (or which host it serves declaratively) passes the policy it resolved —
 	// e.g. via PolicyForHost. When nil, the assembly resolves DefaultPolicy
-	// (progressive, safe meta-on-flat default); no host inference applies
+	// (progressive, with flat mode omitting meta-tools); no host inference applies
 	// here, because profiles that carry only feature facts (ForgeFeatureCarrier
 	// shapes) do not identify a host. The assembled Server exposes the
 	// resolved policy via Server.ListingPolicy so a registration/materialization

@@ -42,11 +42,9 @@ const (
 	// reachable via search_tools → describe_tool → invoke_*.
 	ListingProgressive ToolListingStrategy = iota
 	// ListingFlat materializes every agent-safe enabled op directly on
-	// tools/list. The progressive-disclosure meta-tools stay available unless
-	// the consumer explicitly opts out (IncludeMetaOnFlat: *false) — the SAFE
-	// default keeps them, so the gated entries flat deliberately excludes
-	// (admin/wizard/interactive) remain reachable via the discovery
-	// meta-tools.
+	// tools/list. The progressive-disclosure meta-tools are omitted unless the
+	// consumer opts in with IncludeMetaOnFlat: *true. Gated entries
+	// (admin/wizard/interactive) remain off tools/list by default.
 	ListingFlat
 )
 
@@ -87,14 +85,10 @@ type ListingPolicy struct {
 	// progressive-disclosure meta-tools on tools/list alongside the direct
 	// surface. It is inert under ListingProgressive.
 	//
-	// It is a *bool so "unset" is representable separately from "explicitly
-	// false": a nil pointer (the zero value / omitted field) means the SAFE
-	// default — flat keeps the discovery meta-tools, so the gated entries
-	// (admin/wizard-category/interactive) that flat excludes from direct
-	// registration stay reachable via search_tools/describe_tool/invoke_*
-	// (see ResolveIncludeMetaOnFlat). A non-nil pointer to true keeps them;
-	// a non-nil pointer to false is the explicit opt-in that hides those
-	// gated operations behind the direct surface entirely.
+	// It is a *bool so "unset" is distinct from an explicit choice. Nil means
+	// flat mode omits the discovery meta-tools; set it to true when a consumer
+	// needs those tools on the wire. The gated entries (admin, wizard, and
+	// interactive) remain outside the direct surface either way.
 	IncludeMetaOnFlat *bool
 	// Onboarding is an optional "start here" recommendation override, as
 	// plain data. When empty, consumers defer to their own primary-tool
@@ -105,13 +99,11 @@ type ListingPolicy struct {
 }
 
 // ResolveIncludeMetaOnFlat returns the effective meta-on-flat setting for the
-// policy: TRUE when IncludeMetaOnFlat is nil (unset) — the safe invariant
-// that a flat server keeps the discovery meta-tools on tools/list by default,
-// so the gated entries flat excludes from direct registration stay reachable
-// — and the explicit value otherwise.
+// policy. Nil omits discovery meta-tools from a flat tools/list; consumers can
+// set IncludeMetaOnFlat to true when they need them.
 func (p ListingPolicy) ResolveIncludeMetaOnFlat() bool {
 	if p.IncludeMetaOnFlat == nil {
-		return true
+		return false
 	}
 	return *p.IncludeMetaOnFlat
 }
@@ -127,10 +119,12 @@ func (p ListingPolicy) Validate() error {
 }
 
 // DefaultPolicy returns the default listing policy: progressive listing with
-// the safe meta-on-flat default (nil IncludeMetaOnFlat resolves true).
+// flat mode omitting discovery meta-tools unless a consumer opts in.
 func DefaultPolicy() ListingPolicy {
+	keepMeta := false
 	return ListingPolicy{
-		Strategy: ListingProgressive,
+		Strategy:          ListingProgressive,
+		IncludeMetaOnFlat: &keepMeta,
 	}
 }
 
