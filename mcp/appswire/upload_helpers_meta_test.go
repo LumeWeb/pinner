@@ -11,7 +11,8 @@ import (
 // present-tense invoking label and a completed-tense invoked label, and the
 // app ui meta preserved.
 func TestUploadManagerHelpersToolInvocationMeta(t *testing.T) {
-	descs := UploadManagerHelpers(newTestUploadCoordinator(t))
+	descs, err := UploadManagerHelpers(newTestUploadCoordinator(t))
+	require.NoError(t, err)
 	require.Len(t, descs, 2)
 	require.True(t, descs[0].Name == "ipfs_upload_submit" || descs[0].Name == "ipfs_upload_status")
 

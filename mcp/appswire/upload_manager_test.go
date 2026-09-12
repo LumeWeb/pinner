@@ -90,7 +90,8 @@ func TestUploadManagerDescriptorContinuesDespiteBadTTL(t *testing.T) {
 // TestUploadManagerHelpersNames pins the two app-only helper tools.
 func TestUploadManagerHelpersNames(t *testing.T) {
 	hp := newTestUploadCoordinator(t)
-	helpers := UploadManagerHelpers(hp)
+	helpers, err := UploadManagerHelpers(hp)
+	require.NoError(t, err)
 	require.Len(t, helpers, 2)
 	names := map[string]bool{}
 	for _, h := range helpers {
@@ -104,7 +105,8 @@ func TestUploadManagerHelpersNames(t *testing.T) {
 // operation when given no handle.
 func TestUploadManagerHelperSubmitMints(t *testing.T) {
 	hp := newTestUploadCoordinator(t)
-	helpers := UploadManagerHelpers(hp)
+	helpers, err := UploadManagerHelpers(hp)
+	require.NoError(t, err)
 	var submit *model.ToolDescriptor
 	for i := range helpers {
 		if helpers[i].Name == "ipfs_upload_submit" {
@@ -122,14 +124,15 @@ func TestUploadManagerHelperSubmitMints(t *testing.T) {
 // handle.
 func TestUploadManagerHelperStatusRejectsEmpty(t *testing.T) {
 	hp := newTestUploadCoordinator(t)
-	helpers := UploadManagerHelpers(hp)
+	helpers, err := UploadManagerHelpers(hp)
+	require.NoError(t, err)
 	var status *model.ToolDescriptor
 	for i := range helpers {
 		if helpers[i].Name == "ipfs_upload_status" {
 			status = &helpers[i]
 		}
 	}
-	_, err := status.Handler(context.Background(), model.ToolRequest{Arguments: map[string]any{}})
+	_, err = status.Handler(context.Background(), model.ToolRequest{Arguments: map[string]any{}})
 	require.ErrorContains(t, err, "handle is required")
 }
 
