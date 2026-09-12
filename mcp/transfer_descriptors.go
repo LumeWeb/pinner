@@ -15,6 +15,7 @@ import (
 	"go.lumeweb.com/mcpplane/model"
 	"go.lumeweb.com/mcpplane/toolargs"
 	"go.lumeweb.com/mcpplane/transfer"
+	"go.lumeweb.com/pinner/mcp/appswire"
 	pinnertransfer "go.lumeweb.com/pinner/transfer"
 )
 
@@ -129,7 +130,7 @@ var uploadFileDesc = mcpforge.Static[HostProfile](
 		"Use `file` when the host already has the file (user-uploaded attachments AND assistant-generated files in the assistant's sandbox); the OpenAI runtime converts it to a temporary download_url + file_id this tool receives — the file is passed as-is, without base64 encoding, a data URI, or manually constructing the download_url object.",
 	).
 	When(FeatSourceMint,
-		"Use source.mode=mint to get a one-time presigned HTTP PUT endpoint. Mint does NOT store bytes: PUT your agent-local file to the returned url (curl -sS -T <file> \"<url>\"), then poll upload_status with the returned upload_handle until it reports completed — the completed CID is already pinned, so pins_add is unnecessary. For a website ZIP, mint holds the bytes as a raw archive unless you pass archive_mode=convert, so always pass archive_mode=convert for a site ZIP (or wrap=true for a single HTML page).",
+		"Use source.mode=mint to get a one-time presigned HTTP PUT endpoint. Mint does NOT store bytes: PUT your agent-local file to the returned url (curl -sS -T <file> \"<url>\"), then "+appswire.UploadMintPoll+" — the completed CID is already pinned, so pins_add is unnecessary. For a website ZIP, mint holds the bytes as a raw archive unless you pass archive_mode=convert, so always pass archive_mode=convert for a site ZIP (or wrap=true for a single HTML page).",
 	).
 	When(FeatSourcePath,
 		"Use source.mode=path with a host-side file/directory/archive path.",
