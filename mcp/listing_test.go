@@ -70,19 +70,37 @@ func TestStrategyForHostOtherHostsStayProgressive(t *testing.T) {
 	}
 }
 
-func TestPolicyForHostKeepsSafeMetaDefault(t *testing.T) {
-	// The host selector only decides the strategy; it never layers an
-	// onboarding override, and the meta-on-flat switch stays at the safe
-	// default (nil resolves true) so flat always keeps the discovery
-	// meta-tools unless a consumer explicitly opts out.
-	flat := PolicyForHost(canimcp.HostClaude, canimcp.TransportHTTP)
-	require.Equal(t, ListingFlat, flat.Strategy)
-	require.Nil(t, flat.IncludeMetaOnFlat)
-	require.True(t, flat.ResolveIncludeMetaOnFlat(),
-		"flat host policy keeps the discovery meta-tools (safe default)")
-	require.Empty(t, flat.Onboarding,
-		"the host selector must not set an onboarding override")
+func TestPolicyForHostOptsFlatWebHostsOutOfMetaTools(t *testing.T) {
+	// The host selector decides the strategy AND, for the flat web cloud
+	// hosts, the meta opt-out: those hosts get the full agent-safe surface
+	// directly and the gated entries (admin/wizard/interactive) are withheld,
+	// so the discovery meta-tools would only advertise machinery that
+	// resolves to nothing. Onboarding stays untouched (a deployment choice).
+	for _, tc := range []struct {
+		name      string
+		host      canimcp.HostType
+		transport canimcp.TransportKind
+	}{
+		{"Claude Web over HTTP", canimcp.HostClaude, canimcp.TransportHTTP},
+		{"Grok web connector over HTTP", canimcp.HostGrok, canimcp.TransportHTTP},
+		{"OpenAI web (openai-mcp) over HTTP", canimcp.HostOpenAI, canimcp.TransportHTTP},
+		{"ChatGPT over the embedded OpenAI tunnel", canimcp.HostChatGPT, canimcp.TransportOpenAI},
+		{"Manufact Cloud dashboard over HTTP", canimcp.HostManufact, canimcp.TransportHTTP},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			flat := PolicyForHost(tc.host, tc.transport)
+			require.Equal(t, ListingFlat, flat.Strategy)
+			require.NotNil(t, flat.IncludeMetaOnFlat,
+				"flat web host policy must carry the EXPLICIT meta opt-out, not the unset safe default")
+			require.False(t, *flat.IncludeMetaOnFlat)
+			require.False(t, flat.ResolveIncludeMetaOnFlat(),
+				"flat web host policy opts out of the discovery meta-tools")
+			require.Empty(t, flat.Onboarding,
+				"the host selector must not set an onboarding override")
+		})
+	}
 
+	// Progressive hosts keep the untouched safe default.
 	prog := PolicyForHost(canimcp.HostCodex, canimcp.TransportStdio)
 	require.Equal(t, ListingProgressive, prog.Strategy)
 	require.Nil(t, prog.IncludeMetaOnFlat)
