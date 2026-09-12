@@ -4,10 +4,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	mcpapps "go.lumeweb.com/mcpplane/apps"
 	"go.lumeweb.com/mcpplane/model"
 	"go.lumeweb.com/mcpplane/sdk"
 	"go.lumeweb.com/pinner/canvas"
 )
+
+// registeredHelpers records the helper tool names the install registrar sees;
+// reset around the process-global sdk.SetToolRegistrar swap.
+var registeredHelpers []string
 
 // Install drives installation through its validated options: the registry
 // and render an installer runs against are exactly the ones Install checked,
@@ -64,26 +69,53 @@ func TestInstallContextCarriesValidatedOptions(t *testing.T) {
 	require.NotNil(t, seen.Server)
 }
 
-// TestHelpersThreadedThroughContext pins the helpers contract: InstallOptions
-// .Helpers reaches installers via InstallContext — the single path
-// ViewInstaller reads a row's helpers from — never sidestepped.
-func TestHelpersThreadedThroughContext(t *testing.T) {
-	registry := &Registry{}
-	var seen InstallContext
-	installer := func(ic InstallContext) error {
-		seen = ic
+// TestHelpersThreadedThroughViewInstaller pins the helpers contract
+// END-TO-END: Install threads InstallOptions.Helpers into the install
+// context, and the real ViewSpec.ViewInstaller registers the row's helpers
+// from the context (ic.Helpers[v.Launcher]) onto the server. A regression or
+// mis-key of the context's helper read breaks this test, not just a
+// custom-closure stand-in.
+func TestHelpersThreadedThroughViewInstaller(t *testing.T) {
+	sdk.SetToolRegistrar(func(srv *sdk.Server, desc model.ToolDescriptor, handler model.ToolHandler) error {
+		registeredHelpers = append(registeredHelpers, desc.Name)
 		return nil
-	}
+	})
+	defer sdk.SetToolRegistrar(nil)
+
+	// The real registry constructor: a zero AppRegistry has nil internal
+	// maps, which RegisterAppView writes into.
+	registry := mcpapps.NewAppRegistry()
 	v := firstRow()
-	helpers := []model.ToolDescriptor{{Name: "pin_status"}}
-	_, err := Install(&sdk.Server{}, nil, []ViewSpec{v}, Installers{
-		v.Launcher: installer,
-	}, InstallOptions{Registry: registry, Render: renderStub(), Helpers: map[string][]model.ToolDescriptor{
-		v.Launcher: helpers,
-	}})
+	helpers := []model.ToolDescriptor{{Name: "pin_status_test_helper"}}
+	_, err := Install(sdk.NewServer(nil), catalogWith(v.Launcher), []ViewSpec{v}, Installers{
+		v.Launcher: v.ViewInstaller(),
+	}, InstallOptions{
+		Registry: registry,
+		Render:   renderStub(),
+		Helpers:  map[string][]model.ToolDescriptor{v.Launcher: helpers},
+	})
 	require.NoError(t, err)
-	require.Equal(t, helpers, seen.Helpers[v.Launcher],
-		"the row's helpers must arrive through the install context, exactly as supplied")
+	require.Equal(t, []string{"pin_status_test_helper"}, registeredHelpers,
+		"ViewInstaller must register the context-threaded helpers for the row")
+}
+
+// catalogWith returns an AppCatalog stub that knows the given tool names, so
+// RegisterAppView's attach-target validation passes.
+func catalogWith(names ...string) AppCatalog {
+	entries := map[string]*model.ToolEntry{}
+	for _, n := range names {
+		entries[n] = &model.ToolEntry{Name: n}
+	}
+	return stubCatalog{entries: entries}
+}
+
+type stubCatalog struct {
+	entries map[string]*model.ToolEntry
+}
+
+func (s stubCatalog) Get(name string) (*model.ToolEntry, bool) {
+	e, ok := s.entries[name]
+	return e, ok
 }
 
 func TestMissingInstallerSkipsRow(t *testing.T) {
