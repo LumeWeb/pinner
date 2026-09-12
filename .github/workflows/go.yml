@@ -25,6 +25,19 @@ jobs:
     - name: Verify dependencies
       run: go mod verify
 
+    - name: Verify app asset manifest in sync
+      # Fail the build if the committed mcpcanvas AssetSource manifest
+      # (canvasassets/appsassets/manifest.json) is out of sync with the
+      # committed dist bundles. Generating into a temp file and diffing (rather
+      # than regenerating in place) keeps the drift checks honest: the committed
+      # artifact is what consumers embed, so CI must not silently rewrite it.
+      env:
+        GOFLAGS: -mod=mod
+      run: |
+        tmp=$(mktemp -d)
+        go run ./canvasassets/cmd/genappmanifest -out "$tmp/manifest.json"
+        diff -u canvasassets/appsassets/manifest.json "$tmp/manifest.json"
+
     - name: Build
       run: go build -v ./...
 
