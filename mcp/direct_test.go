@@ -62,6 +62,7 @@ func TestStampDirectMarksOnlyDirectNames(t *testing.T) {
 func TestFlatToolNamesHonorsDomainScope(t *testing.T) {
 	descs := []CatalogPresentation{
 		{Name: "auth_status", DirectVisible: true},
+		{Name: "api_keys_list", DirectVisible: true},
 		{Name: "vault_status", DirectVisible: true},
 		{Name: "websites_get", DirectVisible: true},
 		{Name: "pins_list", DirectVisible: true},
@@ -69,8 +70,8 @@ func TestFlatToolNamesHonorsDomainScope(t *testing.T) {
 
 	restricted := assembly.DomainScope{Account: true, Websites: true}
 	hosted := flatToolNames(descs, restricted)
-	require.Equal(t, []string{"auth_status", "websites_get"}, hosted)
+	require.Equal(t, []string{"auth_status", "api_keys_list", "websites_get"}, hosted)
 
 	full := flatToolNames(descs, assembly.FullDomainScope)
-	require.Equal(t, []string{"auth_status", "vault_status", "websites_get", "pins_list"}, full)
+	require.Equal(t, []string{"auth_status", "api_keys_list", "vault_status", "websites_get", "pins_list"}, full)
 }

@@ -90,7 +90,7 @@ func scopeAllowsTool(scope assembly.DomainScope, name string, category model.Too
 		enabled func() bool
 	}{
 		{"auth_", scope.AccountOn},
-		{"apikeys_", scope.AccountOn},
+		{"api_keys_", scope.AccountOn},
 		{"account_", scope.AccountOn},
 		{"vault_", scope.VaultOn},
 		{"pins_", scope.PinsOn},
