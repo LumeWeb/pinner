@@ -93,14 +93,20 @@ type ListingPolicy struct {
 	// (admin/wizard-category/interactive) that flat excludes from direct
 	// registration stay reachable via search_tools/describe_tool/invoke_*
 	// (see ResolveIncludeMetaOnFlat). A non-nil pointer to true keeps them;
-	// a non-nil pointer to false is the explicit opt-in that hides those
+	// a non-nil pointer to false is the explicit opt-out that hides those
 	// gated operations behind the direct surface entirely.
+	//
+	// The host selector (PolicyForHost) DOES set this field for the flat web
+	// cloud hosts: a dashboards-first web audience materializes the full
+	// agent-safe surface directly and has no use for discovery machinery, so
+	// the selector opts those hosts out explicitly. A composed policy the
+	// caller built (not via the selector) still defaults to retaining them.
 	IncludeMetaOnFlat *bool
 	// Onboarding is an optional "start here" recommendation override, as
 	// plain data. When empty, consumers defer to their own primary-tool
 	// predicate; when non-empty it is a membership set independent of direct
 	// status. It is never set by the host selector (PolicyForHost) — the
-	// selector only decides the strategy.
+	// selector decides the strategy and the web-host meta opt-out only.
 	Onboarding []string
 }
 
@@ -172,11 +178,26 @@ func IsFlatListingHost(host canimcp.HostType, transport canimcp.TransportKind) b
 
 // PolicyForHost resolves the listing policy selected by the shared host
 // selector: DefaultPolicy with the strategy overridden to flat for the
-// flat-listing web hosts. Onboarding is deliberately left unset — the
-// selector decides the strategy only; consumers owning the "start here"
-// vocabulary layer their own recommendation axes on top.
+// flat-listing web hosts. A flat web cloud host (Claude Web, Grok Web,
+// ChatGPT/OpenAI Web, the Manufact Cloud dashboard) additionally opts out of
+// the discovery meta-tools explicitly: these hosts are served the full
+// agent-safe surface directly on tools/list and gain nothing from
+// search_tools/describe_tool/invoke_* — the gated entries flat excludes
+// (admin/wizard-category/interactive) are deliberately withheld from them,
+// so keeping the meta-tools would only advertise machinery that resolves to
+// nothing. An arbitrary flat policy a consumer composed itself (not via this
+// selector) still retains the meta-tools under the safe unset default.
+// Onboarding is left unset — consumers owning the "start here" vocabulary
+// layer their own recommendation axes on top.
 func PolicyForHost(host canimcp.HostType, transport canimcp.TransportKind) ListingPolicy {
 	p := DefaultPolicy()
 	p.Strategy = StrategyForHost(host, transport)
+	if p.Strategy == ListingFlat {
+		p.IncludeMetaOnFlat = &metaOff
+	}
 	return p
 }
+
+// metaOff backs the flat web-host opt-out in PolicyForHost. The pointer target
+// must never be written; the selector hands out the immutable address.
+var metaOff = false
