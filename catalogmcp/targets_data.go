@@ -66,6 +66,9 @@ var opTargets = map[string][]Target{
 		Fallback("Verify a vault file's integrity: checks that the object exists on the Sia indexer and compares the recorded SHA-256 digest. Returns digest_verified (verified/unverified/mismatch/not_applicable), digest_match, object_exists, and the recorded digest. An accepted share or vault_send has no digest until first decrypt/get/deep verify; in that state digest_verified is 'not_applicable' (a neutral no-verdict-yet — NOT a failure), so treat the pin as successful and resolve the digest on first get or a deep=true verify. Use deep=true to download the full content, recompute the hash, and backfill the digest if missing. Does NOT stream or return file content."),
 	},
 	"websites_create": websitesCreateTargets,
+	"websites_domains_remove": {
+		Fallback("Remove a domain binding from its website. DESTRUCTIVE and consequential: unbinding stops the domain from serving the website immediately, and requires explicit human confirmation via confirm=true. The binding is restorable by re-adding it with websites_domains_add (namespace/platform settings must be re-supplied). The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns a deleted/domain_id result confirming the removal."),
+	},
 	"websites_platform_domain_availability": {
 		Fallback("Check whether a candidate subdomain label is claimable on each enabled platform (free-subdomain) root. label is required. Returns one availability result per platform-owned root. The check applies when a concrete subdomain label has already been supplied by the user or is required by an explicit user request for custom naming. A label is not generated solely for this check; when no label preference exists, websites_create with no domain auto-generates a platform subdomain."),
 	},

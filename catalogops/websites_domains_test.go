@@ -3,6 +3,7 @@ package catalogops
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
@@ -231,7 +232,7 @@ func TestWebsitesDomainsRemoveResolvesBindingAndResult(t *testing.T) {
 	}
 
 	op := websitesDomainsRemove(domainsDeps(t, fake))
-	res, err := op.Handler().Execute(context.Background(), map[string]any{"domain": "example.test"})
+	res, err := op.Handler().Execute(context.Background(), map[string]any{"domain": "example.test", "confirm": true})
 	if err != nil {
 		t.Fatalf("remove handler: %v", err)
 	}
@@ -244,6 +245,35 @@ func TestWebsitesDomainsRemoveResolvesBindingAndResult(t *testing.T) {
 	}
 	if !result.Deleted || result.DomainID != "3" {
 		t.Fatalf("unexpected remove result: %+v", result)
+	}
+}
+
+// TestWebsitesDomainsRemoveRequiresConfirm guards the destructive gate: without
+// confirm=true the handler must refuse before resolving any binding or touching
+// the service.
+func TestWebsitesDomainsRemoveRequiresConfirm(t *testing.T) {
+	fake := singleWebsiteFixture()
+	var unbindCalled bool
+	fake.unbindDomainFn = func(_ context.Context, websiteID string, domainID string) error {
+		unbindCalled = true
+		return nil
+	}
+
+	op := websitesDomainsRemove(domainsDeps(t, fake))
+	for _, input := range []map[string]any{
+		{"domain": "example.test"},
+		{"domain": "example.test", "confirm": false},
+	} {
+		_, err := op.Handler().Execute(context.Background(), input)
+		if err == nil {
+			t.Fatalf("input %v: want confirmation error, got nil", input)
+		}
+		if !strings.Contains(err.Error(), "confirmation is required") {
+			t.Fatalf("input %v: err = %v, want confirmation-required error", input, err)
+		}
+	}
+	if unbindCalled {
+		t.Fatal("UnbindDomain was called without confirm=true; the confirmation gate must refuse before the service")
 	}
 }
 
@@ -325,7 +355,8 @@ func TestWebsitesDomainsRequiresAuthentication(t *testing.T) {
 			fake := singleWebsiteFixture()
 			fake.authErr = errors.New("not authenticated")
 			op := tc.op(domainsDeps(t, fake))
-			if _, err := op.Handler().Execute(context.Background(), map[string]any{"website": "7", "domain": "example.test"}); err == nil || err.Error() != "not authenticated" {
+			input := map[string]any{"website": "7", "domain": "example.test", "confirm": true}
+			if _, err := op.Handler().Execute(context.Background(), input); err == nil || err.Error() != "not authenticated" {
 				t.Fatalf("err = %v, want auth error", err)
 			}
 		})

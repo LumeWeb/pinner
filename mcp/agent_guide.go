@@ -539,6 +539,7 @@ func AgentGuideDescriptor(scope assembly.DomainScope, hosted bool, dropSinkAvail
 		Description:   agentGuideDescription,
 		Category:      model.CategoryCore,
 		OpenWorldHint: false, // static local guidance payload; changes no state
+		ReadOnly:      true,  // orientation only: reads no external state, mutates nothing
 		InputSchema:   toolargs.ToolSchemaFor[noInput](),
 		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
 			profile := profileFromRequest(request)

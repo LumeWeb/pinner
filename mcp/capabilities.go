@@ -379,6 +379,7 @@ func NewCapabilitiesDescriptor(wiring CapabilityWiring) model.ToolDescriptor {
 		Description:   capabilitiesDescriptionFor(startupProfile, wiring.UploadFile, wiring.VaultPutFile, wiring.DownloadFile, wiring.VaultGetFile),
 		Category:      model.CategoryCore,
 		OpenWorldHint: false, // pure local capability report; changes no state
+		ReadOnly:      true,  // capability report only: reads no external state, mutates nothing
 		InputSchema:   toolargs.ToolSchemaFor[noInput](),
 		Handler: func(ctx context.Context, request model.ToolRequest) (model.ToolResult, error) {
 			w := wiring

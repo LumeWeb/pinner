@@ -191,14 +191,18 @@ func websitesDomainsRemove(d WebsitesDeps) opmesh.Operation {
 		Summary:     "Unbind a domain from its website",
 		Description: "Remove a domain binding from its website. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns a deleted/domain_id result confirming the removal.",
 		Category:    "core",
-		Safety:      opmesh.SafetyMutate,
+		Safety:      opmesh.SafetyDestructive,
 		Interaction: opmesh.InteractionAgentSafe,
 		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<domain>",
 		Args: []opmesh.OperationArg{
 			{Name: "domain", Type: opmesh.ArgTypeString, Required: true, Help: "Domain name or binding ID to remove"},
+			{Name: "confirm", Type: opmesh.ArgTypeBool, AgentRequired: true, Help: "Confirm the removal after human approval: the domain stops serving the website until it is re-added"},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
+			if !opmesh.BoolArg(input, "confirm", false) {
+				return nil, fmt.Errorf("websites_domains_remove: confirmation is required — removing the binding stops the domain from serving the website until it is re-added (preview with websites_domains_list, get the user's explicit approval, then retry with confirm=true)")
+			}
 			svc, svcErr := d.service(input)
 			if svcErr != nil {
 				return nil, svcErr
