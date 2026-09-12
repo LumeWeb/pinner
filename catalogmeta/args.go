@@ -201,7 +201,7 @@ var argFrontend = map[string][]ArgFrontend{
 	},
 	"api_keys_delete": {
 		{Name: "id", AgentHelp: "The name or UUID of the API key to delete."},
-		{Name: "confirm", AgentHelp: "Set true to delete the API key even if it is the one currently used for authentication."},
+		{Name: "confirm", AgentHelp: "Must be true to delete the key; deletion revokes it immediately and it cannot be recovered. Only a human sets this on confirmation; a model alone cannot confirm a destructive delete."},
 	},
 	"auth_login": {
 		{Name: "token", AgentHelp: "The Pinner.xyz auth token (JWT) to store as the active credential. Sensitive value."},
