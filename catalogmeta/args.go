@@ -360,6 +360,9 @@ var argFrontend = map[string][]ArgFrontend{
 	"websites_domains_convert_onchain": {
 		{Name: "confirm", AgentHelp: "Must be true to convert the domain to on-chain managed; this drops Pinner's managed zone/DNSSEC and is one-way. Only a human sets this on confirmation; a model alone cannot confirm a destructive operation."},
 	},
+	"websites_domains_remove": {
+		{Name: "confirm", AgentHelp: "Must be true to remove the binding; unbinding stops the domain from serving the website until it is re-added. Preview the binding with websites_domains_list (and websites_domains_verify for current delegation), present the website, domain, and availability impact, and get the user's explicit approval BEFORE calling this tool. Only a human sets this on confirmation; a model alone cannot confirm a destructive operation."},
+	},
 	"websites_update": {
 		{Name: "cid", AgentHelp: "The IPFS CID to serve. If you just uploaded this CID (upload_data/upload_file/upload_url with wait=true), a CID_NOT_PINNED failure right after upload usually means the gateway is still propagating the pin — retry the update after a few seconds rather than re-pinning. Only if the CID was never uploaded through Pinner should you first run pins_add(cids=[\"<cid>\"], wait=true) and confirm it succeeds. With a bare cid (no target-type), the site's current targeting is preserved automatically."},
 		{Name: "dns-hosting", AgentHelp: "true enables Pinner-managed DNS; false disables it (self-managed). Omit to leave the current DNS hosting state unchanged."},

@@ -265,6 +265,7 @@ func UploadManagerHelpers(hp *transfer.Upload) ([]model.ToolDescriptor, error) {
 			Description: "Return the status of an async upload by handle: prepared, queued, running, completed (with CID), failed, cancelled, or expired. App-only helper for the Upload to IPFS view.",
 			InputSchema: toolargs.ToolSchemaFor[uploadHandleArg](),
 			Meta:        statusMeta,
+			ReadOnly:    true, // pure status poll: reads task state, mutates nothing and is safe to retry
 			Handler: func(ctx context.Context, req model.ToolRequest) (model.ToolResult, error) {
 				in, err := toolargs.DecodeToolArgs[uploadHandleArg](req)
 				if err != nil {
