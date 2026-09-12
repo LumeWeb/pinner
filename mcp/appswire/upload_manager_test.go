@@ -69,6 +69,24 @@ func TestUploadManagerDescriptorContinuesHandle(t *testing.T) {
 	require.Equal(t, url, sc["presigned_url"])
 }
 
+// TestUploadManagerDescriptorContinuesDespiteBadTTL pins Finding-1-style
+// behavior: continuing a live handle must NOT parse TTL (documented as only
+// applying to a fresh mint), so a malformed TTL with a valid handle still
+// continues instead of failing with a spurious `invalid ttl` error.
+func TestUploadManagerDescriptorContinuesDespiteBadTTL(t *testing.T) {
+	hp := newTestUploadCoordinator(t)
+	desc, err := UploadManagerDescriptor(hp)
+	require.NoError(t, err)
+	ctx := context.Background()
+	url, handle := hp.Prepare(ctx, "x", 0)
+
+	res, err := desc.Handler(ctx, model.ToolRequest{Arguments: map[string]any{"handle": handle, "ttl": "not-a-duration"}})
+	require.NoError(t, err, "a malformed TTL must not block continuing a live handle")
+	sc := res.StructuredContent.(map[string]any)
+	require.True(t, sc["continued"].(bool))
+	require.Equal(t, url, sc["presigned_url"])
+}
+
 // TestUploadManagerHelpersNames pins the two app-only helper tools.
 func TestUploadManagerHelpersNames(t *testing.T) {
 	hp := newTestUploadCoordinator(t)

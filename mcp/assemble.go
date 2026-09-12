@@ -292,8 +292,19 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 	// description and the agent guide name upload_status as that completion
 	// contract, so a server with a presigned PUT coordinator but no async
 	// surface would advertise a poll tools/list does not serve.
+	//
+	// upload_list (the enumerator) is registered only when the composition
+	// root opts in via TransferDeps.AsyncUploadList: it discloses every handle
+	// the manager tracks, which is unsafe on a manager shared across principals
+	// in a multi-tenant deployment. upload_status / upload_cancel are
+	// capability-guarded by the opaque minted handle and always register.
 	if wiring.UploadFile && wiring.PresignedUpload != nil {
-		direct = append(direct, NewAsyncUploadTools(wiring.PresignedUpload.Tasks())...)
+		for _, d := range NewAsyncUploadTools(wiring.PresignedUpload.Tasks()) {
+			if d.Name == "upload_list" && !wiring.AsyncUploadList {
+				continue
+			}
+			direct = append(direct, d)
+		}
 	}
 	// upload_url registers when (and ONLY when) the reconciled gate holds:
 	// RelayURLWired && Relay != nil && FeatSourceURL — the exact gate the

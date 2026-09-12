@@ -63,6 +63,17 @@ type TransferDeps struct {
 	RelayURLWired bool
 	DataURIWired  bool
 	RelayFeatures mcpforge.FeatureSet
+
+	// AsyncUploadList, when set, additionally registers the upload_list tool
+	// alongside upload_status / upload_cancel. It is OFF by default because
+	// upload_list enumerates every handle the shared UploadTaskManager tracks,
+	// and in a multi-tenant composition (a hosted server whose manager is
+	// shared across principals) that would disclose one caller's handles to
+	// another. upload_status/upload_cancel are capability-guarded by the opaque
+	// handle (unguessable, minted per operation), so they are safe to register
+	// on any manager; upload_list is only for a composition root that owns a
+	// per-principal manager and explicitly opts in.
+	AsyncUploadList bool
 }
 
 // RelayURLRegistered is the SINGLE honest registration/advertising gate for

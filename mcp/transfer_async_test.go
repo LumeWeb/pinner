@@ -114,6 +114,44 @@ func TestNewAsyncUploadToolsMissingHandle(t *testing.T) {
 	}
 }
 
+// TestAssembleRegistersAsyncUploadsGated pins the multi-tenant safety gate:
+// upload_status / upload_cancel register with a presigned coordinator, but
+// upload_list (which enumerates every tracked handle) must NOT register by
+// default — a shared manager across principals must never disclose one
+// caller's handles to another. It registers only when the composition root
+// opts in via TransferDeps.AsyncUploadList (i.e. owns a per-principal manager).
+func TestAssembleRegistersAsyncUploadsGated(t *testing.T) {
+	mgr := newTestUploadManager()
+	hp := transfer.NewHTTPUpload(mgr, 0)
+
+	base := Config{
+		Catalog: testCatalog(),
+		Transfer: TransferDeps{
+			CoLocated:       false,
+			UploadFile:      true,
+			PresignedUpload: hp,
+		},
+	}
+
+	srv, err := Assemble(base)
+	require.NoError(t, err)
+	for _, name := range []string{"upload_status", "upload_cancel"} {
+		_, ok := directTool(t, srv, name)
+		require.Truef(t, ok, "%s must register when a presigned coordinator is wired", name)
+	}
+	_, ok := directTool(t, srv, "upload_list")
+	require.False(t, ok, "upload_list must NOT register by default (multi-tenant enumeration risk)")
+
+	// Opting in via AsyncUploadList enables the enumerator for a composition
+	// root that owns a per-principal manager.
+	on := base
+	on.Transfer.AsyncUploadList = true
+	srv, err = Assemble(on)
+	require.NoError(t, err)
+	_, ok = directTool(t, srv, "upload_list")
+	require.True(t, ok, "upload_list registers when AsyncUploadList is set")
+}
+
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)

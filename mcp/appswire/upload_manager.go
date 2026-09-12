@@ -74,26 +74,33 @@ func UploadManagerDescriptor(hp *transfer.Upload) (model.ToolDescriptor, error) 
 			if err != nil {
 				return model.ToolResult{}, err
 			}
-			// ONE canonical presign-TTL parser shared with upload_file and the
-			// helper tools: empty → default, non-positive → default,
-			// unparseable → the stable `invalid ttl "..."` error.
-			ttl, terr := pinnertransfer.ParsePresignTTL(in.TTL)
-			if terr != nil {
-				return model.ToolResult{}, terr
-			}
 			// continued reports we fulfilled the caller's EXISTING operation.
 			// It is true only when the supplied handle resolved to a live
 			// endpoint; a stale/expired/used handle falls back to a fresh mint
 			// and is therefore a brand-new operation (continued=false).
+			//
+			// The presign TTL is parsed ONLY in the branches that call
+			// Prepare: continuing a live handle never touches TTL (it is
+			// documented as only applying to a fresh operation), so a caller
+			// passing a valid handle with a malformed TTL still continues
+			// instead of getting a spurious `invalid ttl` error.
 			var handle, url string
 			continued := false
 			if in.Handle != "" {
 				if resolved, ok := hp.FindUpload(in.Handle); ok {
 					url, handle, continued = resolved, in.Handle, true
 				} else {
+					ttl, terr := pinnertransfer.ParsePresignTTL(in.TTL)
+					if terr != nil {
+						return model.ToolResult{}, terr
+					}
 					url, handle = hp.Prepare(ctx, transfer.DefaultUploadName, ttl)
 				}
 			} else {
+				ttl, terr := pinnertransfer.ParsePresignTTL(in.TTL)
+				if terr != nil {
+					return model.ToolResult{}, terr
+				}
 				url, handle = hp.Prepare(ctx, transfer.DefaultUploadName, ttl)
 			}
 			if url == "" || handle == "" {
