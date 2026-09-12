@@ -103,6 +103,38 @@ func TestDevHostEnvHandlerNilsAreSafe(t *testing.T) {
 	require.Nil(t, out.InitializeParams)
 }
 
+// TestDevHostEnvRedactsCredentialHeaders pins the security contract: the
+// header dump must never expose credential-bearing values (a dev tool whose
+// plain-text result echoes the Authorization header lands the bearer token in
+// the host's persisted conversation logs). Header names keep their presence
+// so the debug signal survives; only values are masked.
+func TestDevHostEnvRedactsCredentialHeaders(t *testing.T) {
+	secret := "secret-bearer-token-do-not-leak"
+	caps := devCaps()
+	caps.Profile.Headers = http.Header{
+		"User-Agent":          []string{"grok-client/1.2.3"},
+		"Authorization":       []string{"Bearer " + secret},
+		"Proxy-Authorization": []string{"Bearer " + secret},
+		"Cookie":              []string{"session=" + secret},
+		"Accept":              []string{"application/json"},
+	}
+	res, err := devHostEnvHandler(context.Background(), devReq("dev_host_env", nil, caps))
+	require.NoError(t, err)
+
+	out := res.StructuredContent.(*devHostEnvOutput)
+	require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders["Authorization"])
+	require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders["Proxy-Authorization"])
+	require.Equal(t, []string{"[redacted]"}, out.HTTPHeaders["Cookie"])
+	// Non-sensitive headers keep their values; the UA multi-value detail that
+	// dev_user_agent_from relies on is untouched.
+	require.Equal(t, []string{"grok-client/1.2.3"}, out.HTTPHeaders["User-Agent"])
+	require.Equal(t, []string{"application/json"}, out.HTTPHeaders["Accept"])
+
+	// The plain-text form must be just as safe: no credential value anywhere.
+	require.NotContains(t, res.Text, secret)
+	require.Contains(t, res.Text, "[redacted]")
+}
+
 func TestDevProfileHandlerReportsClassification(t *testing.T) {
 	res, err := devProfileHandler(context.Background(), devReq("dev_profile", nil, devCaps()))
 	require.NoError(t, err)
@@ -115,6 +147,26 @@ func TestDevProfileHandlerReportsClassification(t *testing.T) {
 	require.Equal(t, "grok-client/1.2.3", out.UserAgent.Raw)
 	require.True(t, out.TokenPresent)
 	require.Contains(t, out.Features, "source-mint")
+}
+
+// TestDevProfileProtocolVersionSingleSource pins the sibling-agreement
+// contract: dev_profile reports the negotiated protocol version from the same
+// caps source dev_host_env uses, falling back to the profile only when the
+// caps source is empty — the two tools cannot disagree for the same call.
+func TestDevProfileProtocolVersionSingleSource(t *testing.T) {
+	// Caps protocol version wins when present.
+	res, err := devProfileHandler(context.Background(), devReq("dev_profile", nil, devCaps()))
+	require.NoError(t, err)
+	out := res.StructuredContent.(*devProfileOutput)
+	require.Equal(t, "2025-03-26", out.ProtocolVersion)
+
+	// Empty caps version falls back to the profile's wire value.
+	caps := devCaps()
+	caps.ProtocolVersion = ""
+	res, err = devProfileHandler(context.Background(), devReq("dev_profile", nil, caps))
+	require.NoError(t, err)
+	out = res.StructuredContent.(*devProfileOutput)
+	require.Equal(t, "2025-03-26", out.ProtocolVersion)
 }
 
 func TestDevRequestHandlerEchoesInvocation(t *testing.T) {

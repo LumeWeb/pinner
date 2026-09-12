@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"sort"
 	"time"
 
@@ -254,22 +255,56 @@ func devHostEnvHandler(_ context.Context, request model.ToolRequest) (model.Tool
 		out.InitializeParams = ip
 	}
 	if len(profile.Headers) > 0 {
-		out.HTTPHeaders = map[string][]string(profile.Headers)
+		out.HTTPHeaders = safeHeaders(profile.Headers)
 	}
 
 	return devResult(out), nil
+}
+
+// sensitiveHeaders are credential-bearing headers whose values must never
+// leave the server: a dev dump that echoes them lands the bearer token in the
+// persisted conversation logs MCP hosts keep for tool results. The header
+// names stay (presence is useful debug signal); only the values are masked.
+var sensitiveHeaders = map[string]struct{}{
+	"Authorization":       {},
+	"Proxy-Authorization": {},
+	"Cookie":              {},
+	"Set-Cookie":          {},
+}
+
+// safeHeaders copies a profile's headers with credential-bearing values
+// replaced by a redaction marker, so the dev dump is safe for both the
+// structured and the plain-text result form.
+func safeHeaders(h http.Header) http.Header {
+	out := make(http.Header, len(h))
+	for k, vs := range h {
+		if _, ok := sensitiveHeaders[http.CanonicalHeaderKey(k)]; ok {
+			out[k] = []string{"[redacted]"}
+			continue
+		}
+		out[k] = vs
+	}
+	return out
 }
 
 // devProfileHandler dumps the resolved profile for this request.
 func devProfileHandler(_ context.Context, request model.ToolRequest) (model.ToolResult, error) {
 	profile := devProfileFromRequest(request)
 
+	// The negotiated protocol version comes from the same nil-safe caps source
+	// dev_host_env uses, falling back to the profile only when the caps source
+	// is empty, so the two sibling reports cannot disagree for the same call.
+	proto := capsProtoVersion(request)
+	if proto == "" {
+		proto = profile.ProtocolVer
+	}
+
 	out := &devProfileOutput{
 		HostType:        string(profile.HostType),
 		Transport:       string(profile.Transport),
 		AuthMethod:      string(profile.AuthMethod),
 		Remote:          profile.Remote,
-		ProtocolVersion: profile.ProtocolVer,
+		ProtocolVersion: proto,
 		Features:        enabledModelFeatures(profile),
 		ClientInfo:      devClientInfoFrom(profile.ClientInfo),
 		UserAgent:       devUserAgentFrom(profile),
