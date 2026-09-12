@@ -273,6 +273,27 @@ func TestMetaInvokeDispatchesThroughSeam(t *testing.T) {
 	assert.Contains(t, res.Text, "did you mean one of these?", "unknown-tool refusal must offer suggestions")
 }
 
+// TestMetaInvokeSurvivesNilDispatchHandler pins the graceful-degradation
+// contract for the dispatch seam: a CatalogDispatch that returns a nil handler
+// for a surface-listed compiled op must produce an executable-refusal result
+// through the typed dispatcher, never a nil-func panic.
+func TestMetaInvokeSurvivesNilDispatchHandler(t *testing.T) {
+	srv, err := Assemble(Config{
+		DomainScope: assembly.FullDomainScope,
+		Deps:        testMetaBundle(),
+	})
+	require.NoError(t, err)
+	metas, err := srv.MetaToolDescriptors(func(string) model.ToolHandler { return nil })
+	require.NoError(t, err)
+
+	res := callMeta(t, metas, MetaToolInvokeRead, map[string]any{
+		"name":      "pins_list",
+		"arguments": map[string]any{},
+	})
+	require.True(t, res.IsError, "a nil dispatch handler must be refused, not executed")
+	assert.Equal(t, "tool is not executable", res.Text)
+}
+
 // TestMetaSearchTotalReportsPreCapCount pins the truthful-total contract: a
 // limit truncates the returned list but Total must keep the pre-cap match
 // count, on both the search and the onboarding path.

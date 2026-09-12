@@ -441,7 +441,11 @@ func (s *MetaSurface) invoke(ctx context.Context, name string, args map[string]a
 	if s.dispatch == nil {
 		return model.ToolResult{IsError: true, Text: "tool is not executable"}, nil
 	}
-	return s.dispatch(name)(ctx, model.ToolRequest{Name: name, Arguments: args})
+	execute := s.dispatch(name)
+	if execute == nil {
+		return model.ToolResult{IsError: true, Text: "tool is not executable"}, nil
+	}
+	return execute(ctx, model.ToolRequest{Name: name, Arguments: args})
 }
 
 // metaSchema is a tiny SDK-neutral input schema builder for the static
