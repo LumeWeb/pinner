@@ -22,9 +22,11 @@ func TestUploadManagerHelpersToolInvocationMeta(t *testing.T) {
 		v, _ := SpecForLauncher(LauncherUploadManager)
 		require.Equal(t, v.URI, ui["resourceUri"])
 
-		invocation, ok := desc.Meta["openai/toolInvocation"].(map[string]any)
-		require.True(t, ok, "%s: openai/toolInvocation meta missing", desc.Name)
-		require.NotEmpty(t, invocation["invoking"], "%s: invoking label required", desc.Name)
-		require.NotEmpty(t, invocation["invoked"], "%s: invoked label required", desc.Name)
+		// The reference contract reads each label at its own flat
+		// slash-delimited key — ChatGPT does not read a nested object.
+		require.NotEmpty(t, desc.Meta["openai/toolInvocation/invoking"],
+			"%s: flat invoking label required", desc.Name)
+		require.NotEmpty(t, desc.Meta["openai/toolInvocation/invoked"],
+			"%s: flat invoked label required", desc.Name)
 	}
 }

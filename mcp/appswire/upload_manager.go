@@ -159,16 +159,16 @@ func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
 	})
 	// toolInvocationMeta clones the app _meta and adds the OpenAI
 	// toolInvocation labels (present-tense/finished) hosts render for the
-	// tool call.
+	// tool call. The reference contract reads each label at its own
+	// flat slash-delimited _meta key ("openai/toolInvocation/invoking"), not a
+	// nested object.
 	toolInvocationMeta := func(invoking, invoked string) mcp.Meta {
 		meta := mcp.Meta{}
 		for k, val := range appMeta {
 			meta[k] = val
 		}
-		meta["openai/toolInvocation"] = map[string]any{
-			"invoking": invoking,
-			"invoked":  invoked,
-		}
+		meta["openai/toolInvocation/invoking"] = invoking
+		meta["openai/toolInvocation/invoked"] = invoked
 		return meta
 	}
 	return []model.ToolDescriptor{
