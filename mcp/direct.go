@@ -43,6 +43,19 @@ func DirectToolNames(s assembly.DomainScope) []string {
 	return compiledDirectToolNames
 }
 
+// flatToolNames returns the compiled presentation names promoted by a flat
+// listing policy. The projection has already excluded model-ineligible,
+// admin, wizard, and non-agent-safe operations.
+func flatToolNames(descriptors []CatalogPresentation) []string {
+	names := make([]string, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if descriptor.DirectVisible {
+			names = append(names, descriptor.Name)
+		}
+	}
+	return names
+}
+
 // stampDirect stamps DirectVisible=true on the assembled catalog descriptors
 // named by the direct set for the configured domain scope. The presentation
 // layer reads DirectVisible rather than re-checking a name predicate, so

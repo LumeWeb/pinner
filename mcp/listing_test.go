@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.lumeweb.com/canimcp"
+	"go.lumeweb.com/mcpplane/model"
+	"go.lumeweb.com/opmesh"
 )
 
 // The shared listing policy is a Pinner-owned product decision keyed on the
@@ -120,4 +122,37 @@ func TestAssembleResolvesListingPolicy(t *testing.T) {
 	_, err = Assemble(Config{Catalog: testCatalog(), Listing: &bad})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported listing strategy")
+}
+
+func TestFlatListingPromotesOnlyAgentSafeOperations(t *testing.T) {
+	flat := ListingPolicy{Strategy: ListingFlat}
+	cases := []struct {
+		name        string
+		category    string
+		interaction opmesh.Interaction
+		wantDirect  bool
+	}{
+		{name: "agent-safe core", category: string(model.CategoryCore), interaction: opmesh.InteractionAgentSafe, wantDirect: true},
+		{name: "admin", category: string(model.CategoryAdmin), interaction: opmesh.InteractionAgentSafe},
+		{name: "wizard", category: string(model.CategoryWizard), interaction: opmesh.InteractionAgentSafe},
+		{name: "human-only", category: string(model.CategoryCore), interaction: opmesh.InteractionHumanOnly},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := catalogDescriptorToPresentation(opmesh.ToolDescriptor{
+				Name:        tc.name,
+				Category:    tc.category,
+				Interaction: tc.interaction,
+			}, flat)
+			require.Equal(t, tc.wantDirect, got.DirectVisible)
+		})
+	}
+
+	progressive := catalogDescriptorToPresentation(opmesh.ToolDescriptor{
+		Name:        "progressive",
+		Category:    string(model.CategoryCore),
+		Interaction: opmesh.InteractionAgentSafe,
+	}, DefaultPolicy())
+	require.False(t, progressive.DirectVisible)
 }

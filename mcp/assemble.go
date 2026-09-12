@@ -68,12 +68,15 @@ func Assemble(cfg Config) (*Server, error) {
 		return nil, err
 	}
 
-	presentations, err := populateCatalogTools(cat, profile)
+	presentations, err := populateCatalogTools(cat, profile, listing)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: assemble: %w", err)
 	}
 
 	directNames := DirectToolNames(cfg.DomainScope)
+	if listing.Strategy == ListingFlat {
+		directNames = flatToolNames(presentations)
+	}
 	stampDirect(directNames, presentations)
 
 	srv := &Server{

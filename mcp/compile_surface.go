@@ -223,9 +223,9 @@ func outputSchemaForCompiled(safety opmesh.Safety, interaction opmesh.Interactio
 // operation. The hints may be corrected per tool via readOnlyOverride where
 // the platform contract demands it (see auth_status).
 //
-// DirectVisible is left to stampDirect (the direct product surface),
-// matching how every other descriptor is promoted to tools/list.
-func catalogDescriptorToPresentation(d opmesh.ToolDescriptor) CatalogPresentation {
+// DirectVisible is set for every agent-safe operation when the resolved
+// listing policy is flat; progressive assemblies leave it to stampDirect.
+func catalogDescriptorToPresentation(d opmesh.ToolDescriptor, listing ListingPolicy) CatalogPresentation {
 	readOnly := d.Safety == opmesh.SafetyRead
 	destructive := d.Safety == opmesh.SafetyDestructive
 	openWorld := !readOnly
@@ -234,11 +234,15 @@ func catalogDescriptorToPresentation(d opmesh.ToolDescriptor) CatalogPresentatio
 		destructive = override.destructive
 		openWorld = override.openWorld
 	}
+	category := model.ToolCategory(d.Category)
 	return CatalogPresentation{
-		Name:          d.Name,
-		Title:         d.Title,
-		Description:   d.Description,
-		Category:      model.ToolCategory(d.Category),
+		Name:        d.Name,
+		Title:       d.Title,
+		Description: d.Description,
+		Category:    category,
+		DirectVisible: listing.Strategy == ListingFlat &&
+			d.Interaction == opmesh.InteractionAgentSafe &&
+			category != model.CategoryAdmin && category != model.CategoryWizard,
 		InputSchema:   d.InputSchema,
 		OutputSchema:  outputSchemaForCompiled(d.Safety, d.Interaction),
 		ReadOnly:      readOnly,
@@ -262,8 +266,9 @@ func isModelVisibleOnMCP(d opmesh.ToolDescriptor) bool {
 // projects it onto the presentation surface. It returns the set of compiled
 // operation names so a composition root can route those invocations through
 // the owning Catalog.Invoke gate (Interaction, Visibility, Safety, and
-// required-arg enforcement hold there). tools/list prominence is decided by
-// stampDirect.
+// required-arg enforcement hold there). Under a flat listing policy, the
+// projection marks every agent-safe, non-admin, non-wizard operation direct;
+// progressive assemblies leave tools/list prominence to stampDirect.
 //
 // profile must already be an adapted catalogmcp-compatible shape (Assemble
 // adapts Config.Profile exactly once via HostProfileOf/AdaptHostProfile and
@@ -271,7 +276,7 @@ func isModelVisibleOnMCP(d opmesh.ToolDescriptor) bool {
 // DescFunc-only fallback targets resolve against it: a catalogmcp compiler
 // built with a nil profile would collapse the DSL-composed descriptions (e.g.
 // websites_create's feature-gated guidance) to the short CLI description.
-func populateCatalogTools(cat opmesh.Catalog, profile any) ([]CatalogPresentation, error) {
+func populateCatalogTools(cat opmesh.Catalog, profile any, listing ListingPolicy) ([]CatalogPresentation, error) {
 	if cat == nil {
 		return nil, errNilCatalog
 	}
@@ -290,7 +295,7 @@ func populateCatalogTools(cat opmesh.Catalog, profile any) ([]CatalogPresentatio
 		if !isModelVisibleOnMCP(d) {
 			continue
 		}
-		out = append(out, catalogDescriptorToPresentation(d))
+		out = append(out, catalogDescriptorToPresentation(d, listing))
 	}
 	return out, nil
 }
