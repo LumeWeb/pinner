@@ -193,11 +193,10 @@ func PolicyForHost(host canimcp.HostType, transport canimcp.TransportKind) Listi
 	p := DefaultPolicy()
 	p.Strategy = StrategyForHost(host, transport)
 	if p.Strategy == ListingFlat {
-		p.IncludeMetaOnFlat = &metaOff
+		// A fresh bool per call: the policy hands the pointer out, so sharing
+		// one target across policies would make one consumer's write visible
+		// to every other flat web-host policy.
+		p.IncludeMetaOnFlat = new(false)
 	}
 	return p
 }
-
-// metaOff backs the flat web-host opt-out in PolicyForHost. The pointer target
-// must never be written; the selector hands out the immutable address.
-var metaOff = false
