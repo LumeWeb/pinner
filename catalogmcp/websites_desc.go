@@ -53,23 +53,23 @@ type ForgeFeatureCarrier interface {
 // string. The full custom-domain vs platform-label decision tree lives in
 // agent_guide's publish_website flow — the tool description points at it
 // rather than restating it.
+// The composition is sized for host metadata limits: the resolved
+// description must stay at or below Claude Code's 2 KiB description
+// truncation point in BOTH feature states (with and without
+// FeatFileHostInput), so keep invariant guidance first and prose lean.
 var websitesCreateDesc = mcpforge.Static[mcpforge.FeatureCarrier]("Create a website that serves an IPFS CID.").
 	// CID structure invariant — the tool validates and rejects violations.
-	Static("The CID is a directory whose root contains index.html — gateways serve /index.html at the directory root.").
-	Static("This tool rejects a CID whose root has no index.html or is wrapped in a single parent directory (e.g. site.zip/mysite/index.html is rejected; correct: site.zip/index.html).").
-	Static("A multi-file website is published as its component files (index.html, CSS, JS, images) rather than flattened into a single HTML file.").
-	Static("For a site bundle (ZIP with index.html, CSS, JS, images), ZIP the directory contents (not the directory itself) and upload with archive_mode=convert.").
-	Static("For a single HTML file, use upload_file with wrap=true and no explicit name — the tool auto-names wrapped HTML to index.html so the site resolves at root.").
-	Static("An explicit name like 'starter-site' is honored as-is and the page will only be reachable at /starter-site, not /.").
-	Static("If the user has no domain, call websites_create with only {\"cid\":\"<cid>\"} and a platform subdomain is auto-minted; a domain or label is not invented for a generic request.").
-	Static("For a custom domain, pass {\"cid\":\"<cid>\",\"website\":\"<domain>\"} (target-type and dns-hosting are optional).").
-	Static("Custom domains default to namespace icann (traditional DNS). For a Handshake (alt-root) name like acme/, pass {\"namespace\":\"hns\"}.").
-	Static("After creating a Handshake site, read pinner://websites/<domain>/dns-requirements — it renders the records to publish on-chain in the HNS wallet (parent NS/DS/GLUE) plus the authoritative side; managed DNS handles the authoritative side for you.").
-	Static("For a platform subdomain with an explicit label, pass {\"cid\":\"<cid>\",\"platform\":true,\"label\":\"<label>\"} or {\"cid\":\"<cid>\",\"platform\":true,\"generate\":true}.").
-	Static("See agent_guide's publish_website flow for the full custom-domain vs platform-label decision tree.").
-	Static("A generic request to create or publish a website implies no custom naming; default to no domain unless the user explicitly supplies or requests a specific label or domain.").
-	Static("For newly uploaded content, use the CID returned by the upload tool directly — the upload already pinned it, so pins_add after upload is unnecessary.").
-	Static("pins_add is only needed when the CID originated outside Pinner and requires import from IPFS.").
+	Static("The CID is a directory whose root must contain index.html (gateways serve /index.html at the root); a root without index.html, or wrapped in a single parent directory (site.zip/mysite/index.html), is rejected — correct: site.zip/index.html.").
+	Static("A multi-file site is published as its component files (index.html, CSS, JS, images), not a single flattened HTML page.").
+	Static("For a ZIP bundle (index.html, CSS, JS, images), zip the directory CONTENTS, not the directory, and upload with archive_mode=convert.").
+	Static("For a single HTML file, upload_file with wrap=true and no name: wrapped HTML auto-renames to index.html so the site resolves at root.").
+	Static("An explicit name (e.g. 'starter-site') is honored as-is: the page is reachable only at /starter-site, not /.").
+	Static("A generic create/publish request implies no custom naming: pass only {\"cid\":\"<cid>\"} and a platform subdomain is auto-minted; never invent a domain or label.").
+	Static("Custom domain: pass {\"cid\":\"<cid>\",\"website\":\"<domain>\"} (target-type and dns-hosting optional); namespaces default to icann; for a Handshake (alt-root) name like acme/ pass {\"namespace\":\"hns\"}.").
+	Static("After creating an HNS site, read pinner://websites/<domain>/dns-requirements for the records to publish in the HNS wallet; managed DNS covers the authoritative side.").
+	Static("Platform subdomain with explicit label: {\"cid\":\"<cid>\",\"platform\":true,\"label\":\"<label>\"} or {\"cid\":\"<cid>\",\"platform\":true,\"generate\":true}.").
+	Static("Use the CID an upload tool returned directly — it is already pinned; pins_add is only for CIDs that originated outside Pinner.").
+	Static("Full custom-domain vs platform-label decision tree: agent_guide's publish_website flow.").
 	When(FeatFileHostInput, "The upload tool's file parameter is the preferred byte path on this host.").
 	Static("Returns the created website (numeric ID, validation TXT token, DNS records to publish).")
 

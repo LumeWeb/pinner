@@ -116,7 +116,7 @@ func TestAccountOTPDisablePropagatesServiceError(t *testing.T) {
 // (catalogmeta), keyed by the stable operation ID; this test pins the same
 // contract there.
 func TestAccountUpdateEnvCLIOnly(t *testing.T) {
-	for _, name := range []string{"account_update_email", "account_update_password"} {
+	for _, name := range []string{"account_update_email", "account_update_password", "account_otp_disable"} {
 		if env := catalogmeta.EnvironmentOf(name); env != catalogmeta.EnvCLIOnly {
 			t.Errorf("catalogmeta.EnvironmentOf(%q) = %v, want EnvCLIOnly", name, env)
 		}

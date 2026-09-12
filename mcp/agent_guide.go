@@ -478,7 +478,11 @@ func filterGuideFlows(guide AgentGuide, scope assembly.DomainScope) AgentGuide {
 // agentGuideDescription is shared between the static Description (tools/list)
 // and the direct-only presentation surface: it is a direct-only tool outside
 // the operation catalog and never enters the compiled surface.
-const agentGuideDescription = "Orientation for autonomous agents: the primary Pinner flows (auth, vault_create, vault_restore, upload, vault_upload, download, vault_download, vault_share, vault_sync, pins, publish_website, ens_publish) as ordered tool chains or decision trees, plus operational rules. On hosts that render MCP Apps, the guide includes open_app as the single launcher for human-facing interactive views. Call this first to learn how to drive Pinner before probing individual tools."
+// agentGuideDescription positions the guide as OPTIONAL orientation: the
+// description must not recommend broad triggering (a blanket "call this
+// first" directive can override an explicit request already served by a
+// specific tool), so it defers to directly relevant tools for clear intents.
+const agentGuideDescription = "Orientation material for agents: the primary Pinner flows (auth, vault_create, vault_restore, upload, vault_upload, download, vault_download, vault_share, vault_sync, pins, publish_website, ens_publish) as ordered tool chains or decision trees, plus operational rules. On hosts that render MCP Apps, the guide includes open_app as the single launcher for human-facing interactive views. Optional orientation when unfamiliar with Pinner or driving a multi-step flow; for an explicit, already-clear request, prefer the directly relevant tool instead of consulting the guide."
 
 // AgentGuideDescriptor returns a static, no-input tool that orients an agent
 // to the primary Pinner flows and how to chain them. It is deterministic
