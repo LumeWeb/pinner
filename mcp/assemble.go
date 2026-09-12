@@ -285,6 +285,27 @@ func (s *Server) buildDirectTools() []model.ToolDescriptor {
 			wiring.MaxRelayBytes,
 		))
 	}
+	// The async upload-management tools (upload_status / upload_cancel /
+	// upload_list) register exactly when a presigned upload coordinator is
+	// wired. Mint (source.mode=mint) returns an upload_handle the caller must
+	// poll via upload_status until a terminal state; upload_file's own
+	// description and the agent guide name upload_status as that completion
+	// contract, so a server with a presigned PUT coordinator but no async
+	// surface would advertise a poll tools/list does not serve.
+	//
+	// upload_list (the enumerator) is registered only when the composition
+	// root opts in via TransferDeps.AsyncUploadList: it discloses every handle
+	// the manager tracks, which is unsafe on a manager shared across principals
+	// in a multi-tenant deployment. upload_status / upload_cancel are
+	// capability-guarded by the opaque minted handle and always register.
+	if wiring.UploadFile && wiring.PresignedUpload != nil {
+		for _, d := range NewAsyncUploadTools(wiring.PresignedUpload.Tasks()) {
+			if d.Name == "upload_list" && !wiring.AsyncUploadList {
+				continue
+			}
+			direct = append(direct, d)
+		}
+	}
 	// upload_url registers when (and ONLY when) the reconciled gate holds:
 	// RelayURLWired && Relay != nil && FeatSourceURL — the exact gate the
 	// capabilities report above consumed, so the registered set and the

@@ -151,9 +151,18 @@ func Build(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 
 	// Register the open_* launchers first: RegisterAppView asserts its
 	// AttachTo tools exist in the catalog, and a launcher is the ONLY tool
-	// advertising a view's resourceUri.
+	// advertising a view's resourceUri. The Upload to IPFS launcher is
+	// dependency-bound: the shared seam builds the minting descriptor against
+	// the harness upload coordinator (the same one that backs upload_file),
+	// so the model-facing launcher exercises the real presigned-PUT surface.
 	for _, row := range rows {
-		desc, err := row.NewLauncherDescriptorFor()
+		var desc model.ToolDescriptor
+		var err error
+		if row.Launcher == appswire.LauncherUploadManager {
+			desc, err = appswire.UploadManagerDescriptor(h.Upload)
+		} else {
+			desc, err = row.NewLauncherDescriptorFor()
+		}
 		if err != nil {
 			return nil, fmt.Errorf("harness: launcher %s: %w", row.Launcher, err)
 		}
@@ -164,12 +173,18 @@ func Build(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 
 	installers := appswire.Installers{}
 	for _, row := range rows {
+		if row.Launcher == appswire.LauncherUploadManager {
+			// The Upload to IPFS view is dependency-bound: the shared installer
+			// binds the coordinator's CSP connectDomains and threads the
+			// submit/status helpers — no local copy to drift.
+			installers[row.Launcher] = appswire.UploadManagerInstaller(h.Upload)
+			continue
+		}
 		installers[row.Launcher] = row.ViewInstaller()
 	}
 	helpers := map[string][]model.ToolDescriptor{
-		appswire.LauncherSSOSignin:     {authSSOStatusDescriptor(fakes)},
-		appswire.LauncherUploadManager: {ipfsUploadSubmitDescriptor(h), ipfsUploadStatusDescriptor(h)},
-		appswire.LauncherVaultManager:  {vaultUploadSubmitDescriptor(h)},
+		appswire.LauncherSSOSignin:    {authSSOStatusDescriptor(fakes)},
+		appswire.LauncherVaultManager: {vaultUploadSubmitDescriptor(h)},
 	}
 	installed, err := appswire.Install(official, tools, rows, installers, appswire.InstallOptions{
 		Registry: registry,
@@ -554,106 +569,6 @@ func authSSOStatusDescriptor(f *FakeServices) model.ToolDescriptor {
 				"profile": f.Email,
 			}
 			return model.ToolResult{StructuredContent: sc, Text: toolargs.ResultJSONText(sc)}, nil
-		},
-	}
-}
-
-// ipfsUploadSubmitDescriptor mints (or continues) a one-time presigned PUT
-// endpoint bound to a canonical upload handle, exactly like the CLI's Upload
-// to IPFS app-only helper. The URL the iframe PUTs bytes to is served by the
-// same transfer.Upload coordinator main.go mounts (HTTP mode) or spins up on
-// the loopback listener (stdio mode, via Mint/Prepare's EnsureLoopback).
-func ipfsUploadSubmitDescriptor(h *Harness) model.ToolDescriptor {
-	in := helperSchema(`{
-		"handle":{"type":"string","description":"Optional canonical upload handle to continue instead of minting a new one."},
-		"name":{"type":"string","description":"Optional upload name (defaults to 'upload')."},
-		"ttl":{"type":"string","description":"Presigned endpoint lifetime (e.g. 5m; default 5 minutes)."}
-	}`)
-	return model.ToolDescriptor{
-		Name:        "ipfs_upload_submit",
-		Title:       "Prepare a one-time upload endpoint",
-		Description: "Prepare (or continue) a one-time presigned HTTP PUT endpoint bound to a canonical upload handle; the app's Uppy XHR uploader writes file bytes to it out of band. App-only helper for the Upload to IPFS view.",
-		InputSchema: in,
-		Handler: func(ctx context.Context, req model.ToolRequest) (model.ToolResult, error) {
-			args, err := toolargs.DecodeToolArgs[struct {
-				Handle string `json:"handle"`
-				Name   string `json:"name"`
-				TTL    string `json:"ttl"`
-			}](req)
-			if err != nil {
-				return model.ToolResult{}, err
-			}
-			ttl := parseHelperTTL(args.TTL)
-
-			if args.Handle != "" {
-				if url, ok := h.Upload.FindUpload(args.Handle); ok {
-					sc := map[string]any{
-						"url":           url,
-						"upload_handle": args.Handle,
-						"ttl":           ttl.String(),
-						"max_bytes":     h.Upload.MaxBytes(),
-						"poll_tool":     "ipfs_upload_status",
-						"continued":     true,
-					}
-					return model.ToolResult{StructuredContent: sc, Text: toolargs.ResultJSONText(sc)}, nil
-				}
-				if task, terr := h.Upload.Tasks().Get(args.Handle); terr == nil {
-					sc := map[string]any{
-						"upload_handle":   args.Handle,
-						"already_claimed": true,
-						"state":           task.State,
-						"poll_tool":       "ipfs_upload_status",
-					}
-					return model.ToolResult{StructuredContent: sc, Text: toolargs.ResultJSONText(sc)}, nil
-				}
-				return model.ToolResult{IsError: true, Text: fmt.Sprintf("unknown upload handle %q; start a fresh upload", args.Handle)}, nil
-			}
-
-			name := args.Name
-			if name == "" {
-				name = mptransfer.DefaultUploadName
-			}
-			url, handle := h.Upload.Prepare(ctx, name, ttl)
-			if url == "" || handle == "" {
-				return model.ToolResult{}, fmt.Errorf("failed to prepare one-time upload endpoint")
-			}
-			sc := map[string]any{
-				"url":           url,
-				"upload_handle": handle,
-				"ttl":           ttl.String(),
-				"max_bytes":     h.Upload.MaxBytes(),
-				"poll_tool":     "ipfs_upload_status",
-				"response_body": "the 202 body carries the upload_handle; pass it to poll_tool",
-			}
-			return model.ToolResult{StructuredContent: sc, Text: toolargs.ResultJSONText(sc) + " PUT the file bytes and poll for the CID."}, nil
-		},
-	}
-}
-
-// ipfsUploadStatusDescriptor poll helper for the Upload to IPFS view: reads
-// the shared UploadTaskManager for the terminal state / fake CID.
-func ipfsUploadStatusDescriptor(h *Harness) model.ToolDescriptor {
-	in := helperSchema(`{"handle":{"type":"string","description":"Opaque upload handle returned in the presigned upload's 202 response body."},"required":{}}`)
-	return model.ToolDescriptor{
-		Name:        "ipfs_upload_status",
-		Title:       "Get upload status",
-		Description: "Return the status of an async upload by handle: prepared, queued, running, completed (with CID), failed, or cancelled. App-only helper for the Upload to IPFS view.",
-		InputSchema: in,
-		Handler: func(_ context.Context, req model.ToolRequest) (model.ToolResult, error) {
-			args, err := toolargs.DecodeToolArgs[struct {
-				Handle string `json:"handle"`
-			}](req)
-			if err != nil {
-				return model.ToolResult{}, err
-			}
-			if args.Handle == "" {
-				return model.ToolResult{IsError: true, Text: "handle is required"}, nil
-			}
-			task, err := h.Upload.Tasks().Get(args.Handle)
-			if err != nil {
-				return model.ToolResult{IsError: true, Text: err.Error()}, nil
-			}
-			return model.ToolResult{StructuredContent: task, Text: toolargs.ResultJSONText(task)}, nil
 		},
 	}
 }
