@@ -67,22 +67,25 @@ func TestAPIKeysDeleteForcePassesThrough(t *testing.T) {
 	require.True(t, svc.gotForce)
 }
 
-// TestAPIKeysDeleteDestructiveContract pinS the MCP-facing destructive-action
-// contract in the descriptor itself: the description states the deletion is
-// irreversible and names the human-confirmed confirm hand-off required for
-// every key, while the CLI Help keeps its original self-delete-only semantic.
+// TestAPIKeysDeleteDestructiveContract pins the CLI-facing destructive-action
+// contract in the descriptor: the description states the deletion is
+// irreversible and keeps the CLI's self-delete-only --force semantic, with no
+// MCP agent hand-off prose (that lives in the catalogmcp fallback target). The
+// confirm arg stays a non-AgentConfirm self-delete switch; a model actor is
+// gated out of destructive invokes at the catalog Invoke boundary.
 func TestAPIKeysDeleteDestructiveContract(t *testing.T) {
 	op := apiKeysDelete(apiKeysDeleteDeps(&deleteRecordingAPIKeysService{}))
 	require.Contains(t, op.Description(), "cannot be recovered")
-	require.Contains(t, op.Description(), "confirm=true")
-	require.Contains(t, op.Description(), "EVERY key")
+	require.Contains(t, op.Description(), "--force")
+	require.NotContains(t, op.Description(), "confirm hand-off")
+	require.NotContains(t, op.Description(), "EVERY key")
 
 	for _, a := range op.Args() {
 		if a.Name != "confirm" {
 			continue
 		}
 		require.False(t, a.AgentConfirm,
-			"the confirm arg must NOT be AgentConfirm: api_keys_delete keeps the human hand-off for every deletion")
+			"the confirm arg must NOT be AgentConfirm: a model actor is refused destructive invokes at the catalog boundary")
 		require.Equal(t, "Allow deleting the key currently used for authentication", a.Help,
 			"CLI flag help keeps the self-delete semantic")
 	}
