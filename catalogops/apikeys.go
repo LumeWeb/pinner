@@ -116,7 +116,7 @@ func (d APIKeysDeps) oobKeyDrop(input map[string]any) APIKeyDrop {
 func apiKeysCreate(d APIKeysDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_create", Title: "Create an API key", Summary: "Create a new API key",
-		Description: "Create a new API key for your account. The key value is delivered exactly once and is not restorable: on the CLI it is printed to your terminal once; on agent surfaces the value is never sent through the tool channel — it is held in memory for one-time out-of-band retrieval and the response carries the drop_url for the human to open. If a key is exposed, delete it via api_keys_delete and create a new one.",
+		Description: "Create a new API key for your account. The key value is delivered exactly once and is not restorable: it is printed to your terminal once and can never be retrieved again. If a key is exposed, delete it via api_keys_delete and create a new one.",
 		Category:    "account", Safety: opmesh.SafetyMutate, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<name>",
 		Args: []opmesh.OperationArg{
@@ -158,7 +158,7 @@ func apiKeysCreate(d APIKeysDeps) opmesh.Operation {
 func apiKeysDelete(d APIKeysDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "api_keys_delete", Title: "Delete an API key", Summary: "Delete an API key",
-		Description: "Delete an API key by name or UUID. DESTRUCTIVE: the key is revoked immediately — every access made with it stops working right away — and it cannot be recovered or reused; the only remediation is creating a replacement with api_keys_create. Agent surfaces require a human-confirmed delete (confirm=true in the confirmation hand-off) for EVERY key, not just the one currently authenticating; the CLI requires --force only to delete the key currently used for authentication.",
+		Description: "Delete an API key by name or UUID. DESTRUCTIVE: the key is revoked immediately — every access made with it stops working right away — and it cannot be recovered or reused; the only remediation is creating a replacement with api_keys_create. Use --force to delete the key currently used for authentication; deleting any other key needs no extra flag.",
 		Category:    "account", Safety: opmesh.SafetyDestructive, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "<id>",
 		Args: []opmesh.OperationArg{

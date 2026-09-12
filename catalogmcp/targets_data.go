@@ -20,6 +20,9 @@ var opTargets = map[string][]Target{
 	"ipns_keys_create": {
 		Fallback("Call ipns_keys_create to create a new IPNS key by name. Importing an existing private key is not available on this channel; if the user wants to reuse an existing key, direct them to the out-of-band key import flow in their account console or the CLI."),
 	},
+	"api_keys_delete": {
+		Fallback("Call api_keys_delete to delete an API key by name or UUID. DESTRUCTIVE and irreversible: the key is revoked immediately, every access made with it stops working, and it cannot be recovered or reused — the only remediation is creating a replacement via api_keys_create. The input schema requires only the key id; agent surfaces additionally require the human confirmation hand-off for EVERY key, not just the one currently authenticating. Calling api_keys_delete without that confirmed hand-off is refused with a confirmation-required error and NO key is deleted; after the host's human-confirmation mediates the refusal, the deletion runs — passing confirm=true alone does not unlock it for a model. A model cannot delete a key alone — connect the human first."),
+	},
 	"account_update_email": {
 		Fallback("Call account_update_email to change the account's email address. Requires the current password for verification. On success the user must confirm via the verification email sent to the new address."),
 	},
@@ -68,6 +71,9 @@ var opTargets = map[string][]Target{
 	"websites_create": websitesCreateTargets,
 	"websites_domains_remove": {
 		Fallback("Remove a domain binding from its website. DESTRUCTIVE and consequential: unbinding stops the domain from serving the website immediately, and requires explicit human confirmation via confirm=true. The binding is restorable by re-adding it with websites_domains_add (namespace/platform settings must be re-supplied). The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Returns a deleted/domain_id result confirming the removal."),
+	},
+	"websites_domains_verify": {
+		Fallback("Verify a bound domain's DNS delegation and return its updated status and delegation. The domain argument can be the domain name or its numeric binding ID; the owning website is resolved automatically. Verification is a WRITE, not a pure read: it triggers a server-side re-check on the Portal that may update the domain's recorded verification state before the result is returned. For on-chain-managed domains (status onchain_managed) there is no Pinner delegation to verify: the DNS records are set on-chain and cannot be written from Pinner, so surface the _443._tcp TLSA record the domain carries — it is what makes the site load over HTTPS."),
 	},
 	"websites_platform_domain_availability": {
 		Fallback("Check whether a candidate subdomain label is claimable on each enabled platform (free-subdomain) root. label is required. Returns one availability result per platform-owned root. The check applies when a concrete subdomain label has already been supplied by the user or is required by an explicit user request for custom naming. A label is not generated solely for this check; when no label preference exists, websites_create with no domain auto-generates a platform subdomain."),

@@ -143,7 +143,7 @@ func vaultRestore(d VaultDeps) opmesh.Operation {
 		Name:        "vault_restore",
 		Title:       "Restore a vault",
 		Summary:     "Start an out-of-band restore for a vault profile",
-		Description: "Start restoring an existing vault on this device from a recovery seed supplied out-of-band by a human in a browser. Resolves the target profile and returns it so an out-of-band restore_url can be minted; the restore itself completes when the human enters the seed on that page. The seed never crosses the agent channel.",
+		Description: "Start restoring an existing vault on this device from a recovery seed supplied out-of-band by a human in a browser. Resolves the target profile and returns it so an out-of-band restore_url can be minted; the restore itself completes when the human enters the seed on that page. The seed is entered on that page and is never shown in this tool's output.",
 		Category:    CategoryVault,
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
