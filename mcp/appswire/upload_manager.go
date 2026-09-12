@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.lumeweb.com/mcpplane/model"
 	"go.lumeweb.com/mcpplane/sdk"
 	"go.lumeweb.com/mcpplane/toolargs"
@@ -151,25 +150,22 @@ type uploadHandleArg struct {
 // status polls the shared UploadTaskManager for the resulting CID. Both are
 // visible to the app only (never the model); no file bytes cross this tool or
 // the LLM channel.
-func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
-	v, _ := SpecForLauncher(LauncherUploadManager)
-	appMeta, _ := sdk.MarshalToolMeta(model.AppToolMeta{
-		ResourceURI: v.URI,
-		Visibility:  []model.ToolVisibility{model.ToolVisibilityApp},
-	})
-	// toolInvocationMeta clones the app _meta and adds the OpenAI
-	// toolInvocation labels (present-tense/finished) hosts render for the
-	// tool call. The reference contract reads each label at its own
-	// flat slash-delimited _meta key ("openai/toolInvocation/invoking"), not a
-	// nested object.
-	toolInvocationMeta := func(invoking, invoked string) mcp.Meta {
-		meta := mcp.Meta{}
-		for k, val := range appMeta {
-			meta[k] = val
-		}
-		meta["openai/toolInvocation/invoking"] = invoking
-		meta["openai/toolInvocation/invoked"] = invoked
-		return meta
+func UploadManagerHelpers(hp *transfer.Upload) ([]model.ToolDescriptor, error) {
+	v, ok := SpecForLauncher(LauncherUploadManager)
+	if !ok {
+		return nil, fmt.Errorf("appswire: %s not in view table", LauncherUploadManager)
+	}
+	submitMeta, err := ToolInvocationMeta(v.URI,
+		[]model.ToolVisibility{model.ToolVisibilityApp},
+		"Preparing upload…", "Upload endpoint prepared")
+	if err != nil {
+		return nil, fmt.Errorf("appswire: ipfs_upload_submit: %w", err)
+	}
+	statusMeta, err := ToolInvocationMeta(v.URI,
+		[]model.ToolVisibility{model.ToolVisibilityApp},
+		"Checking upload status…", "Upload status checked")
+	if err != nil {
+		return nil, fmt.Errorf("appswire: ipfs_upload_status: %w", err)
 	}
 	return []model.ToolDescriptor{
 		{
@@ -177,7 +173,7 @@ func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
 			Title:       "Prepare a one-time upload endpoint",
 			Description: "Prepare (or continue) a one-time presigned HTTP PUT endpoint bound to a canonical upload handle; the app's Uppy XHR uploader writes file bytes to it out of band. Passing a handle prepared by upload_file fulfills that same operation. App-only helper for the Upload to IPFS view.",
 			InputSchema: toolargs.ToolSchemaFor[uploadSubmitInput](),
-			Meta:        toolInvocationMeta("Preparing upload…", "Upload endpoint prepared"),
+			Meta:        submitMeta,
 			Handler: func(ctx context.Context, req model.ToolRequest) (model.ToolResult, error) {
 				in, err := toolargs.DecodeToolArgs[uploadSubmitInput](req)
 				if err != nil {
@@ -268,7 +264,7 @@ func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
 			Title:       "Get upload status",
 			Description: "Return the status of an async upload by handle: prepared, queued, running, completed (with CID), failed, cancelled, or expired. App-only helper for the Upload to IPFS view.",
 			InputSchema: toolargs.ToolSchemaFor[uploadHandleArg](),
-			Meta:        toolInvocationMeta("Checking upload status…", "Upload status checked"),
+			Meta:        statusMeta,
 			Handler: func(ctx context.Context, req model.ToolRequest) (model.ToolResult, error) {
 				in, err := toolargs.DecodeToolArgs[uploadHandleArg](req)
 				if err != nil {
@@ -284,7 +280,7 @@ func UploadManagerHelpers(hp *transfer.Upload) []model.ToolDescriptor {
 				return model.ToolResult{StructuredContent: task, Text: toolargs.ResultJSONText(task)}, nil
 			},
 		},
-	}
+	}, nil
 }
 
 // UploadManagerInstaller returns an Installer that registers the Upload to
@@ -304,7 +300,11 @@ func UploadManagerInstaller(hp *transfer.Upload) Installer {
 		}
 		helpers := ic.Helpers[LauncherUploadManager]
 		if len(helpers) == 0 {
-			helpers = UploadManagerHelpers(hp)
+			shared, err := UploadManagerHelpers(hp)
+			if err != nil {
+				return err
+			}
+			helpers = shared
 		}
 		av := v.AppViewFor(ic.Render, helpers)
 		av.ConnectDomainsFunc = hp.ConnectOrigins
