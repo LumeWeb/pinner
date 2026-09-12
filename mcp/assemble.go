@@ -50,6 +50,19 @@ func Assemble(cfg Config) (*Server, error) {
 	// predicate fragments) reads the single explicit setting.
 	profile.Hosted = cfg.Hosted
 
+	// Resolve the listing policy ONCE: the explicit Config.Listing when set
+	// (validated loudly — an unsupported strategy is a construction mistake),
+	// else DefaultPolicy. The shared host selector (PolicyForHost) is what
+	// composition roots call to derive the policy for a detected host; Assemble
+	// itself never infers a host from feature-carrier profiles that name none.
+	listing := DefaultPolicy()
+	if cfg.Listing != nil {
+		if err := cfg.Listing.Validate(); err != nil {
+			return nil, fmt.Errorf("mcp: assemble: %w", err)
+		}
+		listing = *cfg.Listing
+	}
+
 	cat, err := resolveCatalog(cfg)
 	if err != nil {
 		return nil, err
@@ -67,6 +80,7 @@ func Assemble(cfg Config) (*Server, error) {
 		config:          cfg,
 		catalog:         cat,
 		profile:         profile,
+		listing:         listing,
 		Tools:           presentations,
 		DirectToolNames: directNames,
 	}
@@ -96,6 +110,12 @@ type Server struct {
 	// DirectVisible. Dispatch goes through catalog.Invoke at the composition
 	// root — these descriptors carry metadata only.
 	Tools []CatalogPresentation
+
+	// listing is the resolved tool-listing policy (Config.Listing or the
+	// DefaultPolicy): the shared strategy/meta-on-flat axes the composition
+	// root's tools/list materialization honors. Exposed read-only via
+	// ListingPolicy().
+	listing ListingPolicy
 
 	// Direct carries the direct-only tools outside the catalog: agent_guide,
 	// the capabilities tool, and any wired transfer tools.
@@ -129,6 +149,15 @@ func (s *Server) DomainScope() assembly.DomainScope { return s.config.DomainScop
 
 // Hosted reports whether this is a hosted (Portal-embedded) assembly.
 func (s *Server) Hosted() bool { return s.config.Hosted }
+
+// ListingPolicy returns the resolved tool-listing policy for this assembly
+// (Config.Listing when declared, else DefaultPolicy). The registration /
+// materialization seam consults it to honor the listing strategy — flat for
+// the flat-listing web hosts (Claude Web, Grok Web, ChatGPT/OpenAI web)
+// selected by PolicyForHost, progressive otherwise — so the assembled
+// presentation, the meta-tool decision, and any derived instructions/card all
+// read the one policy value.
+func (s *Server) ListingPolicy() ListingPolicy { return s.listing }
 
 // buildDirectTools orders the direct-only tool set: agent_guide first (the
 // "start here" orientation), then capabilities, then the wired transfer tools
