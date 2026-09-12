@@ -48,6 +48,12 @@ Pre-filled: domain={{.Domain}}
 {{define "website_auth_status"}}Read the pinner://account/status resource above. If "authenticated" is false, instruct the user to run `pinner auth` or provide an auth token via --auth-token. Do not proceed with the wizard until authentication is confirmed. Before creating the site, verify access: call account_quota (search_tools query "quota"); if has_quota is true the user is covered by granted usage — do not ask about a subscription. Only when has_quota is false, check account_subscription; if not subscribed, surface the returned web_url deep-link so the human can subscribe (you cannot subscribe for them).
 {{end}}
 
+{{/* Hosted (plugin) variant: platform commerce policy forbids subscription
+     promotion, plan display, or upgrade-flow links on that surface, so the
+     hosted wording stops at the policy-sanctioned entitlement explanation. */}}
+{{define "website_auth_status_hosted"}}Read the pinner://account/status resource above; authentication has already been established by the host. Before creating the site, verify access: call account_quota (search_tools query "quota"); if has_quota is true the user is covered by granted usage — proceed without asking about a subscription. Only when has_quota is false, check account_subscription (search_tools query "subscription"); if the user is not subscribed, explain only that the feature requires an active subscription and is unavailable on this account. Do not offer, link to, or point toward any subscription, plan, pricing, or upgrade page — subscription changes are handled entirely outside this server.
+{{end}}
+
 {{define "website_start"}}Call the `websites_wizard_start` tool (no arguments). It returns a session_id and the first step (auth_check). Store the session_id: you will pass it to every subsequent `websites_wizard_step` call.
 {{end}}
 

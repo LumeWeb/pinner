@@ -9,6 +9,7 @@ import (
 	"go.lumeweb.com/mcpplane/model"
 
 	"go.lumeweb.com/pinner/assembly"
+	"go.lumeweb.com/pinner/catalogmcp"
 )
 
 // Assemble is the single construction seam for the Pinner MCP presentation
@@ -49,6 +50,17 @@ func Assemble(cfg Config) (*Server, error) {
 	// exists so anything resolving HostProfile.Hosted (e.g. the HostedIs
 	// predicate fragments) reads the single explicit setting.
 	profile.Hosted = cfg.Hosted
+	// The catalog description DSL resolves against feature sets only (the
+	// any-typed boundary carries no HostProfile.Hosted field), so the same
+	// deployment fact is mirrored as a feature for the subscription-related
+	// account descriptions, whose hosted variant must carry no subscription
+	// or upgrade promotion (platform commerce policy). Only the hosted state
+	// is stamped: an absent feature resolves as non-hosted, the safe default
+	// for profile-less or Has-style-adapted profiles.
+	if cfg.Hosted {
+		profile = profile.CloneFeatures()
+		profile.Features[catalogmcp.FeatHosted] = true
+	}
 
 	// Resolve the listing policy ONCE: the explicit Config.Listing when set
 	// (validated loudly — an unsupported strategy is a construction mistake),
@@ -89,7 +101,7 @@ func Assemble(cfg Config) (*Server, error) {
 	}
 
 	// Prompts and resources are surface-gated presentation sets.
-	srv.Prompts = PromptDescriptorsForScope(cfg.DomainScope)
+	srv.Prompts = PromptDescriptorsForScope(cfg.DomainScope, cfg.Hosted)
 	srv.Resources, srv.ResourceTemplates = ResourceDescriptorsForScope(cfg.ResourceProviders, cfg.DomainScope)
 
 	// Direct-only tools outside the catalog: the guide is always registered;

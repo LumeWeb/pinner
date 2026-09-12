@@ -18,8 +18,16 @@ import (
 type fakeAuthService struct {
 	auth.AuthService
 
-	disableOTPFn func(ctx context.Context, password string) (*auth.DisableOTPResult, error)
-	quotaFn      func(ctx context.Context) (*account.QuotaStatus, error)
+	disableOTPFn   func(ctx context.Context, password string) (*auth.DisableOTPResult, error)
+	quotaFn        func(ctx context.Context) (*account.QuotaStatus, error)
+	subscriptionFn func(ctx context.Context) (*account.SubscriptionStatus, error)
+}
+
+func (f *fakeAuthService) GetSubscriptionStatus(ctx context.Context) (*account.SubscriptionStatus, error) {
+	if f.subscriptionFn != nil {
+		return f.subscriptionFn(ctx)
+	}
+	return &account.SubscriptionStatus{}, nil
 }
 
 func (f *fakeAuthService) DisableOTP(ctx context.Context, password string) (*auth.DisableOTPResult, error) {
@@ -220,5 +228,129 @@ func TestAccountQuotaPropagatesServiceError(t *testing.T) {
 	}
 	if err.Error() != "account_quota: quota service down" {
 		t.Fatalf("err = %q, want account_quota: quota service down", err.Error())
+	}
+}
+
+// subscriptionDeps returns an AccountDeps wired like accountDisableDeps
+// (config manager present so authClientHandler resolves) plus a PortalURL
+// stub, with HostedPlugin already switchable by the caller.
+func subscriptionDeps(t *testing.T, fake *fakeAuthService) AccountDeps {
+	deps := accountDisableDeps(t, fake)
+	deps.PortalURL = func(_ config.Manager) string { return "https://account.portal/account/subscription" }
+	return deps
+}
+
+// TestAccountSubscriptionHostedSuppressesDeepLink pins the plugin-commerce
+// policy gate: a hosted assembly's account_subscription result carries no
+// web_url and phrases the outcome as a plain entitlement fact with no
+// subscribe prompting.
+func TestAccountSubscriptionHostedSuppressesDeepLink(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		subscribed  bool
+		wantMessage string
+	}{
+		{"subscribed", true, msgSubscribedHosted},
+		{"not subscribed", false, msgNotSubscribedHosted},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeAuthService{
+				subscriptionFn: func(_ context.Context) (*account.SubscriptionStatus, error) {
+					st := &account.SubscriptionStatus{}
+					st.IsSubscribed = tc.subscribed
+					return st, nil
+				},
+			}
+			deps := subscriptionDeps(t, fake)
+			deps.HostedPlugin = true
+			op := accountSubscription(deps)
+			res, err := op.Handler().Execute(context.Background(), map[string]any{})
+			if err != nil {
+				t.Fatalf("account subscription handler: %v", err)
+			}
+			got, ok := res.(*AccountSubscriptionResult)
+			if !ok {
+				t.Fatalf("result type = %T, want *AccountSubscriptionResult", res)
+			}
+			if got.WebURL != "" {
+				t.Errorf("hosted result WebURL = %q, want empty (plugin policy forbids subscription deep-links)", got.WebURL)
+			}
+			if got.Message != tc.wantMessage {
+				t.Errorf("hosted result Message = %q, want %q", got.Message, tc.wantMessage)
+			}
+		})
+	}
+}
+
+// TestAccountSubscriptionLocalKeepsDeepLink pins that the non-hosted
+// assembly keeps the full deep-link UX: web_url populated from the PortalURL
+// dep, messages unchanged.
+func TestAccountSubscriptionLocalKeepsDeepLink(t *testing.T) {
+	const portalURL = "https://account.portal/account/subscription"
+	for _, tc := range []struct {
+		name        string
+		subscribed  bool
+		wantMessage string
+	}{
+		{"subscribed", true, msgSubscribedLocal},
+		{"not subscribed", false, msgNotSubscribedLocal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeAuthService{
+				subscriptionFn: func(_ context.Context) (*account.SubscriptionStatus, error) {
+					st := &account.SubscriptionStatus{}
+					st.IsSubscribed = tc.subscribed
+					return st, nil
+				},
+			}
+			op := accountSubscription(subscriptionDeps(t, fake))
+			res, err := op.Handler().Execute(context.Background(), map[string]any{})
+			if err != nil {
+				t.Fatalf("account subscription handler: %v", err)
+			}
+			got, ok := res.(*AccountSubscriptionResult)
+			if !ok {
+				t.Fatalf("result type = %T, want *AccountSubscriptionResult", res)
+			}
+			if got.WebURL != portalURL {
+				t.Errorf("local result WebURL = %q, want %q", got.WebURL, portalURL)
+			}
+			if got.Message != tc.wantMessage {
+				t.Errorf("local result Message = %q, want %q", got.Message, tc.wantMessage)
+			}
+		})
+	}
+}
+
+// TestAccountQuotaHostedSuppressesDeepLink pins the plugin-commerce policy
+// gate on account_quota: a hosted assembly's result carries no web_url, and
+// its no-quota message is the sanctioned entitlement explanation with no
+// subscribe prompting.
+func TestAccountQuotaHostedSuppressesDeepLink(t *testing.T) {
+	fake := &fakeAuthService{
+		quotaFn: func(_ context.Context) (*account.QuotaStatus, error) {
+			q := &account.QuotaStatus{}
+			q.Upload.Remaining = intPtr(0)
+			q.Download.Remaining = intPtr(0)
+			q.Storage.Remaining = intPtr(0)
+			return q, nil
+		},
+	}
+	deps := subscriptionDeps(t, fake)
+	deps.HostedPlugin = true
+	op := accountQuota(deps)
+	res, err := op.Handler().Execute(context.Background(), map[string]any{})
+	if err != nil {
+		t.Fatalf("account quota handler: %v", err)
+	}
+	got, ok := res.(*AccountQuotaResult)
+	if !ok {
+		t.Fatalf("result type = %T, want *AccountQuotaResult", res)
+	}
+	if got.WebURL != "" {
+		t.Errorf("hosted result WebURL = %q, want empty (plugin policy forbids subscription deep-links)", got.WebURL)
+	}
+	if got.Message != msgQuotaExhaustedHosted {
+		t.Errorf("hosted result Message = %q", got.Message)
 	}
 }

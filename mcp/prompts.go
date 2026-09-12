@@ -81,9 +81,10 @@ const (
 	ArgENSName = "name"
 )
 
-// PromptDescriptors returns the prompt descriptors for the full scope.
+// PromptDescriptors returns the prompt descriptors for the full,
+// non-hosted scope.
 func PromptDescriptors() []model.PromptDescriptor {
-	return PromptDescriptorsForScope(FullDomainScope())
+	return PromptDescriptorsForScope(FullDomainScope(), false)
 }
 
 // FullDomainScope is a convenience alias for assembly.FullDomainScope so prompt
@@ -95,7 +96,11 @@ func FullDomainScope() assembly.DomainScope { return assembly.FullDomainScope }
 // need the websites scope, setup needs the account scope, and ENS publish
 // needs the ENS scope. A restricted scope (e.g. hosted) omits the prompts
 // whose underlying tools are not registered.
-func PromptDescriptorsForScope(scope assembly.DomainScope) []model.PromptDescriptor {
+//
+// hosted declares a hosted (plugin) assembly: handlers render the
+// policy-neutral variants of the quota/subscription guidance blocks (see
+// authQuotaBlockName).
+func PromptDescriptorsForScope(scope assembly.DomainScope, hosted bool) []model.PromptDescriptor {
 	all := []model.PromptDescriptor{
 		{
 			Name:        PromptWebsiteOnboarding,
@@ -107,7 +112,7 @@ func PromptDescriptorsForScope(scope assembly.DomainScope) []model.PromptDescrip
 				{Name: ArgTargetType, Description: `Content addressing type: "ipfs" or "ipns". Default: ipfs.`},
 				{Name: ArgDNSMode, Description: `DNS mode: "managed" (Pinner handles DNS) or "self_managed". Default: managed.`},
 			},
-			Handler: websiteOnboardingHandler,
+			Handler: websiteOnboardingHandlerFor(hosted),
 		},
 		{
 			Name:        PromptWebsiteUpdate,
@@ -124,7 +129,7 @@ func PromptDescriptorsForScope(scope assembly.DomainScope) []model.PromptDescrip
 			Name:        PromptSetup,
 			Title:       "Setup Wizard",
 			Description: "Guides the agent through the initial pinner setup wizard workflow step by step using the setup_wizard_start and setup_wizard_step tools. Covers authentication, configuration, shell completion, and a quick tutorial. Embeds a reference to the pinner://account/status resource.",
-			Handler:     setupHandler,
+			Handler:     setupHandlerFor(hosted),
 		},
 		{
 			Name:        PromptENSPublish,
@@ -134,7 +139,7 @@ func PromptDescriptorsForScope(scope assembly.DomainScope) []model.PromptDescrip
 				{Name: ArgENSName, Description: `The ENS/onchain domain to point (e.g. vitalik.eth). Required. Do not invent one; use the name the user provided.`},
 				{Name: ArgCID, Description: `IPFS CID of the content to serve. If omitted, the flow first uploads the content to obtain a CID.`},
 			},
-			Handler: ensPublishHandler,
+			Handler: ensPublishHandlerFor(hosted),
 		},
 	}
 
@@ -161,110 +166,114 @@ func PromptDescriptorsForScope(scope assembly.DomainScope) []model.PromptDescrip
 // websiteOnboardingHandler is the prompts/get handler for the
 // website-onboarding prompt. It renders a sequence of messages — from the
 // embedded website_onboarding.tmpl templates — that instruct the agent to
-// execute the websites wizard workflow.
-func websiteOnboardingHandler(ctx context.Context, req model.PromptRequest) (model.PromptResult, error) {
-	args := req.Arguments
-	domain := args[ArgDomain]
-	contentSource := args[ArgContentSource]
-	targetType := args[ArgTargetType]
-	dnsMode := args[ArgDNSMode]
+// execute the websites wizard workflow. The hosted flag selects the
+// policy-neutral variant of the quota/subscription guidance block (see
+// authQuotaBlockName).
+func websiteOnboardingHandlerFor(hosted bool) func(context.Context, model.PromptRequest) (model.PromptResult, error) {
+	return func(ctx context.Context, req model.PromptRequest) (model.PromptResult, error) {
+		args := req.Arguments
+		domain := args[ArgDomain]
+		contentSource := args[ArgContentSource]
+		targetType := args[ArgTargetType]
+		dnsMode := args[ArgDNSMode]
 
-	// Validate optional arguments if provided.
-	if contentSource != "" && contentSource != "cid" && contentSource != "upload" {
-		return model.PromptResult{}, fmt.Errorf("invalid content_source %q: expected \"cid\" or \"upload\"", contentSource)
+		// Validate optional arguments if provided.
+		if contentSource != "" && contentSource != "cid" && contentSource != "upload" {
+			return model.PromptResult{}, fmt.Errorf("invalid content_source %q: expected \"cid\" or \"upload\"", contentSource)
+		}
+		if targetType != "" && targetType != "ipfs" && targetType != "ipns" {
+			return model.PromptResult{}, fmt.Errorf("invalid target_type %q: expected \"ipfs\" or \"ipns\"", targetType)
+		}
+		if dnsMode != "" && dnsMode != "managed" && dnsMode != "self_managed" {
+			return model.PromptResult{}, fmt.Errorf("invalid dns_mode %q: expected \"managed\" or \"self_managed\"", dnsMode)
+		}
+
+		data := sitePromptData{
+			Domain:        domain,
+			ContentSource: contentSource,
+			TargetType:    targetType,
+			DNSMode:       dnsMode,
+		}
+
+		var messages []model.PromptMessage
+
+		// Step 0: Overview and prerequisites.
+		messages = append(messages, textMsg(renderPromptTemplate("website_overview", data)))
+
+		// Step 1: Read account status resource to verify authentication.
+		messages = append(messages, embeddedMsg(AccountStatusURI))
+		messages = append(messages, textMsg(renderPromptTemplate(authQuotaBlockName(hosted, "website_auth_status"), data)))
+
+		// Step 2: Start the wizard.
+		messages = append(messages, textMsg(renderPromptTemplate("website_start", data)))
+
+		// Step 3: Auth check step.
+		messages = append(messages, textMsg(renderPromptTemplate("website_step_auth_check", data)))
+
+		// Step 4: Content source step.
+		var contentStep string
+		switch contentSource {
+		case "upload":
+			contentStep = "website_step_content_source_upload"
+		case "cid":
+			contentStep = "website_step_content_source_cid"
+		default:
+			contentStep = "website_step_content_source_ask"
+		}
+		messages = append(messages, textMsg(renderPromptTemplate(contentStep, data)))
+
+		// Step 5: Target type step.
+		if targetType != "" {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_target_type_filled", data)))
+		} else {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_target_type_ask", data)))
+		}
+
+		// Step 6: Domain step. Embed the platform-domains resource so the agent can
+		// see the enabled free-subdomain roots before choosing a domain path.
+		messages = append(messages, embeddedMsg(PlatformDomainsURI))
+		if domain != "" {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_domain_filled", data)))
+		} else {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_domain_ask", data)))
+		}
+
+		// Step 7: DNS mode step.
+		if dnsMode != "" {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_mode_filled", data)))
+		} else {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_mode_ask", data)))
+		}
+
+		// Step 8: Create step.
+		messages = append(messages, textMsg(renderPromptTemplate("website_step_create", data)))
+
+		// Step 9: DNS setup step: embed the resource reference.
+		if domain != "" {
+			messages = append(messages, embeddedMsg(fmt.Sprintf(WebsiteDNSRequirementsTmplFmt, domain)))
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_setup_filled", data)))
+		} else {
+			messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_setup_ask", data)))
+		}
+
+		// Step 10: Validate step.
+		validateURI := ValidationStatusTmpl
+		if domain != "" {
+			// We don't have the website ID at prompt time, but the agent will
+			// resolve it from the wizard's create response.
+			validateURI = ValidationStatusTmpl
+		}
+		messages = append(messages, embeddedMsg(validateURI))
+		messages = append(messages, textMsg(renderPromptTemplate("website_step_validate", data)))
+
+		// Step 11: Completion.
+		messages = append(messages, textMsg(renderPromptTemplate("website_step_complete", data)))
+
+		return model.PromptResult{
+			Description: "Website onboarding wizard workflow with embedded resource references",
+			Messages:    messages,
+		}, nil
 	}
-	if targetType != "" && targetType != "ipfs" && targetType != "ipns" {
-		return model.PromptResult{}, fmt.Errorf("invalid target_type %q: expected \"ipfs\" or \"ipns\"", targetType)
-	}
-	if dnsMode != "" && dnsMode != "managed" && dnsMode != "self_managed" {
-		return model.PromptResult{}, fmt.Errorf("invalid dns_mode %q: expected \"managed\" or \"self_managed\"", dnsMode)
-	}
-
-	data := sitePromptData{
-		Domain:        domain,
-		ContentSource: contentSource,
-		TargetType:    targetType,
-		DNSMode:       dnsMode,
-	}
-
-	var messages []model.PromptMessage
-
-	// Step 0: Overview and prerequisites.
-	messages = append(messages, textMsg(renderPromptTemplate("website_overview", data)))
-
-	// Step 1: Read account status resource to verify authentication.
-	messages = append(messages, embeddedMsg(AccountStatusURI))
-	messages = append(messages, textMsg(renderPromptTemplate("website_auth_status", data)))
-
-	// Step 2: Start the wizard.
-	messages = append(messages, textMsg(renderPromptTemplate("website_start", data)))
-
-	// Step 3: Auth check step.
-	messages = append(messages, textMsg(renderPromptTemplate("website_step_auth_check", data)))
-
-	// Step 4: Content source step.
-	var contentStep string
-	switch contentSource {
-	case "upload":
-		contentStep = "website_step_content_source_upload"
-	case "cid":
-		contentStep = "website_step_content_source_cid"
-	default:
-		contentStep = "website_step_content_source_ask"
-	}
-	messages = append(messages, textMsg(renderPromptTemplate(contentStep, data)))
-
-	// Step 5: Target type step.
-	if targetType != "" {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_target_type_filled", data)))
-	} else {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_target_type_ask", data)))
-	}
-
-	// Step 6: Domain step. Embed the platform-domains resource so the agent can
-	// see the enabled free-subdomain roots before choosing a domain path.
-	messages = append(messages, embeddedMsg(PlatformDomainsURI))
-	if domain != "" {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_domain_filled", data)))
-	} else {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_domain_ask", data)))
-	}
-
-	// Step 7: DNS mode step.
-	if dnsMode != "" {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_mode_filled", data)))
-	} else {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_mode_ask", data)))
-	}
-
-	// Step 8: Create step.
-	messages = append(messages, textMsg(renderPromptTemplate("website_step_create", data)))
-
-	// Step 9: DNS setup step: embed the resource reference.
-	if domain != "" {
-		messages = append(messages, embeddedMsg(fmt.Sprintf(WebsiteDNSRequirementsTmplFmt, domain)))
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_setup_filled", data)))
-	} else {
-		messages = append(messages, textMsg(renderPromptTemplate("website_step_dns_setup_ask", data)))
-	}
-
-	// Step 10: Validate step.
-	validateURI := ValidationStatusTmpl
-	if domain != "" {
-		// We don't have the website ID at prompt time, but the agent will
-		// resolve it from the wizard's create response.
-		validateURI = ValidationStatusTmpl
-	}
-	messages = append(messages, embeddedMsg(validateURI))
-	messages = append(messages, textMsg(renderPromptTemplate("website_step_validate", data)))
-
-	// Step 11: Completion.
-	messages = append(messages, textMsg(renderPromptTemplate("website_step_complete", data)))
-
-	return model.PromptResult{
-		Description: "Website onboarding wizard workflow with embedded resource references",
-		Messages:    messages,
-	}, nil
 }
 
 // websiteUpdateHandler is the prompts/get handler for the website-update
@@ -308,91 +317,112 @@ func websiteUpdateHandler(ctx context.Context, req model.PromptRequest) (model.P
 	}, nil
 }
 
-// ensPublishHandler is the prompts/get handler for the ens-publish prompt. It
-// renders a sequence of messages that drive the agent through the ENS publish
-// flow: upload (when no CID is given), ens_point to publish + obtain the
-// contenthash, onchain contenthash set (wallet guidance, without assuming a
-// wallet), and verification.
-func ensPublishHandler(ctx context.Context, req model.PromptRequest) (model.PromptResult, error) {
-	args := req.Arguments
-	name := args[ArgENSName]
-	cid := args[ArgCID]
+// ensPublishHandlerFor builds the prompts/get handler for the ens-publish
+// prompt. It renders a sequence of messages that drive the agent through the
+// ENS publish flow: upload (when no CID is given), ens_point to publish +
+// obtain the contenthash, onchain contenthash set (wallet guidance, without
+// assuming a wallet), and verification. The hosted flag selects the
+// policy-neutral variant of the quota/subscription guidance block (see
+// authQuotaBlockName).
+func ensPublishHandlerFor(hosted bool) func(context.Context, model.PromptRequest) (model.PromptResult, error) {
+	return func(ctx context.Context, req model.PromptRequest) (model.PromptResult, error) {
+		args := req.Arguments
+		name := args[ArgENSName]
+		cid := args[ArgCID]
 
-	if name == "" {
-		return model.PromptResult{}, fmt.Errorf("ens-publish: name is required")
+		if name == "" {
+			return model.PromptResult{}, fmt.Errorf("ens-publish: name is required")
+		}
+
+		data := sitePromptData{ENSName: name, CID: cid}
+		var messages []model.PromptMessage
+
+		// Step 0: Overview.
+		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_overview", data)))
+
+		// Step 1: Auth check via the account status resource.
+		messages = append(messages, embeddedMsg(AccountStatusURI))
+		messages = append(messages, textMsg(renderPromptTemplate(authQuotaBlockName(hosted, "ens_publish_auth_status"), data)))
+
+		// Step 2: Content — upload first only if no CID was supplied.
+		if cid == "" {
+			messages = append(messages, textMsg(renderPromptTemplate("ens_publish_content_upload", data)))
+		} else {
+			messages = append(messages, textMsg(renderPromptTemplate("ens_publish_content_cid", data)))
+		}
+
+		// Step 3: Point the name (ens_point, discovered via search_tools).
+		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_point", data)))
+
+		// Step 4: Wallet/onchain contenthash guidance.
+		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_wallet", data)))
+
+		// Step 5: Verify via the returned gateway URL.
+		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_verify", data)))
+
+		// Step 6: Completion summary.
+		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_complete", data)))
+
+		return model.PromptResult{
+			Description: "ENS publish workflow: upload -> ens_point -> set onchain contenthash -> verify",
+			Messages:    messages,
+		}, nil
 	}
-
-	data := sitePromptData{ENSName: name, CID: cid}
-	var messages []model.PromptMessage
-
-	// Step 0: Overview.
-	messages = append(messages, textMsg(renderPromptTemplate("ens_publish_overview", data)))
-
-	// Step 1: Auth check via the account status resource.
-	messages = append(messages, embeddedMsg(AccountStatusURI))
-	messages = append(messages, textMsg(renderPromptTemplate("ens_publish_auth_status", data)))
-
-	// Step 2: Content — upload first only if no CID was supplied.
-	if cid == "" {
-		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_content_upload", data)))
-	} else {
-		messages = append(messages, textMsg(renderPromptTemplate("ens_publish_content_cid", data)))
-	}
-
-	// Step 3: Point the name (ens_point, discovered via search_tools).
-	messages = append(messages, textMsg(renderPromptTemplate("ens_publish_point", data)))
-
-	// Step 4: Wallet/onchain contenthash guidance.
-	messages = append(messages, textMsg(renderPromptTemplate("ens_publish_wallet", data)))
-
-	// Step 5: Verify via the returned gateway URL.
-	messages = append(messages, textMsg(renderPromptTemplate("ens_publish_verify", data)))
-
-	// Step 6: Completion summary.
-	messages = append(messages, textMsg(renderPromptTemplate("ens_publish_complete", data)))
-
-	return model.PromptResult{
-		Description: "ENS publish workflow: upload -> ens_point -> set onchain contenthash -> verify",
-		Messages:    messages,
-	}, nil
 }
 
-// setupHandler is the prompts/get handler for the setup prompt. It renders the
-// message sequence from the embedded setup.tmpl templates.
-func setupHandler(ctx context.Context, req model.PromptRequest) (model.PromptResult, error) {
-	data := sitePromptData{}
-	var messages []model.PromptMessage
+// setupHandlerFor builds the prompts/get handler for the setup prompt. It
+// renders the message sequence from the embedded setup.tmpl templates. The
+// hosted flag selects the policy-neutral variant of the quota/subscription
+// guidance block (see authQuotaBlockName).
+func setupHandlerFor(hosted bool) func(context.Context, model.PromptRequest) (model.PromptResult, error) {
+	return func(ctx context.Context, req model.PromptRequest) (model.PromptResult, error) {
+		data := sitePromptData{}
+		var messages []model.PromptMessage
 
-	// Step 0: Overview.
-	messages = append(messages, textMsg(renderPromptTemplate("setup_overview", data)))
+		// Step 0: Overview.
+		messages = append(messages, textMsg(renderPromptTemplate("setup_overview", data)))
 
-	// Step 1: Read account status to check current auth state.
-	messages = append(messages, embeddedMsg(AccountStatusURI))
-	messages = append(messages, textMsg(renderPromptTemplate("setup_auth_status_check", data)))
+		// Step 1: Read account status to check current auth state.
+		messages = append(messages, embeddedMsg(AccountStatusURI))
+		messages = append(messages, textMsg(renderPromptTemplate(authQuotaBlockName(hosted, "setup_auth_status_check"), data)))
 
-	// Step 2: Start the setup wizard.
-	messages = append(messages, textMsg(renderPromptTemplate("setup_start", data)))
+		// Step 2: Start the setup wizard.
+		messages = append(messages, textMsg(renderPromptTemplate("setup_start", data)))
 
-	// Step 3: Auth step.
-	messages = append(messages, textMsg(renderPromptTemplate("setup_step_auth", data)))
+		// Step 3: Auth step.
+		messages = append(messages, textMsg(renderPromptTemplate("setup_step_auth", data)))
 
-	// Step 4: Config step.
-	messages = append(messages, textMsg(renderPromptTemplate("setup_step_config", data)))
+		// Step 4: Config step.
+		messages = append(messages, textMsg(renderPromptTemplate("setup_step_config", data)))
 
-	// Step 5: Shell completion step.
-	messages = append(messages, textMsg(renderPromptTemplate("setup_step_completion", data)))
+		// Step 5: Shell completion step.
+		messages = append(messages, textMsg(renderPromptTemplate("setup_step_completion", data)))
 
-	// Step 6: Tutorial step.
-	messages = append(messages, textMsg(renderPromptTemplate("setup_step_tutorial", data)))
+		// Step 6: Tutorial step.
+		messages = append(messages, textMsg(renderPromptTemplate("setup_step_tutorial", data)))
 
-	// Step 7: Completion.
-	messages = append(messages, embeddedMsg(AccountStatusURI))
-	messages = append(messages, textMsg(renderPromptTemplate("setup_step_complete", data)))
+		// Step 7: Completion.
+		messages = append(messages, embeddedMsg(AccountStatusURI))
+		messages = append(messages, textMsg(renderPromptTemplate("setup_step_complete", data)))
 
-	return model.PromptResult{
-		Description: "Setup wizard workflow with embedded resource references",
-		Messages:    messages,
-	}, nil
+		return model.PromptResult{
+			Description: "Setup wizard workflow with embedded resource references",
+			Messages:    messages,
+		}, nil
+	}
+}
+
+// authQuotaBlockName selects the quota/subscription guidance template block
+// for the deployment. Hosted plugin surfaces render the `*_hosted` variants,
+// whose wording carries no subscription or upgrade promotion (platform
+// commerce policy forbids displaying plans, initiating subscriptions, or
+// promoting upgrades there); local surfaces render the full deep-link
+// guidance unchanged.
+func authQuotaBlockName(hosted bool, base string) string {
+	if hosted {
+		return base + "_hosted"
+	}
+	return base
 }
 
 // --- Prompt message helpers ---

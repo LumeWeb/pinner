@@ -298,3 +298,22 @@ func stdioAppsProfile() HostProfile {
 	p.Features[FeatMCPApps] = true
 	return p
 }
+
+// TestAgentGuideSubscriptionPromotionHostedSplit pins the plugin-commerce
+// policy gate on the access-policy rule: a hosted guide carries only the
+// sanctioned entitlement explanation (never a subscription or upgrade
+// pointer), while the non-hosted guide keeps the unchanged web_url deep-link
+// guidance.
+func TestAgentGuideSubscriptionPromotionHostedSplit(t *testing.T) {
+	hostedRules := strings.Join(BuildAgentGuide(profileForTransport(canimcp.TransportOpenAI), assembly.HostedDomainScope, true).Rules, "\n")
+	require.NotContains(t, hostedRules, "web_url",
+		"hosted guide must never point the agent at a subscription deep-link")
+	require.NotContains(t, hostedRules, "so the human opens the web app to subscribe",
+		"hosted guide must not promote the subscribe flow")
+	require.Contains(t, hostedRules, "unavailable on this account",
+		"hosted guide carries the sanctioned entitlement explanation")
+
+	localRules := strings.Join(BuildAgentGuide(profileForTransport(canimcp.TransportOpenAI), assembly.HostedDomainScope, false).Rules, "\n")
+	require.Contains(t, localRules, "surface the returned web_url deep-link",
+		"non-hosted guide keeps the documented deep-link guidance")
+}

@@ -50,10 +50,10 @@ import (
 type FeatureProbe func(feature string) bool
 
 // profileFeatures lists every feature a description in this package gates on.
-// Keep it in lockstep with the When(...) segments in websites_mcp.go: when a
-// new feature-gated segment is added, add its feature here so ProfileFromHas
-// adaptation stays lossless.
-var profileFeatures = []mcpforge.Feature{FeatFileHostInput}
+// Keep it in lockstep with the When(...)/Unless(...) segments in
+// websites_desc.go and account_desc.go: when a new feature-gated segment is
+// added, add its feature here so ProfileFromHas adaptation stays lossless.
+var profileFeatures = []mcpforge.Feature{FeatFileHostInput, FeatHosted}
 
 // ProfileFromHas adapts a Has-style host profile (e.g. one exposing
 // Has(feature string) bool) into this package's feature carrier. It probes the
