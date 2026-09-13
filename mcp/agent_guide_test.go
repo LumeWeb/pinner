@@ -144,6 +144,16 @@ func flowNames(g AgentGuide) []string {
 	return out
 }
 
+// TestAgentGuideZeroScopeIsFull pins the zero-scope overlay: DomainScope{} is
+// the implicit full surface, so the vault prose (the same clauses the vault
+// flows count on) must resolve exactly as on FullDomainScope.
+func TestAgentGuideZeroScopeIsFull(t *testing.T) {
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.DomainScope{}, false, nil)
+	require.Len(t, flowNames(guid), 13, "zero scope keeps every flow")
+	require.Contains(t, guid.Summary, "vault_put_file is non-blocking",
+		"zero scope is full: the summary keeps the vault mint contract")
+}
+
 // TestAgentGuideModesMatchProfile guards against advertising source modes the
 // resolved profile's transport cannot serve (the Kody regression the source
 // pinned).

@@ -348,10 +348,9 @@ func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted boo
 	// lets prose-level clauses (the summary's mint contract, the headless
 	// primitives example) gate on the same fact the flow filter uses, so a
 	// vault-less surface (e.g. hosted) never sees a vault tool named anywhere
-	// in the guide. A zero scope reads as "full": the feature stays.
-	if !scope.IsZero() {
-		p.Features[FeatVault] = scope.VaultOn()
-	}
+	// in the guide. VaultOn already treats a zero scope as the full surface,
+	// so the assignment is unconditional.
+	p.Features[FeatVault] = scope.VaultOn()
 	// The headless-primitive example list is vault-aware: a scope without the
 	// vault never sees vault tools held up as examples.
 	headlessPrimitives := []string{"pins_list", "auth_sso"}
