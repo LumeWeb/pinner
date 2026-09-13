@@ -96,6 +96,7 @@ type CatalogDepsBundle struct {
 	VaultSetup catalogops.VaultDeps
 	Pins       catalogops.PinsDeps
 	Websites   catalogops.WebsitesDeps
+	Workspaces catalogops.WorkspacesDeps
 	DNS        catalogops.DNSDeps
 	IPNS       catalogops.IPNSDeps
 	ENS        catalogops.ENSDeps
@@ -176,6 +177,7 @@ func AssembleCatalogOps(deps *CatalogDepsBundle, scope DomainScope, hosted bool)
 		{"vault", scope.VaultOn(), catalogops.VaultOperations(deps.Vault)},
 		{"pins", scope.PinsOn(), catalogops.PinsOperations(deps.Pins)},
 		{"websites", scope.WebsitesOn(), catalogops.WebsitesOperations(deps.Websites)},
+		{"workspaces", scope.WorkspacesOn(), catalogops.WorkspacesOperations(deps.Workspaces)},
 		{"dns", scope.DNSOn(), catalogops.DNSOperations(deps.DNS)},
 		{"ipns", scope.IPNSOn(), catalogops.IPNSOperations(deps.IPNS)},
 		{"ens", scope.ENSOn(), catalogops.ENSOperations(deps.ENS)},

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.lumeweb.com/opmesh"
 
 	"go.lumeweb.com/pinner/catalogops"
 )
@@ -21,6 +22,7 @@ func testBundle() *CatalogDepsBundle {
 		VaultSetup: catalogops.VaultDeps{},
 		Pins:       catalogops.PinsDeps{},
 		Websites:   catalogops.WebsitesDeps{},
+		Workspaces: catalogops.WorkspacesDeps{},
 		DNS:        catalogops.DNSDeps{},
 		IPNS:       catalogops.IPNSDeps{},
 		ENS:        catalogops.ENSDeps{},
@@ -46,6 +48,17 @@ func TestAssembleCatalogOpsHostedExcludesVault(t *testing.T) {
 	require.NoError(t, err, "full catalog must assemble")
 	_, vaultFull := full.Get("vault_status")
 	assert.True(t, vaultFull, "full scope must register the Sia vault domain")
+
+	// Workspaces are a user operation surface (they are to websites what an
+	// isolated runtime is), so they must register on both hosted and full.
+	for _, c := range []opmesh.Catalog{hosted, full} {
+		if _, ok := c.Get("workspaces_list"); !ok {
+			t.Errorf("workspaces_list must be registered on the workspaces surface")
+		}
+		if _, ok := c.Get("workspaces_resolve"); ok {
+			t.Errorf("workspaces_resolve must NOT be registered (runtime-internal)")
+		}
+	}
 }
 
 // TestAssembleCatalogOpsHostedExcludesEnvLocal verifies that a hosted assembly
