@@ -182,35 +182,129 @@ func CurrentCapabilities(coLocated, tunnelOpenAI, uploadFile, vaultPutFile, down
 	}
 }
 
-// capabilitiesLeadIn is the profile-adapted capabilities description body: the
-// intro, the "host file first" routing clause, and the download-sink copy. It
-// deliberately does NOT name any source.mode=mint completion contract — that
-// copy is tool-scoped in capabilityDescriptionFor so it can respect
+// The prose's tool naming is wiring-honest: a host that registered one
+// file-capable upload/download tool never sees the other named as a byte
+// route. uploadAccept / uploadSubject / downloadSubject choose names AND
+// verb agreement per wiring (pair = plural "take"/"accept", single tool =
+// singular).
+func uploadAccept(uploadFile, vaultPutFile bool) string {
+	switch {
+	case uploadFile && vaultPutFile:
+		return "upload_file/vault_put_file accept"
+	case vaultPutFile:
+		return "vault_put_file accepts"
+	case uploadFile:
+		return "upload_file accepts"
+	default:
+		return "the registered upload tools accept"
+	}
+}
+
+func uploadSubject(uploadFile, vaultPutFile bool) string {
+	switch {
+	case uploadFile && vaultPutFile:
+		return "The upload_file/vault_put_file tools take"
+	case vaultPutFile:
+		return "The vault_put_file tool takes"
+	case uploadFile:
+		return "The upload_file tool takes"
+	default:
+		return "The registered upload tools take"
+	}
+}
+
+func downloadSubject(downloadFile, vaultGetFile bool) string {
+	switch {
+	case downloadFile && vaultGetFile:
+		return "download_file/vault_get_file take"
+	case vaultGetFile:
+		return "vault_get_file takes"
+	case downloadFile:
+		return "download_file takes"
+	default:
+		return "the registered download tools take"
+	}
+}
+
+// capabilitiesLeadInFor is the profile-adapted capabilities description body:
+// the intro, the "host file first" routing clause, and the download-sink copy.
+// It deliberately does NOT name any source.mode=mint completion contract —
+// that copy is tool-scoped in capabilityDescriptionFor so it can respect
 // registration-time wiring (upload_file mints poll upload_status;
 // vault_put_file mints non-blocking with no poll). The "host file first"
 // clause is gated on FeatFileHostInput (only OpenAI/ChatGPT hosts can build a
 // {download_url, file_id} file object). Resolving against the calling profile
 // prevents the description from promising a `file` parameter a host (e.g.
 // Grok) cannot fill.
-var capabilitiesLeadIn = mcpforge.Static[HostProfile](
-	"Report the running MCP transport and which file-input source modes, upload tools, and file-output sink modes this Pinner MCP server accepts. Read all three fields to pick the right byte route without probing tool descriptions: source_modes lists the source.mode values upload_file/vault_put_file accept on this transport (they are NOT the whole upload surface); upload_tools lists every upload tool registered on this host (upload_file plus any separate relay tools present); download_sink_modes lists the sinks download_file/vault_get_file accept.",
-).
-	When(FeatFileHostInput,
-		"The upload_file/vault_put_file tools take a transport-scoped `source` whose legal modes are exactly the values in `source_modes`, OR a host-provided `file` argument when available.",
+//
+// The builder is constructed per call, not shared: the tool names in the
+// prose depend on the registration wiring booleans, so a single guarded
+// package-level global cannot carry them. This also frees the composition
+// below from the Clone-before-append discipline the shared global required.
+func capabilitiesLeadInFor(uploadFile, vaultPutFile, downloadFile, vaultGetFile bool) mcpforge.DescBuilder[HostProfile] {
+	uploadTools := uploadToolsClaim(uploadFile)
+	desc := mcpforge.Static[HostProfile](
+		"Report the running MCP transport and which file-input source modes, upload tools, and file-output sink modes this Pinner MCP server accepts. Read all three fields to pick the right byte route without probing tool descriptions: source_modes lists the source.mode values "+uploadAccept(uploadFile, vaultPutFile)+" on this transport (they are NOT the whole upload surface);"+uploadTools+"; download_sink_modes lists the sinks "+downloadToolsClaim(downloadFile, vaultGetFile)+".",
 	).
-	WhenSentence(FeatFileHostInput,
-		"A host-provided file (a temporary download_url + file_id object) is always preferred when available, regardless of source_modes.",
-	).
-	WhenSentence(FeatFileHostInput,
-		"file_input_policy=host_file_first is a machine-readable invariant: when set, an agent MUST pass any file already supplied or created by the host through the file parameter (user-uploaded attachments AND assistant-generated sandbox files) and must NOT base64-encode, create a data URI, or mint a presigned URL when file can be used.",
-	).
-	Unless(FeatFileHostInput,
-		"This client has no `file` parameter it can fill: call upload_file/vault_put_file with a transport-scoped source.",
-	).
-	StaticSentence("download_file/vault_get_file take a sink: local writes to a path on the MCP server's own disk (not visible to a remote agent)").
-	WhenSentence(FeatSinkDrop,
-		"or drop returns a one-time filedrop link to pull from out of band.",
-	)
+		When(FeatFileHostInput,
+			uploadSubject(uploadFile, vaultPutFile)+" a transport-scoped `source` whose legal modes are exactly the values in `source_modes`, OR a host-provided `file` argument when available.",
+		).
+		WhenSentence(FeatFileHostInput,
+			"A host-provided file (a temporary download_url + file_id object) is always preferred when available, regardless of source_modes.",
+		).
+		WhenSentence(FeatFileHostInput,
+			"file_input_policy=host_file_first is a machine-readable invariant: when set, an agent MUST pass any file already supplied or created by the host through the file parameter (user-uploaded attachments AND assistant-generated sandbox files) and must NOT base64-encode, create a data URI, or mint a presigned URL when file can be used.",
+		).
+		Unless(FeatFileHostInput,
+			"This client has no `file` parameter it can fill: call "+uploadCall(uploadFile, vaultPutFile)+" with a transport-scoped source.",
+		).
+		StaticSentence(downloadSubject(downloadFile, vaultGetFile)+" a sink: local writes to a path on the MCP server's own disk (not visible to a remote agent)").
+		WhenSentence(FeatSinkDrop,
+			"or drop returns a one-time filedrop link to pull from out of band.",
+		)
+	return desc
+}
+
+// uploadToolsClaim composes the upload_tools field copy of the intro. It
+// takes only uploadFile because the upload_tools report (JSON {upload_tools})
+// never includes vault_put_file — it lists the IPFS upload tools and their
+// relay siblings, so a vault-only wiring claims no upload tool at all and the
+// prose must not either. downloadToolsClaim composes the download_sink_modes
+// field copy of the intro the same way.
+func uploadToolsClaim(uploadFile bool) string {
+	switch {
+	case uploadFile:
+		return " upload_tools lists every upload tool registered on this host (upload_file plus any separate relay tools present)"
+	default:
+		return " upload_tools lists the IPFS upload tools registered on this host"
+	}
+}
+
+func downloadToolsClaim(downloadFile, vaultGetFile bool) string {
+	switch {
+	case downloadFile && vaultGetFile:
+		return "download_file/vault_get_file accept"
+	case vaultGetFile:
+		return "vault_get_file accepts"
+	case downloadFile:
+		return "download_file accepts"
+	default:
+		return "the registered download tools accept"
+	}
+}
+
+func uploadCall(uploadFile, vaultPutFile bool) string {
+	switch {
+	case uploadFile && vaultPutFile:
+		return "upload_file/vault_put_file"
+	case vaultPutFile:
+		return "vault_put_file"
+	case uploadFile:
+		return "upload_file"
+	default:
+		return "the registered upload tools"
+	}
+}
 
 // capabilitiesByteChooser is the upload byte-route chooser surfaced when
 // upload_file is wired. It names upload_file and the optional upload_url /
@@ -285,13 +379,7 @@ func capabilitiesDescriptionFor(profile HostProfile, uploadFile, vaultPutFile, d
 	if !(downloadFile || vaultGetFile) {
 		delete(profile.Features, FeatSinkDrop)
 	}
-	// Clone before composing: capabilitiesLeadIn is a shared package-level
-	// builder and the List/WhenSentence calls below append to its segment
-	// slice. Without Clone, append() would reuse spare capacity in the
-	// global's backing array, letting concurrent resolution calls race on
-	// the same indices. Clone copies the slice so each call grows its own
-	// array.
-	desc := capabilitiesLeadIn.Clone()
+	desc := capabilitiesLeadInFor(uploadFile, vaultPutFile, downloadFile, vaultGetFile)
 	if uploadFile {
 		desc = desc.List(capabilitiesByteChooser).WhenSentence(FeatSourceMint, mintUploadCompletion)
 	}
