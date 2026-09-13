@@ -126,6 +126,7 @@ func TestAdminOperationsReturnsUsers(t *testing.T) {
 		"admin_users_create",
 		"admin_users_update",
 		"admin_users_delete",
+		"admin_users_verify",
 	} {
 		if !names[want] {
 			t.Fatalf("AdminOperations missing expected op %q", want)
@@ -226,6 +227,47 @@ func TestAdminUsersListPagingArgs(t *testing.T) {
 	items, ok := got.ListItems().([]*admin.User)
 	if !ok || len(items) != 1 || items[0].Id != 2 {
 		t.Fatalf("expected the second user on page 2, got %+v", got.ListItems())
+	}
+}
+
+// TestAdminUsersVerify asserts verify reuses the update path with
+// verified=true forwarded and nothing else in the patch.
+func TestAdminUsersVerify(t *testing.T) {
+	var gotID int
+	var gotReq *admin.UserUpdateRequest
+	svc := &fakeUserService{
+		requireAuth: func() error { return nil },
+		updateFn: func(ctx context.Context, id int, req *admin.UserUpdateRequest) (*admin.User, error) {
+			gotID, gotReq = id, req
+			u := sampleUser()
+			u.Id = id
+			u.Verified = true
+			return u, nil
+		},
+	}
+	op := adminUsersVerify(testUsersDeps(t, svc))
+	if op.Name() != "admin_users_verify" {
+		t.Fatalf("unexpected op name %q", op.Name())
+	}
+	if op.Positional() != "<user-id>" {
+		t.Fatalf("expected positional binding, got %q", op.Positional())
+	}
+	res, err := op.Handler().Execute(context.Background(), map[string]any{"id": 7})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if gotID != 7 {
+		t.Fatalf("id not forwarded: %d", gotID)
+	}
+	if gotReq == nil || gotReq.Verified == nil || !*gotReq.Verified {
+		t.Fatalf("verified=true not forwarded: %+v", gotReq)
+	}
+	if gotReq.Email != nil || gotReq.Password != nil || gotReq.FirstName != nil || gotReq.LastName != nil {
+		t.Fatalf("verify must patch only the verified field: %+v", gotReq)
+	}
+	u, ok := res.(*admin.User)
+	if !ok || !u.Verified {
+		t.Fatalf("unexpected result: %+v", res)
 	}
 }
 

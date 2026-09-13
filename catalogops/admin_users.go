@@ -16,6 +16,7 @@ const (
 	OpAdminUsersCreate = "admin_users_create"
 	OpAdminUsersUpdate = "admin_users_update"
 	OpAdminUsersDelete = "admin_users_delete"
+	OpAdminUsersVerify = "admin_users_verify"
 )
 
 // adminUsersListResult builds the shared ListResult view for the users list
@@ -112,6 +113,42 @@ func adminUsersGet(d AdminDeps) opmesh.Operation {
 				return nil, fmt.Errorf("admin_users_get: user ID is required")
 			}
 			return svc.GetUser(ctx, id)
+		}),
+	})
+}
+
+// adminUsersVerify is the `admin users verify` operation. It is the
+// single-purpose form of `admin_users_update` for flipping the
+// email-verification state without forcing every caller to spell out the
+// patch-protocol of the full update surface.
+func adminUsersVerify(d AdminDeps) opmesh.Operation {
+	return opmesh.NewOperation(opmesh.OperationSpec{
+		Name:        OpAdminUsersVerify,
+		Title:       "Verify a user",
+		Summary:     "Mark a user's email as verified",
+		Description: "Mark a portal user's email as verified without sending a verification email. To unverify, or to change other fields, use the update operation. Requires admin privileges.",
+		Category:    "admin",
+		Safety:      opmesh.SafetyMutate,
+		Interaction: opmesh.InteractionAgentSafe,
+		Visibility:  opmesh.VisibilityBoth,
+		Positional:  "<user-id>",
+		Args: []opmesh.OperationArg{
+			{Name: "id", Type: opmesh.ArgTypeInt, Required: true, Help: "User ID"},
+		},
+		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
+			svc, err := d.users()
+			if err != nil {
+				return nil, err
+			}
+			if err := svc.RequireAuthenticated(); err != nil {
+				return nil, err
+			}
+			id := opmesh.IntArg(input, "id", 0)
+			if id <= 0 {
+				return nil, fmt.Errorf("admin_users_verify: user ID is required")
+			}
+			verified := true
+			return svc.UpdateUser(ctx, id, &admin.UserUpdateRequest{Verified: &verified})
 		}),
 	})
 }

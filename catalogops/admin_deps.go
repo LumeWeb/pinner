@@ -156,6 +156,7 @@ func AdminOperations(d AdminDeps) []opmesh.Operation {
 		adminUsersGet(d),
 		adminUsersCreate(d),
 		adminUsersUpdate(d),
+		adminUsersVerify(d),
 		adminUsersDelete(d),
 		// admin quota
 		adminQuotaPlansList(d),
