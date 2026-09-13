@@ -365,6 +365,10 @@ func workspacesResume(d WorkspacesDeps) opmesh.Operation {
 // model actor is refused (ErrHumanRequired -> needs_human hand-off) by the
 // opmesh Invoke gate before the handler ever runs, while remaining discoverable
 // (VisibilityBoth) so it surfaces in search/describe. Only a human invokes it.
+//
+// Classified SafetyMutate (not Read) because rotate=true replaces the proxy
+// credential — the compile seam maps SafetyRead to a ReadOnly=true MCP
+// annotation, which would be a lie for the rotating invocation.
 func workspacesAccess(d WorkspacesDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name:        "workspaces_access",
@@ -372,7 +376,7 @@ func workspacesAccess(d WorkspacesDeps) opmesh.Operation {
 		Summary:     "Get a workspace's proxy access credentials",
 		Description: "Get the owner's proxy Basic Auth credentials (username/password) for a workspace by its numeric ID. These are sensitive credentials — this operation requires a human to run (model agents are handed off). Pass rotate=true to rotate the proxy credential before returning.",
 		Category:    "core",
-		Safety:      opmesh.SafetyRead,
+		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionHumanOnly,
 		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<id>",

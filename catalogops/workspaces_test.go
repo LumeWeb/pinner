@@ -166,6 +166,9 @@ func TestWorkspacesOperations_AccessIsHumanOnly(t *testing.T) {
 	require.NotNil(t, acc)
 	// Sensitive credentials: model actors are refused and handed off.
 	assert.Equal(t, opmesh.InteractionHumanOnly, acc.Interaction())
+	// Classified as a mutation: rotate=true replaces the proxy credential, so
+	// the tool must not be advertised read-only to frontends.
+	assert.Equal(t, opmesh.SafetyMutate, acc.Safety())
 	// Still discoverable (search/describe surface it).
 	assert.Equal(t, opmesh.VisibilityBoth, acc.Visibility())
 }
