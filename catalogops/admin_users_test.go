@@ -126,6 +126,7 @@ func TestAdminOperationsReturnsUsers(t *testing.T) {
 		"admin_users_create",
 		"admin_users_update",
 		"admin_users_delete",
+		"admin_users_verify",
 	} {
 		if !names[want] {
 			t.Fatalf("AdminOperations missing expected op %q", want)
@@ -179,6 +180,94 @@ func TestAdminUsersList(t *testing.T) {
 	}
 	if _, ok := got.ListItems().([]*admin.User); !ok {
 		t.Fatalf("unexpected result: %+v", got.ListItems())
+	}
+}
+
+// TestAdminUsersListPagingArgs asserts the op embeds the shared pager args and
+// that page/page-size slice the fetched result set client-side.
+func TestAdminUsersListPagingArgs(t *testing.T) {
+	op := adminUsersList(AdminDeps{})
+	argNames := map[string]bool{}
+	for _, arg := range op.Args() {
+		argNames[arg.Name] = true
+	}
+	for _, want := range []string{"page", "page-size", "email", "verified"} {
+		if !argNames[want] {
+			t.Fatalf("admin_users_list missing arg %q", want)
+		}
+	}
+
+	svc := &fakeUserService{
+		requireAuth: func() error { return nil },
+		listFn: func(ctx context.Context, params *admin.UserListParams) ([]*admin.User, int, error) {
+			users := make([]*admin.User, 0, 3)
+			for i := 0; i < 3; i++ {
+				u := sampleUser()
+				u.Id = i + 1
+				users = append(users, u)
+			}
+			return users, 3, nil
+		},
+	}
+	op = adminUsersList(testUsersDeps(t, svc))
+	res, err := op.Handler().Execute(context.Background(), map[string]any{
+		"page":      2,
+		"page-size": 1,
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	got, ok := res.(ListResult)
+	if !ok {
+		t.Fatalf("unexpected result type %T", res)
+	}
+	if got.ListCount() != 1 {
+		t.Fatalf("page=2 page-size=1 should slice to 1 row, got %d", got.ListCount())
+	}
+	items, ok := got.ListItems().([]*admin.User)
+	if !ok || len(items) != 1 || items[0].Id != 2 {
+		t.Fatalf("expected the second user on page 2, got %+v", got.ListItems())
+	}
+}
+
+// TestAdminUsersVerify asserts verify reuses the update path with
+// verified=true forwarded and nothing else in the patch.
+func TestAdminUsersVerify(t *testing.T) {
+	var gotID int
+	var gotReq *admin.UserUpdateRequest
+	svc := &fakeUserService{
+		requireAuth: func() error { return nil },
+		updateFn: func(ctx context.Context, id int, req *admin.UserUpdateRequest) (*admin.User, error) {
+			gotID, gotReq = id, req
+			u := sampleUser()
+			u.Id = id
+			u.Verified = true
+			return u, nil
+		},
+	}
+	op := adminUsersVerify(testUsersDeps(t, svc))
+	if op.Name() != "admin_users_verify" {
+		t.Fatalf("unexpected op name %q", op.Name())
+	}
+	if op.Positional() != "<user-id>" {
+		t.Fatalf("expected positional binding, got %q", op.Positional())
+	}
+	res, err := op.Handler().Execute(context.Background(), map[string]any{"id": 7})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if gotID != 7 {
+		t.Fatalf("id not forwarded: %d", gotID)
+	}
+	if gotReq == nil || gotReq.Verified == nil || !*gotReq.Verified {
+		t.Fatalf("verified=true not forwarded: %+v", gotReq)
+	}
+	if gotReq.Email != nil || gotReq.Password != nil || gotReq.FirstName != nil || gotReq.LastName != nil {
+		t.Fatalf("verify must patch only the verified field: %+v", gotReq)
+	}
+	u, ok := res.(*admin.User)
+	if !ok || !u.Verified {
+		t.Fatalf("unexpected result: %+v", res)
 	}
 }
 

@@ -181,6 +181,18 @@ var argFrontend = map[string][]ArgFrontend{
 	"admin_social_providers_delete": {
 		{Name: "id", PositionalOnly: true},
 	},
+	"admin_users_delete": {
+		{Name: "id", PositionalOnly: true},
+	},
+	"admin_users_get": {
+		{Name: "id", PositionalOnly: true},
+	},
+	"admin_users_update": {
+		{Name: "id", PositionalOnly: true},
+	},
+	"admin_users_verify": {
+		{Name: "id", PositionalOnly: true},
+	},
 	"admin_social_providers_disable": {
 		{Name: "id", PositionalOnly: true},
 	},
