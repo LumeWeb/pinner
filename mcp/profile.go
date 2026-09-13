@@ -47,6 +47,12 @@ const (
 	FeatRemoteAccess = mcpforge.Feature("remote-access")
 	// FeatCoLocated marks a server sharing the client's filesystem.
 	FeatCoLocated = mcpforge.Feature("co-located")
+	// FeatVault gates Sia vault programming in the guide prose (flow names,
+	// tool names, headless-primitive examples). It is a construction-time
+	// overlay set by BuildAgentGuide from the assembled DomainScope — the same
+	// gate that filters the guide's flows — so a scope without the vault
+	// (e.g. hosted) never sees a vault tool named in any guide clause.
+	FeatVault = mcpforge.Feature("vault")
 )
 
 // HostProfile is the platform context every description-DSL

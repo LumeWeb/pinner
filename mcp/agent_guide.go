@@ -178,7 +178,13 @@ var guideSummary = mcpforge.Static[HostProfile](
 		"This host has no `file` parameter it can fill: use a transport-scoped source ({{SOURCES}}). Do NOT invent a file_id or OpenAI download_url, and do NOT base64-encode a file as upload_data.",
 	).
 	When(FeatSourceMint,
-		"For source.mode=mint, completion differs by tool: upload_file is asynchronous — PUT the agent-local file to the returned url, then poll upload_status; vault_put_file is non-blocking — PUT the file and it returns after staging locally (status: staged), with durability on Sia happening in the background or via the vault_flush tool (which is itself non-blocking and returns an accepted job { job_id, profile, path? }), so poll vault_flush_status(job_id) or vault_stat until status: durable when durability is needed before sharing; there is no upload_status poll (see the upload and vault_upload flows).",
+		"For source.mode=mint, upload_file is asynchronous — PUT the agent-local file to the returned url, then poll upload_status (the completed CID is already pinned).",
+	).
+	// FeatVault overlays the assembled DomainScope's VaultOn gate (the same
+	// gate that filters the guide's flows), so a vault-less surface (e.g.
+	// hosted) never sees a vault tool named in the summary.
+	WhenAll([]mcpforge.Feature{FeatSourceMint, FeatVault},
+		"For source.mode=mint, vault_put_file is non-blocking — PUT the file and it returns after staging locally (status: staged), with durability on Sia happening in the background or via the vault_flush tool (which is itself non-blocking and returns an accepted job { job_id, profile, path? }), so poll vault_flush_status(job_id) or vault_stat until status: durable when durability is needed before sharing; there is no upload_status poll for it (see the vault_upload flow).",
 	).
 	When(FeatSourcePath,
 		"For source.mode=path, point the source at the host-side file/directory/archive path — the server reads it directly, so there is no PUT.",
@@ -337,8 +343,23 @@ func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted boo
 	// registered launcher names so the inventory predicates (AppIs,
 	// AppsInstalled) resolve against what THIS server actually registered.
 	p.KnownApps = installedApps
+	// Vault availability is the assembled scope's VaultOn — the exact gate
+	// filterGuideFlows applies to the vault flows. Overlaying it as a feature
+	// lets prose-level clauses (the summary's mint contract, the headless
+	// primitives example) gate on the same fact the flow filter uses, so a
+	// vault-less surface (e.g. hosted) never sees a vault tool named anywhere
+	// in the guide. VaultOn already treats a zero scope as the full surface,
+	// so the assignment is unconditional.
+	p.Features[FeatVault] = scope.VaultOn()
+	// The headless-primitive example list is vault-aware: a scope without the
+	// vault never sees vault tools held up as examples.
+	headlessPrimitives := []string{"pins_list", "auth_sso"}
+	if p.Has(FeatVault) {
+		headlessPrimitives = append([]string{"vault_status", "vault_put_file"}, headlessPrimitives...)
+	}
 	substitute := func(s string) string {
 		s = strings.ReplaceAll(s, "{{SOURCES}}", sourceModesText(p))
+		s = strings.ReplaceAll(s, "{{HEADLESS}}", strings.Join(headlessPrimitives, ", "))
 		return strings.ReplaceAll(s, "{{APPS}}", strings.Join(p.KnownApps, ", "))
 	}
 
@@ -351,7 +372,7 @@ func BuildAgentGuide(profile HostProfile, scope assembly.DomainScope, hosted boo
 		// the assembled server actually registered ({{APPS}}), so an apps-less
 		// composition root never advertises open_app at all.
 		RuleWhenPred(appsGate(AppsInstalled()),
-			"MCP Apps rule: this host renders interactive app views. When a user explicitly requests a visual interface, call open_app with the app name ({{APPS}}). open_app returns a ui:// view the host renders as an iframe. Prefer headless primitives (vault_status, vault_put_file, pins_list, auth_sso, ...) for autonomous workflows — call open_app only when a human-facing screen is needed.").
+			"MCP Apps rule: this host renders interactive app views. When a user explicitly requests a visual interface, call open_app with the app name ({{APPS}}). open_app returns a ui:// view the host renders as an iframe. Prefer headless primitives ({{HEADLESS}}, ...) for autonomous workflows — call open_app only when a human-facing screen is needed.").
 		// Claude Web (host "claude") on a self-hosted (non-hosted) deployment
 		// cannot exercise the transport-derived mint/sink endpoints, so the
 		// only working upload is the base64 upload_data relay and downloads
@@ -500,14 +521,46 @@ func filterGuideFlows(guide AgentGuide, scope assembly.DomainScope) AgentGuide {
 	return guide
 }
 
-// agentGuideDescription is shared between the static Description (tools/list)
-// and the direct-only presentation surface: it is a direct-only tool outside
-// the operation catalog and never enters the compiled surface.
-// agentGuideDescription positions the guide as OPTIONAL orientation: the
+// guideFlowOrder lists every declared guide flow in declaration order. It is
+// the single source of flow ordering for the static tool description; the
+// Flow(...) declarations above must append flows here in the same order so
+// the description can enumerate exactly the flows a resolved scope keeps.
+var guideFlowOrder = []string{
+	"auth",
+	"vault_create",
+	"vault_restore",
+	"upload",
+	"vault_upload",
+	"download",
+	"vault_download",
+	"vault_share",
+	"vault_sync",
+	"pins",
+	"publish_website",
+	"ens_publish",
+	"update_website",
+}
+
+// agentGuideDescriptionFor builds the static tools/list description,
+// enumerating only the flows the scope keeps (flowScope gating — the same
+// filter filterGuideFlows applies to the structured flows). A vault-less
+// scope (e.g. hosted) therefore never names a vault flow in the wrapper text
+// either, keeping the description and the guide payload in lockstep.
+// agentGuideDescriptionFor positions the guide as OPTIONAL orientation: the
 // description must not recommend broad triggering (a blanket "call this
 // first" directive can override an explicit request already served by a
 // specific tool), so it defers to directly relevant tools for clear intents.
-const agentGuideDescription = "Orientation material for agents: the primary Pinner flows (auth, vault_create, vault_restore, upload, vault_upload, download, vault_download, vault_share, vault_sync, pins, publish_website, ens_publish) as ordered tool chains or decision trees, plus operational rules. When the server has app views registered, the guide includes open_app as the single launcher for the human-facing interactive views actually installed. Optional orientation when unfamiliar with Pinner or driving a multi-step flow; for an explicit, already-clear request, prefer the directly relevant tool instead of consulting the guide."
+func agentGuideDescriptionFor(scope assembly.DomainScope) string {
+	names := make([]string, 0, len(guideFlowOrder))
+	for _, f := range guideFlowOrder {
+		if gate, ok := flowScope[f]; ok && !scope.IsZero() && !gate(scope) {
+			continue
+		}
+		names = append(names, f)
+	}
+	return "Orientation material for agents: the primary Pinner flows (" + strings.Join(names, ", ") +
+		") as ordered tool chains or decision trees, plus operational rules. When the server has app views registered, the guide includes open_app as the single launcher for the human-facing interactive views actually installed. Optional orientation when unfamiliar with Pinner or driving a multi-step flow; for an explicit, already-clear request, prefer the directly relevant tool instead of consulting the guide."
+}
 
 // AgentGuideDescriptor returns a static, no-input tool that orients an agent
 // to the primary Pinner flows and how to chain them. It is deterministic
@@ -536,7 +589,7 @@ func AgentGuideDescriptor(scope assembly.DomainScope, hosted bool, dropSinkAvail
 	return model.ToolDescriptor{
 		Name:          "agent_guide",
 		Title:         "Pinner agent guide",
-		Description:   agentGuideDescription,
+		Description:   agentGuideDescriptionFor(scope),
 		Category:      model.CategoryCore,
 		OpenWorldHint: false, // static local guidance payload; changes no state
 		ReadOnly:      true,  // orientation only: reads no external state, mutates nothing

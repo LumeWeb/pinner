@@ -122,7 +122,54 @@ func TestCapabilitiesDescriptorBakedDescription(t *testing.T) {
 	require.NotContains(t, empty.Description, "`file` argument when available",
 		"no file-capable tool wired -> no file-first clause")
 	require.NotContains(t, empty.Description, "or drop returns a one-time filedrop")
-	require.Contains(t, empty.Description, "download_file/vault_get_file take a sink")
+	require.Contains(t, empty.Description, "the registered download tools take a sink")
+}
+
+// TestCapabilitiesDescriptorToolNamingHonesty pins the wiring-honest tool
+// naming in the baked description: only actually-registered tools are named
+// as byte routes, so a vault-less surface (e.g. the hosted scope, whose
+// wiring registers upload_file/download_file but no vault transfer tools)
+// never programs vault_put_file / vault_get_file into the wrapper text, and
+// a vault-only wiring never names the IPFS tools.
+func TestCapabilitiesDescriptorToolNamingHonesty(t *testing.T) {
+	hostedRelays := httpFeatures().Clone()
+	hostedRelays[FeatFileHostInput] = true
+	// Hosted-style wiring: IPFS upload/download tools only.
+	hosted := CapabilityWiring{
+		CoLocated: false, UploadFile: true, DownloadFile: true,
+		DropWired: true, RelayFeatures: hostedRelays,
+	}
+	desc := NewCapabilitiesDescriptor(hosted)
+	require.NotContains(t, desc.Description, "vault_put_file", "unwired vault tools are never named")
+	require.NotContains(t, desc.Description, "vault_get_file", "unwired vault tools are never named")
+	require.Contains(t, desc.Description, "source.mode values upload_file accepts")
+	require.Contains(t, desc.Description, "The upload_file tool takes a transport-scoped `source`")
+	require.Contains(t, desc.Description, "download_file takes a sink")
+
+	// Self-hosted-style wiring: every transfer tool registered.
+	full := CapabilityWiring{
+		CoLocated: false, UploadFile: true, VaultPutFile: true,
+		DownloadFile: true, VaultGetFile: true,
+		DropWired: true, RelayFeatures: hostedRelays,
+	}
+	fullDesc := NewCapabilitiesDescriptor(full)
+	require.Contains(t, fullDesc.Description, "source.mode values upload_file/vault_put_file accept")
+	require.Contains(t, fullDesc.Description, "download_file/vault_get_file take a sink")
+
+	// Vault-only wiring: only the vault tools are named.
+	vaultOnly := CapabilityWiring{
+		VaultPutFile: true, VaultGetFile: true,
+		DropWired: true, RelayFeatures: httpFeatures(),
+	}
+	vaultDesc := NewCapabilitiesDescriptor(vaultOnly)
+	// The byte-route naming must only cite wired tools; the vault mint
+	// completion contract may still contrast against upload_status (it exists
+	// precisely to say "vault mints have no poll").
+	require.NotContains(t, vaultDesc.Description, "call upload_file")
+	require.NotContains(t, vaultDesc.Description, "values upload_file")
+	require.NotContains(t, vaultDesc.Description, "download_file takes a sink")
+	require.Contains(t, vaultDesc.Description, "vault_put_file accepts")
+	require.Contains(t, vaultDesc.Description, "vault_get_file takes a sink")
 }
 
 // TestCapabilitiesHandlerPerRequest pins the honest handler report: modes

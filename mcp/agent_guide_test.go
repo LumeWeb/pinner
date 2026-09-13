@@ -97,6 +97,43 @@ func TestAgentGuideHostedSurfaceDropsVaultFlows(t *testing.T) {
 	for _, want := range []string{"auth", "upload", "download", "pins", "publish_website", "update_website", "ens_publish"} {
 		require.Contains(t, flowNames(guid), want)
 	}
+
+	// Vault stays out of every non-flow surface on the hosted scope too: the
+	// summary and rules never hold a vault tool up as a byte route, headless
+	// primitive, or completion contract — the overlay that filters the flows
+	// gates the prose as well.
+	allText := guid.Summary + "\n" + strings.Join(guid.Rules, "\n")
+	for _, vaultName := range []string{"vault_put_file", "vault_get_file", "vault_flush", "vault_upload", "vault_create", "vault_restore"} {
+		require.NotContains(t, allText, vaultName,
+			"the hosted guide prose must never program %q", vaultName)
+	}
+	// The mint completion contract still singles out upload_file's poll.
+	require.Contains(t, allText, "upload_file is asynchronous")
+}
+
+// TestAgentGuideFullSurfaceKeepsVaultProse pins the non-hosted counterpart:
+// the full scope (vault on) keeps the vault clauses the hosted scope drops.
+func TestAgentGuideFullSurfaceKeepsVaultProse(t *testing.T) {
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.FullDomainScope, false, nil)
+	allText := guid.Summary + "\n" + strings.Join(guid.Rules, "\n")
+	require.Contains(t, allText, "vault_put_file is non-blocking")
+}
+
+// TestAgentGuideDescriptionFollowsScope pins the static tools/list wrapper
+// text: it enumerates exactly the flows the scope keeps, so a vault-less
+// scope (hosted) never names a vault flow in the description either.
+func TestAgentGuideDescriptionFollowsScope(t *testing.T) {
+	hostedDesc := AgentGuideDescriptor(assembly.HostedDomainScope, true, true, nil)
+	require.NotContains(t, hostedDesc.Description, "vault", "hosted description must not name any vault flow")
+	require.Contains(t, hostedDesc.Description,
+		"the primary Pinner flows (auth, upload, download, pins, publish_website, ens_publish, update_website)")
+
+	fullDesc := AgentGuideDescriptor(assembly.FullDomainScope, false, true, nil)
+	require.Contains(t, fullDesc.Description, "vault_create, vault_restore")
+	require.Contains(t, fullDesc.Description, "vault_share, vault_sync")
+	for _, want := range []string{"auth", "upload", "download", "pins", "publish_website", "update_website", "ens_publish"} {
+		require.Contains(t, fullDesc.Description, want)
+	}
 }
 
 func flowNames(g AgentGuide) []string {
@@ -105,6 +142,16 @@ func flowNames(g AgentGuide) []string {
 		out = append(out, f.Name)
 	}
 	return out
+}
+
+// TestAgentGuideZeroScopeIsFull pins the zero-scope overlay: DomainScope{} is
+// the implicit full surface, so the vault prose (the same clauses the vault
+// flows count on) must resolve exactly as on FullDomainScope.
+func TestAgentGuideZeroScopeIsFull(t *testing.T) {
+	guid := BuildAgentGuide(profileForTransport(canimcp.TransportHTTP), assembly.DomainScope{}, false, nil)
+	require.Len(t, flowNames(guid), 13, "zero scope keeps every flow")
+	require.Contains(t, guid.Summary, "vault_put_file is non-blocking",
+		"zero scope is full: the summary keeps the vault mint contract")
 }
 
 // TestAgentGuideModesMatchProfile guards against advertising source modes the
