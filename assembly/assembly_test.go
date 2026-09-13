@@ -198,3 +198,35 @@ func TestAssembleCatalogOpsZeroSurfaceIsFull(t *testing.T) {
 		assert.Equal(t, inFull, inZero, "zero and full scope must treat %q identically", name)
 	}
 }
+
+// TestAssembleCatalogOpsAdminUsersSelfHostedOnly verifies the admin user CRUD
+// operations are exposed only for self-hosted (full/local) deployments and are
+// neither registered nor executable for hosted (Portal-embedded) MCP. The ops
+// are registered inside AdminOperations, which the assembly gates with
+// scope.AdminOn(): FullDomainScope enables it, HostedDomainScope disables it.
+func TestAssembleCatalogOpsAdminUsersSelfHostedOnly(t *testing.T) {
+	bundle := testBundle()
+	userOps := []string{
+		"admin_users_list",
+		"admin_users_get",
+		"admin_users_create",
+		"admin_users_update",
+		"admin_users_delete",
+	}
+
+	full, err := AssembleCatalogOps(bundle, FullDomainScope, false)
+	require.NoError(t, err, "full catalog must assemble")
+	for _, name := range userOps {
+		if _, ok := full.Get(name); !ok {
+			t.Errorf("self-hosted/full scope must register %q", name)
+		}
+	}
+
+	hosted, err := AssembleCatalogOps(bundle, HostedDomainScope, true)
+	require.NoError(t, err, "hosted catalog must assemble")
+	for _, name := range userOps {
+		if _, ok := hosted.Get(name); ok {
+			t.Errorf("hosted scope must NOT register %q", name)
+		}
+	}
+}
