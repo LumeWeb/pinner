@@ -41,6 +41,8 @@ type AdminDeps struct {
 	PlatformDomainAdminService func(cfgMgr config.Manager) (admin.PlatformDomainAdminService, error)
 	// SocialProviderAdminService resolves the core admin.SocialProviderAdminService.
 	SocialProviderAdminService func(cfgMgr config.Manager) (admin.SocialProviderAdminService, error)
+	// UserAdminService resolves the core admin.UserAdminService.
+	UserAdminService func(cfgMgr config.Manager) (admin.UserAdminService, error)
 }
 
 // config returns the live config manager for this invocation, or nil.
@@ -119,6 +121,15 @@ func (d AdminDeps) socialProviders() (admin.SocialProviderAdminService, error) {
 	return resolveService(cfgMgr, d.SocialProviderAdminService, "social-provider")
 }
 
+// users resolves the UserAdminService for this invocation.
+func (d AdminDeps) users() (admin.UserAdminService, error) {
+	cfgMgr, err := d.requireConfig()
+	if err != nil {
+		return nil, err
+	}
+	return resolveService(cfgMgr, d.UserAdminService, "user")
+}
+
 // AdminOperations returns the catalog operations for the admin domain. Each
 // admin section registers its operations here.
 func AdminOperations(d AdminDeps) []opmesh.Operation {
@@ -140,6 +151,12 @@ func AdminOperations(d AdminDeps) []opmesh.Operation {
 		adminSocialProvidersDelete(d),
 		adminSocialProvidersEnable(d),
 		adminSocialProvidersDisable(d),
+		// admin users
+		adminUsersList(d),
+		adminUsersGet(d),
+		adminUsersCreate(d),
+		adminUsersUpdate(d),
+		adminUsersDelete(d),
 		// admin quota
 		adminQuotaPlansList(d),
 		adminQuotaPlansGet(d),

@@ -10,17 +10,18 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.14.0
+	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	go.lumeweb.com/canimcp v0.0.0-20260912112527-1c27fd5becdd
 	go.lumeweb.com/configmanager v0.3.30
 	go.lumeweb.com/ipfs-content v0.1.18
-	go.lumeweb.com/ipfs-sdk v0.1.97
+	go.lumeweb.com/ipfs-sdk v0.1.98
 	go.lumeweb.com/ipfs-sdk/dnsname v0.1.64
 	go.lumeweb.com/mcpcanvas v0.0.0-20260907112052-7adbd4d8dcac
 	go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e
-	go.lumeweb.com/portal-sdk v0.1.72
+	go.lumeweb.com/portal-sdk v0.1.73
 	go.lumeweb.com/queryutil v0.3.19
 	go.sia.tech/core v0.21.7
 	go.sia.tech/indexd v0.4.4
@@ -135,7 +136,6 @@ require (
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
-	github.com/modelcontextprotocol/go-sdk v1.7.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
