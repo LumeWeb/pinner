@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"go.lumeweb.com/pinner/core/operations"
 	"go.lumeweb.com/pinner/core/pinning"
 	"go.lumeweb.com/pinner/core/websites"
+	"go.lumeweb.com/pinner/core/workspaces"
 )
 
 // fakeBaseEndpoint is the loopback "Portal API" the fakes pretend to be. No
@@ -70,6 +72,10 @@ type FakeServices struct {
 	zones map[string]ipfs.ZoneListResponse
 
 	websites map[string]ipfs.WebsiteItem
+
+	// workspaces is keyed by numeric workspace ID (the value the ops address
+	// as both "<id>" positional and the SDK workspace id).
+	workspaces map[int]ipfs.WorkspaceResponse
 
 	// apiKeys is keyed by key name; the APIKey struct's promoted (embedded)
 	// generated fields cannot be set in a composite literal, so identity is
@@ -177,6 +183,16 @@ func NewFakeServices(email string) (*FakeServices, error) {
 				Status:     "active",
 				Created:    fakePortalTime,
 				Updated:    fakePortalTime,
+			},
+		},
+		workspaces: map[int]ipfs.WorkspaceResponse{
+			1: {
+				Id:      1,
+				Label:   "seed",
+				Domain:  "seed-workspace.example.com",
+				Status:  "active",
+				Created: fakePortalTime,
+				Updated: fakePortalTime,
 			},
 		},
 	}
@@ -610,6 +626,166 @@ func (f *fakeWebsitesService) Get(_ context.Context, id string) (*ipfs.WebsiteIt
 func (f *fakeWebsitesService) Delete(context.Context, string) error { return nil }
 
 func (f *fakeWebsitesService) SetAuthToken(string) {}
+
+// --- workspaces.Service fake --------------------------------------------------
+
+// fakeWorkspacesService satisfies the workspaces.Service surface the
+// workspaces_* operations use.
+type fakeWorkspacesService struct {
+	workspaces.Service
+	svc *FakeServices
+}
+
+func newFakeWorkspacesService(svc *FakeServices) workspaces.Service {
+	return &fakeWorkspacesService{svc: svc}
+}
+
+func (f *fakeWorkspacesService) RequireAuthenticated() error { return nil }
+
+func (f *fakeWorkspacesService) SetAuthToken(string) {}
+
+func (f *fakeWorkspacesService) List(_ context.Context, _ workspaces.ListOptions) ([]ipfs.WorkspaceResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	ids := make([]int, 0, len(f.svc.workspaces))
+	for id := range f.svc.workspaces {
+		ids = append(ids, id)
+	}
+	sortInts(ids)
+	out := make([]ipfs.WorkspaceResponse, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, f.svc.workspaces[id])
+	}
+	return out, nil
+}
+
+func (f *fakeWorkspacesService) Get(_ context.Context, id string) (*ipfs.WorkspaceResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w, ok := f.svc.workspaces[n]
+	if !ok {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	return &w, nil
+}
+
+func (f *fakeWorkspacesService) Create(_ context.Context, req ipfs.WorkspaceRequest) (*ipfs.WorkspaceResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	id := 1
+	for {
+		if _, taken := f.svc.workspaces[id]; !taken {
+			break
+		}
+		id++
+	}
+	w := ipfs.WorkspaceResponse{
+		Id:      id,
+		Label:   fmt.Sprintf("workspace-%d", id),
+		Domain:  fmt.Sprintf("workspace-%d.example.com", id),
+		Status:  "active",
+		Created: time.Now(),
+		Updated: time.Now(),
+	}
+	if req.WebsiteId != nil {
+		websiteID := *req.WebsiteId
+		w.WebsiteId = &websiteID
+	}
+	f.svc.workspaces[id] = w
+	return &w, nil
+}
+
+func (f *fakeWorkspacesService) Delete(_ context.Context, id string) (*ipfs.WorkspaceResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w, ok := f.svc.workspaces[n]
+	if !ok {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w.Status = "deleting"
+	w.Updated = time.Now()
+	delete(f.svc.workspaces, n)
+	return &w, nil
+}
+
+func (f *fakeWorkspacesService) Access(_ context.Context, id string, rotate bool) (*ipfs.WorkspaceAccessResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w, ok := f.svc.workspaces[n]
+	if !ok {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	if rotate {
+		w.Updated = time.Now()
+		f.svc.workspaces[n] = w
+	}
+	return &ipfs.WorkspaceAccessResponse{
+		Username: fmt.Sprintf("ws-%d", n),
+		Password: fmt.Sprintf("fake-proxy-credential-%d", n),
+	}, nil
+}
+
+func (f *fakeWorkspacesService) Attach(_ context.Context, id string, websiteID int) (*ipfs.WorkspaceResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w, ok := f.svc.workspaces[n]
+	if !ok {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w.WebsiteId = &websiteID
+	w.Updated = time.Now()
+	f.svc.workspaces[n] = w
+	return &w, nil
+}
+
+func (f *fakeWorkspacesService) setStatus(id string, status string) (*ipfs.WorkspaceResponse, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w, ok := f.svc.workspaces[n]
+	if !ok {
+		return nil, fmt.Errorf("workspace %q not found", id)
+	}
+	w.Status = status
+	w.Updated = time.Now()
+	f.svc.workspaces[n] = w
+	return &w, nil
+}
+
+func (f *fakeWorkspacesService) Suspend(_ context.Context, id string) (*ipfs.WorkspaceResponse, error) {
+	return f.setStatus(id, "suspended")
+}
+
+func (f *fakeWorkspacesService) Resume(_ context.Context, id string) (*ipfs.WorkspaceResponse, error) {
+	return f.setStatus(id, "active")
+}
+
+func sortInts(s []int) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j] < s[j-1]; j-- {
+			s[j], s[j-1] = s[j-1], s[j]
+		}
+	}
+}
 
 func sortStrings(s []string) {
 	for i := 1; i < len(s); i++ {

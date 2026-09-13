@@ -46,6 +46,7 @@ import (
 	"go.lumeweb.com/pinner/core/operations"
 	"go.lumeweb.com/pinner/core/pinning"
 	"go.lumeweb.com/pinner/core/websites"
+	"go.lumeweb.com/pinner/core/workspaces"
 
 	pinnermcp "go.lumeweb.com/pinner/mcp"
 	appswire "go.lumeweb.com/pinner/mcp/appswire"
@@ -456,6 +457,17 @@ func buildCatalogDeps(f *FakeServices) *assembly.CatalogDepsBundle {
 			},
 			NewAuthenticated: func(config.Manager, bool, string) (websites.Service, error) {
 				return newFakeWebsitesService(f), nil
+			},
+			GetAuthToken: func() string { return f.Token },
+		},
+		Workspaces: catalogops.WorkspacesDeps{
+			CfgMgr: f.CfgMgr,
+			Secure: f.secure,
+			ServiceFactory: func(config.Manager, bool, ...workspaces.Option) workspaces.Service {
+				return newFakeWorkspacesService(f)
+			},
+			NewAuthenticated: func(config.Manager, bool, string) (workspaces.Service, error) {
+				return newFakeWorkspacesService(f), nil
 			},
 			GetAuthToken: func() string { return f.Token },
 		},

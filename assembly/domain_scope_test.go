@@ -15,6 +15,7 @@ func TestSurfaceZeroIsFull(t *testing.T) {
 	assert.True(t, s.VaultOn())
 	assert.True(t, s.PinsOn())
 	assert.True(t, s.WebsitesOn())
+	assert.True(t, s.WorkspacesOn())
 	assert.True(t, s.DNSOn())
 	assert.True(t, s.IPNSOn())
 	assert.True(t, s.ENSOn())
@@ -27,7 +28,7 @@ func TestSurfaceZeroIsFull(t *testing.T) {
 // everything, while HostedDomainScope deliberately leaves out the Sia vault and
 // portal admin but keeps the rest.
 func TestSurfacePresets(t *testing.T) {
-	assert.Equal(t, DomainScope{Account: true, Vault: true, Pins: true, Websites: true, DNS: true, IPNS: true, ENS: true, Operations: true, Admin: true, Upload: true}, FullDomainScope)
+	assert.Equal(t, DomainScope{Account: true, Vault: true, Pins: true, Websites: true, Workspaces: true, DNS: true, IPNS: true, ENS: true, Operations: true, Admin: true, Upload: true}, FullDomainScope)
 
 	assert.False(t, HostedDomainScope.IsZero())
 	assert.False(t, HostedDomainScope.VaultOn(), "hosted surface must disable vault")
@@ -36,6 +37,7 @@ func TestSurfacePresets(t *testing.T) {
 		HostedDomainScope.AccountOn(),
 		HostedDomainScope.PinsOn(),
 		HostedDomainScope.WebsitesOn(),
+		HostedDomainScope.WorkspacesOn(),
 		HostedDomainScope.DNSOn(),
 		HostedDomainScope.IPNSOn(),
 		HostedDomainScope.ENSOn(),
