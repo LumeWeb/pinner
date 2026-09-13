@@ -182,6 +182,53 @@ func TestAdminUsersList(t *testing.T) {
 	}
 }
 
+// TestAdminUsersListPagingArgs asserts the op embeds the shared pager args and
+// that page/page-size slice the fetched result set client-side.
+func TestAdminUsersListPagingArgs(t *testing.T) {
+	op := adminUsersList(AdminDeps{})
+	argNames := map[string]bool{}
+	for _, arg := range op.Args() {
+		argNames[arg.Name] = true
+	}
+	for _, want := range []string{"page", "page-size", "email", "verified"} {
+		if !argNames[want] {
+			t.Fatalf("admin_users_list missing arg %q", want)
+		}
+	}
+
+	svc := &fakeUserService{
+		requireAuth: func() error { return nil },
+		listFn: func(ctx context.Context, params *admin.UserListParams) ([]*admin.User, int, error) {
+			users := make([]*admin.User, 0, 3)
+			for i := 0; i < 3; i++ {
+				u := sampleUser()
+				u.Id = i + 1
+				users = append(users, u)
+			}
+			return users, 3, nil
+		},
+	}
+	op = adminUsersList(testUsersDeps(t, svc))
+	res, err := op.Handler().Execute(context.Background(), map[string]any{
+		"page":      2,
+		"page-size": 1,
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	got, ok := res.(ListResult)
+	if !ok {
+		t.Fatalf("unexpected result type %T", res)
+	}
+	if got.ListCount() != 1 {
+		t.Fatalf("page=2 page-size=1 should slice to 1 row, got %d", got.ListCount())
+	}
+	items, ok := got.ListItems().([]*admin.User)
+	if !ok || len(items) != 1 || items[0].Id != 2 {
+		t.Fatalf("expected the second user on page 2, got %+v", got.ListItems())
+	}
+}
+
 // TestAdminUsersListAuthGate asserts RequireAuthenticated is honored.
 func TestAdminUsersListAuthGate(t *testing.T) {
 	svc := &fakeUserService{requireAuth: func() error { return context.Canceled }}

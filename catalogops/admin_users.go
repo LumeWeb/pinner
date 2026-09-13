@@ -54,10 +54,10 @@ func adminUsersList(d AdminDeps) opmesh.Operation {
 		Safety:      opmesh.SafetyRead,
 		Interaction: opmesh.InteractionAgentSafe,
 		Visibility:  opmesh.VisibilityBoth,
-		Args: []opmesh.OperationArg{
-			{Name: "email", Type: opmesh.ArgTypeString, Help: "Filter by exact email address"},
-			{Name: "verified", Type: opmesh.ArgTypeNullableBool, Help: "Filter by verification state (true/false)"},
-		},
+		Args: append(opmesh.ListArgs(),
+			opmesh.OperationArg{Name: "email", Type: opmesh.ArgTypeString, Help: "Filter by exact email address"},
+			opmesh.OperationArg{Name: "verified", Type: opmesh.ArgTypeNullableBool, Help: "Filter by verification state (true/false)"},
+		),
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, err := d.users()
 			if err != nil {
