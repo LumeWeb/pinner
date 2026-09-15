@@ -497,6 +497,21 @@ func (f *fakeIPNSService) ListKeys(_ context.Context, opts ...ipfs.ListKeyOption
 	return out, nil
 }
 
+func (f *fakeIPNSService) ListKeysPage(_ context.Context, _ ...ipfs.IPNSKeyPagingOption) (*ipfs.IPNSKeyPage, error) {
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	total := len(f.svc.keys)
+	// The SDK's IPNSKeyPagingOption is opaque (func over the unexported
+	// ipnsPagingOptions struct), so the start/limit values cannot be
+	// introspected from here. Mirror the backend's default 10-item window:
+	// report the full total so the caller's page cursor stays accurate.
+	// The page Data element type is also not re-exported by the SDK, so it
+	// cannot be fabricated; returning an empty page with the correct Total
+	// keeps the non-search ipns_keys_list path from panicking on the
+	// promoted nil interface.
+	return &ipfs.IPNSKeyPage{Total: total}, nil
+}
+
 func (f *fakeIPNSService) CreateKey(_ context.Context, name string, _ *string) (*ipfs.IPNSKeyResponse, error) {
 	f.svc.mu.Lock()
 	defer f.svc.mu.Unlock()

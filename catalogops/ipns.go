@@ -103,15 +103,23 @@ func ipnsKeysList(d IPNSDeps) opmesh.Operation {
 				if keys == nil {
 					keys = []ipfs.IPNSKeyResponse{}
 				}
-				rows := make([][]string, 0, len(keys))
-				for _, k := range keys {
+				// The search branch fetches the full filtered set (the
+				// server-side name filter) and pages it client-side, since
+				// ListKeysPage exposes no name filter. Preserve the full
+				// filtered total so the caller's page cursor stays accurate
+				// regardless of the requested window.
+				total := len(keys)
+				page := opmesh.ParseListPage(input, 10)
+				items := slicePage(keys, page.Start, page.Limit)
+				rows := make([][]string, 0, len(items))
+				for _, k := range items {
 					rows = append(rows, []string{
 						fmt.Sprintf("%d", k.Id), k.Name, k.IpnsName, k.PeerId,
 						k.Created.Format("2006-01-02 15:04:05"),
 					})
 				}
-				return NewListResult(keys, ListResultMeta{
-					Noun: "IPNS key(s)", Headers: headers, Rows: rows, Total: len(keys),
+				return NewListResult(items, ListResultMeta{
+					Noun: "IPNS key(s)", Headers: headers, Rows: rows, Total: total,
 				}), nil
 			}
 			// Page server-side: ListKeysPage applies the backend's default
