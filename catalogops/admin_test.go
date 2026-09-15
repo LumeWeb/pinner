@@ -17,7 +17,7 @@ import (
 // result wrapping without mocks.
 type fakePlatformDomainService struct {
 	requireAuth func() error
-	listFn      func(ctx context.Context) ([]*admin.PlatformDomain, int, error)
+	listFn      func(ctx context.Context, params *admin.GetApiIpfsPlatformDomainsParams) ([]*admin.PlatformDomain, int, error)
 	registerFn  func(ctx context.Context, req *admin.PlatformDomainRequest) (*admin.PlatformDomain, error)
 	deleteFn    func(ctx context.Context, id string) error
 	updateFn    func(ctx context.Context, id string, req *admin.PlatformDomainUpdateRequest) (*admin.PlatformDomain, error)
@@ -30,9 +30,9 @@ func (f *fakePlatformDomainService) RequireAuthenticated() error {
 	}
 	return nil
 }
-func (f *fakePlatformDomainService) ListPlatformDomains(ctx context.Context) ([]*admin.PlatformDomain, int, error) {
+func (f *fakePlatformDomainService) ListPlatformDomains(ctx context.Context, params *admin.GetApiIpfsPlatformDomainsParams) ([]*admin.PlatformDomain, int, error) {
 	if f.listFn != nil {
-		return f.listFn(ctx)
+		return f.listFn(ctx, params)
 	}
 	return nil, 0, nil
 }
@@ -145,7 +145,7 @@ func TestAdminPlatformDomainsListNilDeps(t *testing.T) {
 func TestAdminPlatformDomainsList(t *testing.T) {
 	svc := &fakePlatformDomainService{
 		requireAuth: func() error { return nil },
-		listFn: func(ctx context.Context) ([]*admin.PlatformDomain, int, error) {
+		listFn: func(ctx context.Context, _ *admin.GetApiIpfsPlatformDomainsParams) ([]*admin.PlatformDomain, int, error) {
 			d := &admin.PlatformDomain{}
 			d.Id = 1
 			d.Domain = "ipfs.pin.xyz"

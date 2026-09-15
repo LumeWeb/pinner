@@ -248,7 +248,7 @@ func TestQuotaAdminService_Delegation(t *testing.T) {
 	t.Run("ListAllowances getService error", func(t *testing.T) {
 		svc := newQuotaServiceWithGetServiceError(t)
 
-		result, count, err := svc.ListAllowances(ctx)
+		result, count, err := svc.ListAllowances(ctx, nil)
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, 0, count)
@@ -296,7 +296,7 @@ func TestQuotaAdminService_Delegation(t *testing.T) {
 	t.Run("ListUserConfigs getService error", func(t *testing.T) {
 		svc := newQuotaServiceWithGetServiceError(t)
 
-		result, count, err := svc.ListUserConfigs(ctx)
+		result, count, err := svc.ListUserConfigs(ctx, nil)
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, 0, count)

@@ -37,7 +37,7 @@ type PlatformDomainAdminService interface {
 
 	// ListPlatformDomains lists all registered platform-owned root domains,
 	// including disabled ones.
-	ListPlatformDomains(ctx context.Context) ([]*admin.PlatformDomain, int, error)
+	ListPlatformDomains(ctx context.Context, params *admin.GetApiIpfsPlatformDomainsParams) ([]*admin.PlatformDomain, int, error)
 
 	// RegisterPlatformDomain registers a platform-owned root domain that users
 	// can claim free subdomains under.
@@ -91,9 +91,9 @@ func (s *platformDomainAdminService) getService(ctx context.Context) (*admin.Pla
 }
 
 // ListPlatformDomains lists all registered platform-owned root domains.
-func (s *platformDomainAdminService) ListPlatformDomains(ctx context.Context) ([]*admin.PlatformDomain, int, error) {
+func (s *platformDomainAdminService) ListPlatformDomains(ctx context.Context, params *admin.GetApiIpfsPlatformDomainsParams) ([]*admin.PlatformDomain, int, error) {
 	return with3(s, ctx, func(svc *admin.PlatformDomainService) ([]*admin.PlatformDomain, int, error) {
-		return svc.ListPlatformDomains(ctx)
+		return svc.ListPlatformDomains(ctx, params)
 	})
 }
 

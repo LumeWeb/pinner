@@ -92,12 +92,16 @@ func adminQuotaPlansList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			plans, _, err := svc.ListPlans(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			plans, total, err := svc.ListPlans(ctx, &admin.GetApiQuotaPlansParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return quotaPlansListResult(slicePage(plans, page.Start, page.Limit)), nil
+			return quotaPlansListResult(plans, total), nil
 		}),
 	})
 }
@@ -388,12 +392,16 @@ func adminQuotaAllowancesList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			allowances, _, err := svc.ListAllowances(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			allowances, total, err := svc.ListAllowances(ctx, &admin.GetApiQuotaAllowancesParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return quotaAllowancesListResult(slicePage(allowances, page.Start, page.Limit)), nil
+			return quotaAllowancesListResult(allowances, total), nil
 		}),
 	})
 }
@@ -561,12 +569,16 @@ func adminQuotaUserConfigsList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			configs, _, err := svc.ListUserConfigs(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			configs, total, err := svc.ListUserConfigs(ctx, &admin.GetApiQuotaUserConfigsParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return quotaUserConfigsListResult(slicePage(configs, page.Start, page.Limit)), nil
+			return quotaUserConfigsListResult(configs, total), nil
 		}),
 	})
 }

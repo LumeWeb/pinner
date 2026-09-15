@@ -171,6 +171,14 @@ func TestAdminUsersList(t *testing.T) {
 	if gotParams.Verified == nil || !*gotParams.Verified {
 		t.Fatalf("verified filter not forwarded: %+v", gotParams)
 	}
+	// Without page/page-size the handler must still forward the default
+	// server window (_start=0,_end=10) so the backend pages correctly.
+	if gotParams.UnderscoreStart == nil || *gotParams.UnderscoreStart != 0 {
+		t.Fatalf("default start not forwarded: %+v", gotParams)
+	}
+	if gotParams.UnderscoreEnd == nil || *gotParams.UnderscoreEnd != 10 {
+		t.Fatalf("default end not forwarded: %+v", gotParams)
+	}
 	got, ok := res.(ListResult)
 	if !ok {
 		t.Fatalf("unexpected result type %T", res)
@@ -184,7 +192,9 @@ func TestAdminUsersList(t *testing.T) {
 }
 
 // TestAdminUsersListPagingArgs asserts the op embeds the shared pager args and
-// that page/page-size slice the fetched result set client-side.
+// that page/page-size are forwarded to the backend as the server-side
+// _start/_end cursor (not sliced client-side, which returned the first page
+// repeatedly).
 func TestAdminUsersListPagingArgs(t *testing.T) {
 	op := adminUsersList(AdminDeps{})
 	argNames := map[string]bool{}
@@ -197,16 +207,19 @@ func TestAdminUsersListPagingArgs(t *testing.T) {
 		}
 	}
 
+	// Page 2 of page-size 1 must request _start=1,_end=2 and must relay the
+	// backend's already-paged rows through untouched (no client slicing).
+	var gotStart, gotEnd int
+	second := sampleUser()
+	second.Id = 2
 	svc := &fakeUserService{
 		requireAuth: func() error { return nil },
 		listFn: func(ctx context.Context, params *admin.UserListParams) ([]*admin.User, int, error) {
-			users := make([]*admin.User, 0, 3)
-			for i := 0; i < 3; i++ {
-				u := sampleUser()
-				u.Id = i + 1
-				users = append(users, u)
+			if params.UnderscoreStart == nil || params.UnderscoreEnd == nil {
+				t.Fatalf("pagination params not set: %+v", params)
 			}
-			return users, 3, nil
+			gotStart, gotEnd = *params.UnderscoreStart, *params.UnderscoreEnd
+			return []*admin.User{second}, 3, nil
 		},
 	}
 	op = adminUsersList(testUsersDeps(t, svc))
@@ -217,12 +230,15 @@ func TestAdminUsersListPagingArgs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
+	if gotStart != 1 || gotEnd != 2 {
+		t.Fatalf("page=2 page-size=1 should request _start=1,_end=2, got _start=%d,_end=%d", gotStart, gotEnd)
+	}
 	got, ok := res.(ListResult)
 	if !ok {
 		t.Fatalf("unexpected result type %T", res)
 	}
 	if got.ListCount() != 1 {
-		t.Fatalf("page=2 page-size=1 should slice to 1 row, got %d", got.ListCount())
+		t.Fatalf("page=2 page-size=1 should yield 1 row, got %d", got.ListCount())
 	}
 	items, ok := got.ListItems().([]*admin.User)
 	if !ok || len(items) != 1 || items[0].Id != 2 {

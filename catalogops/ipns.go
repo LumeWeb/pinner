@@ -77,7 +77,7 @@ func IPNSOperations(d IPNSDeps) []opmesh.Operation {
 func ipnsKeysList(d IPNSDeps) opmesh.Operation {
 	return opmesh.NewOperation(opmesh.OperationSpec{
 		Name: "ipns_keys_list", Title: "List IPNS keys", Summary: "List all IPNS keys",
-		Description: "List all IPNS keys for the authenticated account, optionally narrowing by a server-side name substring search.",
+		Description: "List all IPNS keys for the authenticated account. Keys are paged server-side; when a search is given the non-paged ListKeys endpoint applies the contains-name filter server-side because the paged endpoint exposes no name filter.",
 		Category:    "ipns", Safety: opmesh.SafetyRead, Interaction: opmesh.InteractionAgentSafe, Visibility: opmesh.VisibilityBoth,
 		Positional: "",
 		Args: append(opmesh.ListArgs(),
@@ -91,18 +91,43 @@ func ipnsKeysList(d IPNSDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			var keys []ipfs.IPNSKeyResponse
+			headers := []string{"ID", "NAME", "IPNS NAME", "PEER ID", "CREATED"}
 			if search := opmesh.SearchArg(input); search != "" {
-				keys, err = svc.ListKeys(ctx, ipfs.ListKeyOption{}.WithFilterName(search))
-			} else {
-				keys, err = svc.ListKeys(ctx)
+				// The paged ListKeysPage exposes no name filter, so a
+				// server-side name search falls back to the non-paged
+				// ListKeys + WithFilterName (which the SDK supports).
+				keys, err := svc.ListKeys(ctx, ipfs.ListKeyOption{}.WithFilterName(search))
+				if err != nil {
+					return nil, err
+				}
+				if keys == nil {
+					keys = []ipfs.IPNSKeyResponse{}
+				}
+				rows := make([][]string, 0, len(keys))
+				for _, k := range keys {
+					rows = append(rows, []string{
+						fmt.Sprintf("%d", k.Id), k.Name, k.IpnsName, k.PeerId,
+						k.Created.Format("2006-01-02 15:04:05"),
+					})
+				}
+				return NewListResult(keys, ListResultMeta{
+					Noun: "IPNS key(s)", Headers: headers, Rows: rows, Total: len(keys),
+				}), nil
 			}
+			// Page server-side: ListKeysPage applies the backend's default
+			// 10-item window, so asking for a page sends _start/_end rather
+			// than fetching the whole set and slicing on the client (which
+			// would silently miss page 2+). The returned Total keeps the
+			// caller's count accurate across pages.
+			page := opmesh.ParseListPage(input, 10)
+			keyPage, err := svc.ListKeysPage(ctx,
+				ipfs.WithKeysStart(page.Start),
+				ipfs.WithKeysLimit(page.Limit),
+			)
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			items := slicePage(keys, page.Start, page.Limit)
-			headers := []string{"ID", "NAME", "IPNS NAME", "PEER ID", "CREATED"}
+			items := keyPage.Data
 			rows := make([][]string, 0, len(items))
 			for _, k := range items {
 				rows = append(rows, []string{
@@ -111,7 +136,7 @@ func ipnsKeysList(d IPNSDeps) opmesh.Operation {
 				})
 			}
 			return NewListResult(items, ListResultMeta{
-				Noun: "IPNS key(s)", Headers: headers, Rows: rows,
+				Noun: "IPNS key(s)", Headers: headers, Rows: rows, Total: keyPage.Total,
 			}), nil
 		}),
 	})

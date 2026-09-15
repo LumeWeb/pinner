@@ -17,11 +17,11 @@ require (
 	go.lumeweb.com/canimcp v0.0.0-20260912112527-1c27fd5becdd
 	go.lumeweb.com/configmanager v0.3.30
 	go.lumeweb.com/ipfs-content v0.1.18
-	go.lumeweb.com/ipfs-sdk v0.1.98
+	go.lumeweb.com/ipfs-sdk v0.1.99
 	go.lumeweb.com/ipfs-sdk/dnsname v0.1.64
 	go.lumeweb.com/mcpcanvas v0.0.0-20260907112052-7adbd4d8dcac
 	go.lumeweb.com/mcpforge v0.0.0-20260907155938-f64f92060f4e
-	go.lumeweb.com/portal-sdk v0.1.73
+	go.lumeweb.com/portal-sdk v0.1.74
 	go.lumeweb.com/queryutil v0.3.19
 	go.sia.tech/core v0.21.7
 	go.sia.tech/indexd v0.4.4

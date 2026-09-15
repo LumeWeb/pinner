@@ -8,6 +8,7 @@ import (
 	"context"
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
+	"go.lumeweb.com/opmesh"
 	"go.lumeweb.com/pinner/core/config"
 	coreerrors "go.lumeweb.com/pinner/core/errors"
 	"go.lumeweb.com/pinner/core/ipfsbase"
@@ -24,6 +25,11 @@ type Service interface {
 	// Zone operations
 	CreateZone(ctx context.Context, domain string, nameservers []string) (*ipfs.ZoneResponse, error)
 	ListZones(ctx context.Context) ([]ipfs.ZoneListResponse, error)
+	// ListZonesPage returns a server-side paged window of the user's zones plus
+	// the total zone count. The backend applies a default 10-item window, so an
+	// internal scan that must see every zone (e.g. domain-to-zone resolution)
+	// has to page through ListZonesPage rather than rely on ListZones.
+	ListZonesPage(ctx context.Context, opts opmesh.ListOptions[struct{}]) ([]ipfs.ZoneListResponse, int, error)
 	GetZone(ctx context.Context, id string) (*ipfs.ZoneResponse, error)
 	DeleteZone(ctx context.Context, id string) error
 	ValidateZone(ctx context.Context, id string) (*ipfs.ValidationResponse, error)
@@ -31,6 +37,10 @@ type Service interface {
 	// Record operations
 	CreateRecord(ctx context.Context, id string, record ipfs.RecordRequest) (*ipfs.RecordResponse, error)
 	ListRecords(ctx context.Context, id string) ([]ipfs.RecordResponse, error)
+	// ListRecordsPage returns a server-side paged window of a zone's records
+	// plus the total record count. Like ListZonesPage, this is the form that
+	// can reach records beyond the first page for an internal scan.
+	ListRecordsPage(ctx context.Context, id string, opts opmesh.ListOptions[struct{}]) ([]ipfs.RecordResponse, int, error)
 	GetRecord(ctx context.Context, id string, name string, recordType string) (*ipfs.RecordResponse, error)
 	UpdateRecord(ctx context.Context, id string, name string, recordType string, record ipfs.RecordRequest) (*ipfs.RecordResponse, error)
 	// DeleteRecord deletes a DNS record. When content is provided and non-empty,
@@ -133,16 +143,30 @@ func (s *serviceCLI) CreateZone(ctx context.Context, domain string, nameservers 
 	return svc.CreateZone(ctx, domain, nameservers)
 }
 
-// ListZones lists all DNS zones.
-func (s *serviceCLI) ListZones(ctx context.Context) ([]ipfs.ZoneListResponse, error) {
+// ListZonesPage lists a server-side paged window of DNS zones plus the total
+// zone count. Paging options (Start/Limit) are forwarded to the SDK so the
+// query reaches the backend rather than being truncated to the first page.
+func (s *serviceCLI) ListZonesPage(ctx context.Context, opts opmesh.ListOptions[struct{}]) ([]ipfs.ZoneListResponse, int, error) {
 	if err := s.RequireAuthenticated(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	svc, err := s.requireService()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return svc.ListZones(ctx)
+	page, err := svc.ListZonesPage(ctx, ipfs.WithZonesStart(opts.Start), ipfs.WithZonesLimit(opts.Limit))
+	if err != nil {
+		return nil, 0, err
+	}
+	return page.Data, page.Total, nil
+}
+
+// ListZones lists the backend's default window of DNS zones. Kept for callers
+// that only need the first page; domain resolution must use ListZonesPage so a
+// zone beyond the first page is not missed.
+func (s *serviceCLI) ListZones(ctx context.Context) ([]ipfs.ZoneListResponse, error) {
+	zones, _, err := s.ListZonesPage(ctx, opmesh.ListOptions[struct{}]{})
+	return zones, err
 }
 
 // GetZone retrieves a specific DNS zone.
@@ -193,16 +217,32 @@ func (s *serviceCLI) CreateRecord(ctx context.Context, id string, record ipfs.Re
 	return svc.CreateRecord(ctx, id, record)
 }
 
-// ListRecords lists all DNS records for a zone.
-func (s *serviceCLI) ListRecords(ctx context.Context, id string) ([]ipfs.RecordResponse, error) {
+// ListRecordsPage lists a server-side paged window of a zone's DNS records
+// plus the total record count. Paging options (Start/Limit) are forwarded to
+// the SDK so the query reaches the backend rather than being truncated to the
+// first page.
+func (s *serviceCLI) ListRecordsPage(ctx context.Context, id string, opts opmesh.ListOptions[struct{}]) ([]ipfs.RecordResponse, int, error) {
 	if err := s.RequireAuthenticated(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	svc, err := s.requireService()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return svc.ListRecords(ctx, id)
+	page, err := svc.ListRecordsPage(ctx, id, ipfs.WithRecordsStart(opts.Start), ipfs.WithRecordsLimit(opts.Limit))
+	if err != nil {
+		return nil, 0, err
+	}
+	return page.Data, page.Total, nil
+}
+
+// ListRecords lists the backend's default window of DNS records for a zone.
+// Kept for callers that only need the first page; single-record delete
+// resolution must use ListRecordsPage so a record beyond the first page is not
+// silently considered absent.
+func (s *serviceCLI) ListRecords(ctx context.Context, id string) ([]ipfs.RecordResponse, error) {
+	records, _, err := s.ListRecordsPage(ctx, id, opmesh.ListOptions[struct{}]{})
+	return records, err
 }
 
 // GetRecord retrieves a specific DNS record.

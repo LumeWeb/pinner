@@ -47,12 +47,16 @@ func adminPlatformDomainsList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			domains, _, err := svc.ListPlatformDomains(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			domains, total, err := svc.ListPlatformDomains(ctx, &admin.GetApiIpfsPlatformDomainsParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return platformDomainsListResult(slicePage(domains, page.Start, page.Limit)), nil
+			return platformDomainsListResult(domains, total), nil
 		}),
 	})
 }

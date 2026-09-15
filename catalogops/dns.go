@@ -15,6 +15,7 @@ import (
 	"go.lumeweb.com/pinner/core/config"
 	"go.lumeweb.com/pinner/core/dns"
 	"go.lumeweb.com/pinner/dnsutil"
+	"go.lumeweb.com/queryutil"
 )
 
 // DNSDeps are the dependencies the DNS operations need at construction time.
@@ -124,15 +125,17 @@ func dnsZonesList(d DNSDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			zones, err := svc.ListZones(ctx)
+			// Page server-side: the backend applies a default 10-item window, so
+			// asking for a page sends _start/_end rather than fetching the whole
+			// set and slicing on the client (which would silently miss page 2+).
+			page := opmesh.ParseListPage(input, 10)
+			zones, total, err := svc.ListZonesPage(ctx, opmesh.ListOptions[struct{}]{Start: page.Start, Limit: page.Limit})
 			if err != nil {
 				return nil, fmt.Errorf("failed to list zones: %w", err)
 			}
-			page := opmesh.ParseList(input)
-			items := slicePage(zones, page.Start, page.Limit)
 			headers := []string{"ID", "DOMAIN", "STATUS", "POWERDNS ZONE ID", "CREATED"}
-			rows := make([][]string, 0, len(items))
-			for _, z := range items {
+			rows := make([][]string, 0, len(zones))
+			for _, z := range zones {
 				pdns := ""
 				if z.PowerdnsZoneId != nil {
 					pdns = *z.PowerdnsZoneId
@@ -142,8 +145,8 @@ func dnsZonesList(d DNSDeps) opmesh.Operation {
 					z.CreatedAt.Format("2006-01-02 15:04:05"),
 				})
 			}
-			return NewListResult(items, ListResultMeta{
-				Noun: "DNS zone(s)", Headers: headers, Rows: rows,
+			return NewListResult(zones, ListResultMeta{
+				Noun: "DNS zone(s)", Headers: headers, Rows: rows, Total: total,
 			}), nil
 		}),
 	})
@@ -350,15 +353,17 @@ func dnsRecordsList(d DNSDeps) opmesh.Operation {
 			if err != nil {
 				return nil, err
 			}
-			records, err := svc.ListRecords(ctx, zoneID)
+			// Page server-side: the backend applies a default 10-item window, so
+			// asking for a page sends _start/_end rather than fetching the whole
+			// set and slicing on the client (which would silently miss page 2+).
+			page := opmesh.ParseListPage(input, 10)
+			records, total, err := svc.ListRecordsPage(ctx, zoneID, opmesh.ListOptions[struct{}]{Start: page.Start, Limit: page.Limit})
 			if err != nil {
 				return nil, fmt.Errorf("failed to list records: %w", err)
 			}
-			page := opmesh.ParseList(input)
-			items := slicePage(records, page.Start, page.Limit)
 			headers := []string{"ID", "NAME", "TYPE", "CONTENT", "TTL", "STATUS"}
-			rows := make([][]string, 0, len(items))
-			for _, r := range items {
+			rows := make([][]string, 0, len(records))
+			for _, r := range records {
 				name := r.Name
 				if name == "" {
 					name = "@" // blank name denotes the zone apex record
@@ -371,8 +376,8 @@ func dnsRecordsList(d DNSDeps) opmesh.Operation {
 					r.Id, name, r.Type, r.Content, fmt.Sprintf("%d", r.Ttl), status,
 				})
 			}
-			return NewListResult(items, ListResultMeta{
-				Noun: "DNS record(s)", Headers: headers, Rows: rows,
+			return NewListResult(records, ListResultMeta{
+				Noun: "DNS record(s)", Headers: headers, Rows: rows, Total: total,
 			}), nil
 		}),
 	})
@@ -676,8 +681,11 @@ func dnsRecordsDelete(d DNSDeps) opmesh.Operation {
 
 			// Single-record delete: resolve the target to exactly one record,
 			// or deleting would silently erase nothing or everything sharing
-			// that value.
-			records, err := svc.ListRecords(ctx, zoneID)
+			// that value. A plain ListRecords returns only the backend's
+			// default 10-item window, so a record beyond the first page would
+			// be silently considered absent: page through ListRecordsPage until
+			// the reported total is reached.
+			records, err := allRecords(ctx, svc, zoneID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to list records to resolve target: %w", err)
 			}
@@ -748,13 +756,14 @@ func uniqueRecordMatching(records []ipfs.RecordResponse, name, recordType, conte
 
 // resolveZoneID resolves a domain name or numeric ID to a zone ID string. If
 // arg is numeric, it is returned as-is; otherwise it searches by domain via
-// the service's read-only ListZones.
+// the service's read-only zone scan (allZones), which pages beyond the
+// backend's default window so a zone after the first page is not missed.
 func resolveZoneID(ctx context.Context, dnsService dns.Service, arg string) (string, error) {
 	if _, err := strconv.Atoi(arg); err == nil {
 		return arg, nil
 	}
 
-	zones, err := dnsService.ListZones(ctx)
+	zones, err := allZones(ctx, dnsService)
 	if err != nil {
 		return "", fmt.Errorf("failed to look up zone by domain: %w", err)
 	}
@@ -766,6 +775,53 @@ func resolveZoneID(ctx context.Context, dnsService dns.Service, arg string) (str
 	}
 
 	return "", fmt.Errorf("zone not found for domain %q", arg)
+}
+
+// allZones returns every zone for the authenticated user, paging through the
+// backend's server-side windows until the reported total is reached. A plain
+// ListZones only returns the backend's default 10-item window, so domain-to-
+// zone resolution (and zone lookup by domain) must scan all pages: a zone
+// beyond the first page would otherwise be silently considered absent.
+func allZones(ctx context.Context, dnsService dns.Service) ([]ipfs.ZoneListResponse, error) {
+	// Reuse queryutil's typed "large" pagination preset (PageSize 100) as the
+	// full-scan window rather than a local magic number.
+	pageSize := queryutil.LargePagination.PageSize
+	all := make([]ipfs.ZoneListResponse, 0)
+	for start := 0; ; start += pageSize {
+		page, total, err := dnsService.ListZonesPage(ctx, opmesh.ListOptions[struct{}]{Start: start, Limit: pageSize})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		// A short page is the last one; a full page stops once the reported
+		// total is reached; an empty page must never deadlock the loop.
+		if len(page) == 0 || len(page) < pageSize || (total > 0 && len(all) >= total) {
+			break
+		}
+	}
+	return all, nil
+}
+
+// allRecords returns every record for a zone, paging through the backend's
+// server-side windows until the reported total is reached. Single-record
+// delete resolution must see the whole set: a record beyond the default
+// 10-item window would otherwise be silently considered absent.
+func allRecords(ctx context.Context, dnsService dns.Service, zoneID string) ([]ipfs.RecordResponse, error) {
+	// Reuse queryutil's typed "large" pagination preset (PageSize 100) as the
+	// full-scan window rather than a local magic number.
+	pageSize := queryutil.LargePagination.PageSize
+	all := make([]ipfs.RecordResponse, 0)
+	for start := 0; ; start += pageSize {
+		page, total, err := dnsService.ListRecordsPage(ctx, zoneID, opmesh.ListOptions[struct{}]{Start: start, Limit: pageSize})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if len(page) == 0 || len(page) < pageSize || (total > 0 && len(all) >= total) {
+			break
+		}
+	}
+	return all, nil
 }
 
 // resolveZoneByArg resolves a domain name or numeric ID to a full ZoneResponse.

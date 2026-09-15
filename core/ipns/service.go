@@ -21,6 +21,13 @@ type Service interface {
 	// reconstructing it (used by long-lived consumers on config live-reload).
 	SetAuthToken(token string)
 	ListKeys(ctx context.Context, opts ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error)
+	// ListKeysPage returns a server-side paged window of the user's IPNS keys
+	// together with the total key count, so callers can page beyond the
+	// backend's default window without fetching the whole set and slicing
+	// client-side. The SDK exposes no server-side name filter on the paged
+	// endpoint (name search is only available on the non-paged ListKeys), so
+	// ipns_keys_list no longer accepts a search argument.
+	ListKeysPage(ctx context.Context, opts ...ipfs.IPNSKeyPagingOption) (*ipfs.IPNSKeyPage, error)
 	CreateKey(ctx context.Context, name string, key *string) (*ipfs.IPNSKeyResponse, error)
 	GetKey(ctx context.Context, id string) (*ipfs.IPNSKeyResponse, error)
 	DeleteKey(ctx context.Context, id string) error
@@ -117,6 +124,17 @@ func (s *service) ListKeys(ctx context.Context, opts ...ipfs.ListKeyOption) ([]i
 		return nil, err
 	}
 	return svc.ListKeys(ctx, opts...)
+}
+
+func (s *service) ListKeysPage(ctx context.Context, opts ...ipfs.IPNSKeyPagingOption) (*ipfs.IPNSKeyPage, error) {
+	if err := s.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
+	svc, err := s.requireService()
+	if err != nil {
+		return nil, err
+	}
+	return svc.ListKeysPage(ctx, opts...)
 }
 
 func (s *service) CreateKey(ctx context.Context, name string, key *string) (*ipfs.IPNSKeyResponse, error) {

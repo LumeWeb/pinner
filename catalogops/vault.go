@@ -446,6 +446,7 @@ func vaultVersionLs(d VaultDeps) opmesh.Operation {
 				})
 			}
 			totalVersions := len(items)
+			// Vault versioning is local storage (no server paging); page client-side.
 			page := opmesh.ParseList(input)
 			items = slicePage(items, page.Start, page.Limit)
 			headers := []string{"Version ID", "Seq", "Current", "Size", "Updated"}
@@ -899,6 +900,7 @@ func vaultTagLs(d VaultDeps) opmesh.Operation {
 				if err != nil {
 					return nil, err
 				}
+				// Tag list is local storage (no server paging); page client-side.
 				page := opmesh.ParseList(input)
 				items := slicePage(tags, page.Start, page.Limit)
 				headers := []string{"Tag"}

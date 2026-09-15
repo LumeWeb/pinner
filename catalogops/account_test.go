@@ -44,8 +44,6 @@ func (f *fakeAuthService) GetQuota(ctx context.Context) (*account.QuotaStatus, e
 	return &account.QuotaStatus{}, nil
 }
 
-func intPtr(v int) *int { return &v }
-
 // accountDisableDeps returns an AccountDeps whose auth service is backed by the
 // given fake, with a config manager present so authClientHandler resolves.
 func accountDisableDeps(t *testing.T, fake *fakeAuthService) AccountDeps {

@@ -11,11 +11,16 @@ import (
 	"go.lumeweb.com/pinner/core/auth"
 	coreerrors "go.lumeweb.com/pinner/core/errors"
 	portalsdk "go.lumeweb.com/portal-sdk"
+	"go.lumeweb.com/queryutil/filter"
 )
 
 // Service provides API key management operations.
 type Service interface {
-	ListAPIKeys(ctx context.Context, search string) ([]*portalsdk.APIKey, int, error)
+	// ListAPIKeys lists API keys for the authenticated account. search narrows
+	// the results server-side by name. start/limit form the server-side paging
+	// window: a positive limit maps to the backend's _start/_end cursor
+	// (end = start+limit); a zero limit fetches every matching key.
+	ListAPIKeys(ctx context.Context, search string, start, limit int) ([]*portalsdk.APIKey, int, error)
 	CreateAPIKey(ctx context.Context, name string) (*portalsdk.APIKey, error)
 
 	// DeleteAPIKey deletes an API key by UUID or name.
@@ -44,7 +49,7 @@ func New(authService auth.AuthService, authToken string) Service {
 	}
 }
 
-func (s *service) ListAPIKeys(ctx context.Context, search string) ([]*portalsdk.APIKey, int, error) {
+func (s *service) ListAPIKeys(ctx context.Context, search string, start, limit int) ([]*portalsdk.APIKey, int, error) {
 	if err := s.RequireAuthenticated(); err != nil {
 		return nil, 0, err
 	}
@@ -57,6 +62,9 @@ func (s *service) ListAPIKeys(ctx context.Context, search string) ([]*portalsdk.
 	opts := []portalsdk.ListOption{}
 	if search != "" {
 		opts = append(opts, portalsdk.WithSearch(search))
+	}
+	if limit > 0 {
+		opts = append(opts, portalsdk.WithPagination(&filter.Pagination{Start: start, End: start + limit}))
 	}
 
 	return client.ListAPIKeys(ctx, opts...)
@@ -143,7 +151,7 @@ func (s *service) resolveAPIKeyID(ctx context.Context, idOrName string) (string,
 		return idOrName, nil
 	}
 
-	keys, _, err := s.ListAPIKeys(ctx, idOrName)
+	keys, _, err := s.ListAPIKeys(ctx, idOrName, 0, 0)
 	if err != nil {
 		return "", fmt.Errorf("failed to look up API key by name: %w", err)
 	}

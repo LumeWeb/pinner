@@ -18,7 +18,7 @@ import (
 // result wrapping without mocks.
 type fakeSocialProviderService struct {
 	requireAuth func() error
-	listFn      func(ctx context.Context) ([]*admin.SocialProvider, int, error)
+	listFn      func(ctx context.Context, params *admin.GetApiSocialProvidersParams) ([]*admin.SocialProvider, int, error)
 	getFn       func(ctx context.Context, id string) (*admin.SocialProvider, error)
 	createFn    func(ctx context.Context, req *admin.SocialProviderRequest) (*admin.SocialProvider, error)
 	updateFn    func(ctx context.Context, id string, req *admin.SocialProviderUpdateRequest) (*admin.SocialProvider, error)
@@ -34,9 +34,9 @@ func (f *fakeSocialProviderService) RequireAuthenticated() error {
 	return nil
 }
 
-func (f *fakeSocialProviderService) ListSocialProviders(ctx context.Context) ([]*admin.SocialProvider, int, error) {
+func (f *fakeSocialProviderService) ListSocialProviders(ctx context.Context, params *admin.GetApiSocialProvidersParams) ([]*admin.SocialProvider, int, error) {
 	if f.listFn != nil {
-		return f.listFn(ctx)
+		return f.listFn(ctx, params)
 	}
 	return nil, 0, nil
 }
@@ -143,7 +143,7 @@ func TestAdminSocialProvidersListNilDeps(t *testing.T) {
 func TestAdminSocialProvidersList(t *testing.T) {
 	svc := &fakeSocialProviderService{
 		requireAuth: func() error { return nil },
-		listFn: func(ctx context.Context) ([]*admin.SocialProvider, int, error) {
+		listFn: func(ctx context.Context, _ *admin.GetApiSocialProvidersParams) ([]*admin.SocialProvider, int, error) {
 			return []*admin.SocialProvider{sampleSocialProvider()}, 1, nil
 		},
 	}

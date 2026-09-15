@@ -70,22 +70,25 @@ func apiKeysList(d APIKeysDeps) opmesh.Operation {
 			if svc == nil {
 				return nil, fmt.Errorf("api-keys service unavailable")
 			}
-			keys, _, err := svc.ListAPIKeys(ctx, opmesh.SearchArg(input))
+			// Server-side paging: the account API-key endpoint is a queryutil
+			// list that pages via _start/_end, so map the page/page-size
+			// cursor onto that window instead of fetching everything and
+			// slicing client-side (which repeated the first page).
+			page := opmesh.ParseListPage(input, 10)
+			keys, total, err := svc.ListAPIKeys(ctx, opmesh.SearchArg(input), page.Start, page.Limit)
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			items := slicePage(keys, page.Start, page.Limit)
 			headers := []string{"UUID", "NAME"}
-			rows := make([][]string, 0, len(items))
-			for _, k := range items {
+			rows := make([][]string, 0, len(keys))
+			for _, k := range keys {
 				if k == nil {
 					continue
 				}
 				rows = append(rows, []string{k.Uuid.String(), k.Name})
 			}
-			return NewListResult(items, ListResultMeta{
-				Noun: "API key(s)", Headers: headers, Rows: rows,
+			return NewListResult(keys, ListResultMeta{
+				Noun: "API key(s)", Headers: headers, Rows: rows, Total: total,
 			}), nil
 		}),
 	})

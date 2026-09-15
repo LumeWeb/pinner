@@ -82,7 +82,7 @@ func TestFakeServicesConcurrentAccess(t *testing.T) {
 				if _, err := keySvc.CreateAPIKey(ctx, key); err != nil {
 					t.Errorf("create api key (%d,%d): %v", w, i, err)
 				}
-				if _, _, err := keySvc.ListAPIKeys(ctx, ""); err != nil {
+				if _, _, err := keySvc.ListAPIKeys(ctx, "", 0, 0); err != nil {
 					t.Errorf("list api keys (%d,%d): %v", w, i, err)
 				}
 

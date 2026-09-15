@@ -21,6 +21,8 @@ import (
 
 	ipfs "go.lumeweb.com/ipfs-sdk"
 
+	"go.lumeweb.com/opmesh"
+
 	portalsdk "go.lumeweb.com/portal-sdk"
 
 	"go.lumeweb.com/pinner/core/apikeys"
@@ -360,6 +362,11 @@ func newFakeDNSService(svc *FakeServices) dns.Service { return &fakeDNSService{s
 func (f *fakeDNSService) RequireAuthenticated() error { return nil }
 
 func (f *fakeDNSService) ListZones(context.Context) ([]ipfs.ZoneListResponse, error) {
+	zones, _, err := f.ListZonesPage(context.Background(), opmesh.ListOptions[struct{}]{})
+	return zones, err
+}
+
+func (f *fakeDNSService) ListZonesPage(_ context.Context, opts opmesh.ListOptions[struct{}]) ([]ipfs.ZoneListResponse, int, error) {
 	f.svc.mu.Lock()
 	defer f.svc.mu.Unlock()
 	out := make([]ipfs.ZoneListResponse, 0, len(f.svc.zones))
@@ -371,7 +378,7 @@ func (f *fakeDNSService) ListZones(context.Context) ([]ipfs.ZoneListResponse, er
 		seen[z.Id] = true
 		out = append(out, z)
 	}
-	return out, nil
+	return slicePageFn(out, opts.Start, opts.Limit), len(out), nil
 }
 
 func (f *fakeDNSService) CreateZone(_ context.Context, domain string, _ []string) (*ipfs.ZoneResponse, error) {
@@ -420,8 +427,13 @@ func (f *fakeDNSService) CreateRecord(_ context.Context, id string, rec ipfs.Rec
 	}, nil
 }
 
-func (f *fakeDNSService) ListRecords(context.Context, string) ([]ipfs.RecordResponse, error) {
-	return []ipfs.RecordResponse{}, nil
+func (f *fakeDNSService) ListRecords(ctx context.Context, id string) ([]ipfs.RecordResponse, error) {
+	records, _, err := f.ListRecordsPage(ctx, id, opmesh.ListOptions[struct{}]{})
+	return records, err
+}
+
+func (f *fakeDNSService) ListRecordsPage(context.Context, string, opmesh.ListOptions[struct{}]) ([]ipfs.RecordResponse, int, error) {
+	return []ipfs.RecordResponse{}, 0, nil
 }
 
 func (f *fakeDNSService) SetAuthToken(string) {}
@@ -795,6 +807,22 @@ func sortStrings(s []string) {
 	}
 }
 
+// slicePageFn applies a Start/Limit window to a slice, mirroring the
+// catalogops slicePage helper for in-memory stores whose backend cannot page.
+// A zero Limit keeps all rows from Start onward.
+func slicePageFn[T any](items []T, start, limit int) []T {
+	if start > 0 {
+		if start >= len(items) {
+			return []T{}
+		}
+		items = items[start:]
+	}
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return items
+}
+
 // --- operations.Service fake --------------------------------------------------
 
 // fakeOperationsService satisfies the operations.Service surface the
@@ -828,7 +856,7 @@ type fakeAPIKeysService struct {
 
 func (f *fakeAPIKeysService) RequireAuthenticated() error { return nil }
 
-func (f *fakeAPIKeysService) ListAPIKeys(context.Context, string) ([]*portalsdk.APIKey, int, error) {
+func (f *fakeAPIKeysService) ListAPIKeys(_ context.Context, _ string, start, limit int) ([]*portalsdk.APIKey, int, error) {
 	f.svc.mu.Lock()
 	defer f.svc.mu.Unlock()
 	names := make([]string, 0, len(f.svc.apiKeys))
@@ -840,7 +868,7 @@ func (f *fakeAPIKeysService) ListAPIKeys(context.Context, string) ([]*portalsdk.
 	for _, name := range names {
 		out = append(out, f.svc.apiKeys[name])
 	}
-	return out, len(out), nil
+	return slicePageFn(out, start, limit), len(out), nil
 }
 
 func (f *fakeAPIKeysService) CreateAPIKey(_ context.Context, name string) (*portalsdk.APIKey, error) {
