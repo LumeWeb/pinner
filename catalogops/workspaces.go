@@ -96,7 +96,8 @@ func WorkspacesOperations(d WorkspacesDeps) []opmesh.Operation {
 }
 
 // workspaceIDArg is the shared `id` positional/argument descriptor for
-// operations that select a single workspace by its numeric ID. It is a
+// operations that select a single workspace by its label slug (the
+// user-facing id, e.g. "ugki684o"; the numeric ID is accepted as-is). It is a
 // flexible ID so either the integer or decimal-string form is accepted.
 func workspaceIDArg(help string) opmesh.OperationArg {
 	return opmesh.OperationArg{
@@ -188,14 +189,14 @@ func workspacesGet(d WorkspacesDeps) opmesh.Operation {
 		Name:        "workspaces_get",
 		Title:       "Get workspace details",
 		Summary:     "Get full details of one workspace",
-		Description: "Get full details of one workspace by its numeric ID: ID, domain, label, status, created/updated timestamps, any error, and its attached website ID (blank/nil when unattached).",
+		Description: "Get full details of one workspace by its id (the workspace's label slug, e.g. \"ugki684o\", or the numeric ID): ID, domain, label, status, created/updated timestamps, any error, and its attached website ID (blank/nil when unattached).",
 		Category:    "core",
 		Safety:      opmesh.SafetyRead,
 		Interaction: opmesh.InteractionAgentSafe,
 		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<id>",
 		Args: []opmesh.OperationArg{
-			workspaceIDArg("Numeric ID of the workspace to get. Required."),
+			workspaceIDArg("The workspace's id: its label slug (e.g. \"ugki684o\") or the numeric id. Required."),
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
 			svc, svcErr := d.service(input)
@@ -260,14 +261,14 @@ func workspacesAttach(d WorkspacesDeps) opmesh.Operation {
 		Name:        "workspaces_attach",
 		Title:       "Attach a workspace to a website",
 		Summary:     "Attach a workspace to a website",
-		Description: "Attach a workspace to a website you own (the publish link), by the workspace's numeric ID and the target website's numeric ID. Returns the updated workspace carrying the new website association.",
+		Description: "Attach a workspace to a website you own (the publish link), by the workspace's id (its label slug or the numeric ID) and the target website's numeric ID. Returns the updated workspace carrying the new website association.",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
 		Visibility:  opmesh.VisibilityBoth,
 		Positional:  "<id>",
 		Args: []opmesh.OperationArg{
-			workspaceIDArg("Numeric ID of the workspace to attach. Required."),
+			workspaceIDArg("The workspace's id: its label slug or the numeric id. Required."),
 			{Name: "website-id", Type: opmesh.ArgTypeFlexibleID, Required: true, Help: "Numeric ID of the website you own to attach the workspace to. Required."},
 		},
 		Handler: handler(func(ctx context.Context, input map[string]any) (any, error) {
@@ -299,7 +300,7 @@ func workspacesSuspend(d WorkspacesDeps) opmesh.Operation {
 		Name:        "workspaces_suspend",
 		Title:       "Suspend a workspace",
 		Summary:     "Suspend a workspace",
-		Description: "Suspend a workspace by its numeric ID, stopping its runtime. Suspension is reversible with workspaces_resume.",
+		Description: "Suspend a workspace by its id (its label slug or the numeric ID), stopping its runtime. Suspension is reversible with workspaces_resume.",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
@@ -332,7 +333,7 @@ func workspacesResume(d WorkspacesDeps) opmesh.Operation {
 		Name:        "workspaces_resume",
 		Title:       "Resume a workspace",
 		Summary:     "Resume a suspended workspace",
-		Description: "Resume a suspended workspace by its numeric ID, restarting its runtime.",
+		Description: "Resume a suspended workspace by its id (its label slug or the numeric ID), restarting its runtime.",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionAgentSafe,
@@ -374,7 +375,7 @@ func workspacesAccess(d WorkspacesDeps) opmesh.Operation {
 		Name:        "workspaces_access",
 		Title:       "Get workspace access credentials",
 		Summary:     "Get a workspace's proxy access credentials",
-		Description: "Get the owner's proxy Basic Auth credentials (username/password) for a workspace by its numeric ID. These are sensitive credentials — this operation requires a human to run (model agents are handed off). Pass rotate=true to rotate the proxy credential before returning.",
+		Description: "Get the owner's proxy Basic Auth credentials (username/password) for a workspace by its id (its label slug or the numeric ID). These are sensitive credentials — this operation requires a human to run (model agents are handed off). Pass rotate=true to rotate the proxy credential before returning.",
 		Category:    "core",
 		Safety:      opmesh.SafetyMutate,
 		Interaction: opmesh.InteractionHumanOnly,
@@ -420,7 +421,7 @@ func workspacesDelete(d WorkspacesDeps) opmesh.Operation {
 		Name:        "workspaces_delete",
 		Title:       "Delete a workspace",
 		Summary:     "Delete a workspace",
-		Description: "Delete a workspace by its numeric ID. DESTRUCTIVE and irreversible: the workspace is marked deleting, its portal API key revoked, and its backing application removed. There is no undo. Requires confirm=true.",
+		Description: "Delete a workspace by its id (its label slug or the numeric ID). DESTRUCTIVE and irreversible: the workspace is marked deleting, its portal API key revoked, and its backing application removed. There is no undo. Requires confirm=true.",
 		Category:    "core",
 		Safety:      opmesh.SafetyDestructive,
 		Interaction: opmesh.InteractionAgentSafe,
