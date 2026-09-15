@@ -90,13 +90,16 @@ func adminSocialProvidersList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			providers, total, err := svc.ListSocialProviders(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			providers, total, err := svc.ListSocialProviders(ctx, &admin.GetApiSocialProvidersParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			paged := slicePage(providers, page.Start, page.Limit)
-			return socialProvidersListResultTotal(paged, total), nil
+			return socialProvidersListResultTotal(providers, total), nil
 		}),
 	})
 }

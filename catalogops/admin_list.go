@@ -11,6 +11,10 @@ import (
 // them all identically. JSON always carries {count, items}; these helpers only
 // supply the CLI table.
 
+// intPtr returns a pointer to v, used for the optional _start/_end paging
+// query params on server-side paged admin lists.
+func intPtr(v int) *int { return &v }
+
 func adminYesNo(b bool) string {
 	if b {
 		return "yes"
@@ -35,7 +39,7 @@ func humanBytes(bytes int64) string {
 	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-func quotaPlansListResult(plans []*admin.QuotaPlan) ListResult {
+func quotaPlansListResult(plans []*admin.QuotaPlan, total int) ListResult {
 	headers := []string{"ID", "NAME", "UPLOAD", "DOWNLOAD", "STORAGE", "ACTIVE", "DEFAULT"}
 	rows := make([][]string, 0, len(plans))
 	for _, p := range plans {
@@ -45,10 +49,10 @@ func quotaPlansListResult(plans []*admin.QuotaPlan) ListResult {
 			fmt.Sprintf("%t", p.IsActive), adminYesNo(p.IsDefault),
 		})
 	}
-	return NewListResult(plans, ListResultMeta{Noun: "quota plan(s)", Headers: headers, Rows: rows})
+	return NewListResult(plans, ListResultMeta{Noun: "quota plan(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func quotaAllowancesListResult(allows []*admin.QuotaAllowance) ListResult {
+func quotaAllowancesListResult(allows []*admin.QuotaAllowance, total int) ListResult {
 	headers := []string{"ID", "USER", "SOURCE", "TYPE", "BYTES", "ACTIVE"}
 	rows := make([][]string, 0, len(allows))
 	for _, a := range allows {
@@ -57,10 +61,10 @@ func quotaAllowancesListResult(allows []*admin.QuotaAllowance) ListResult {
 			string(a.Type), adminBytes(a.Bytes), adminYesNo(a.IsActive),
 		})
 	}
-	return NewListResult(allows, ListResultMeta{Noun: "quota allowance(s)", Headers: headers, Rows: rows})
+	return NewListResult(allows, ListResultMeta{Noun: "quota allowance(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func quotaUserConfigsListResult(configs []*admin.UserQuotaConfig) ListResult {
+func quotaUserConfigsListResult(configs []*admin.UserQuotaConfig, total int) ListResult {
 	headers := []string{"USER", "PLAN"}
 	rows := make([][]string, 0, len(configs))
 	for _, c := range configs {
@@ -70,10 +74,10 @@ func quotaUserConfigsListResult(configs []*admin.UserQuotaConfig) ListResult {
 		}
 		rows = append(rows, []string{fmt.Sprintf("%d", c.UserId), plan})
 	}
-	return NewListResult(configs, ListResultMeta{Noun: "user quota config(s)", Headers: headers, Rows: rows})
+	return NewListResult(configs, ListResultMeta{Noun: "user quota config(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func billingCreditsListResult(credits []*admin.CreditItem) ListResult {
+func billingCreditsListResult(credits []*admin.CreditItem, total int) ListResult {
 	headers := []string{"ID", "USER", "AMOUNT", "TYPE", "DIRECTION"}
 	rows := make([][]string, 0, len(credits))
 	for _, c := range credits {
@@ -82,10 +86,10 @@ func billingCreditsListResult(credits []*admin.CreditItem) ListResult {
 			fmt.Sprintf("%v", c.Amount), c.Type, c.Direction,
 		})
 	}
-	return NewListResult(credits, ListResultMeta{Noun: "credit(s)", Headers: headers, Rows: rows})
+	return NewListResult(credits, ListResultMeta{Noun: "credit(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func billingPriceLinesListResult(lines []*admin.PriceLine) ListResult {
+func billingPriceLinesListResult(lines []*admin.PriceLine, total int) ListResult {
 	headers := []string{"ID", "NAME", "ACTIVE", "DEFAULT"}
 	rows := make([][]string, 0, len(lines))
 	for _, l := range lines {
@@ -93,10 +97,10 @@ func billingPriceLinesListResult(lines []*admin.PriceLine) ListResult {
 			fmt.Sprintf("%d", l.Id), l.Name, adminYesNo(l.IsActive), adminYesNo(l.IsDefault),
 		})
 	}
-	return NewListResult(lines, ListResultMeta{Noun: "price line(s)", Headers: headers, Rows: rows})
+	return NewListResult(lines, ListResultMeta{Noun: "price line(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func billingPricingPlansListResult(plans []*admin.PricingPlanItem) ListResult {
+func billingPricingPlansListResult(plans []*admin.PricingPlanItem, total int) ListResult {
 	headers := []string{"ID", "NAME", "CURRENCY", "ACTIVE", "POSITION"}
 	rows := make([][]string, 0, len(plans))
 	for _, p := range plans {
@@ -105,10 +109,10 @@ func billingPricingPlansListResult(plans []*admin.PricingPlanItem) ListResult {
 			adminYesNo(p.IsActive), fmt.Sprintf("%d", p.Position),
 		})
 	}
-	return NewListResult(plans, ListResultMeta{Noun: "pricing plan(s)", Headers: headers, Rows: rows})
+	return NewListResult(plans, ListResultMeta{Noun: "pricing plan(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func billingPricingPlanPeriodsListResult(periods []*admin.PricingPlanPeriod) ListResult {
+func billingPricingPlanPeriodsListResult(periods []*admin.PricingPlanPeriod, total int) ListResult {
 	headers := []string{"ID", "PLAN", "CADENCE", "PRICE USD", "ROLLING DAYS", "ACTIVE"}
 	rows := make([][]string, 0, len(periods))
 	for _, p := range periods {
@@ -121,10 +125,10 @@ func billingPricingPlanPeriodsListResult(periods []*admin.PricingPlanPeriod) Lis
 			p.Cadence, fmt.Sprintf("%.2f", p.PriceUsd), rolling, adminYesNo(p.IsActive),
 		})
 	}
-	return NewListResult(periods, ListResultMeta{Noun: "pricing plan period(s)", Headers: headers, Rows: rows})
+	return NewListResult(periods, ListResultMeta{Noun: "pricing plan period(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func billingSubscribersListResult(subs []*admin.Subscriber) ListResult {
+func billingSubscribersListResult(subs []*admin.Subscriber, total int) ListResult {
 	headers := []string{"ID", "USER", "GATEWAY", "STATUS", "ACTIVE"}
 	rows := make([][]string, 0, len(subs))
 	for _, s := range subs {
@@ -140,10 +144,10 @@ func billingSubscribersListResult(subs []*admin.Subscriber) ListResult {
 			s.GatewayType, status, adminYesNo(s.IsActive),
 		})
 	}
-	return NewListResult(subs, ListResultMeta{Noun: "subscriber(s)", Headers: headers, Rows: rows})
+	return NewListResult(subs, ListResultMeta{Noun: "subscriber(s)", Headers: headers, Rows: rows, Total: total})
 }
 
-func platformDomainsListResult(domains []*admin.PlatformDomain) ListResult {
+func platformDomainsListResult(domains []*admin.PlatformDomain, total int) ListResult {
 	headers := []string{"ID", "DOMAIN", "NAMESPACE", "ZONE", "ENABLED"}
 	rows := make([][]string, 0, len(domains))
 	for _, d := range domains {
@@ -152,5 +156,5 @@ func platformDomainsListResult(domains []*admin.PlatformDomain) ListResult {
 			fmt.Sprintf("%d", d.ZoneId), adminYesNo(d.Enabled),
 		})
 	}
-	return NewListResult(domains, ListResultMeta{Noun: "platform domain(s)", Headers: headers, Rows: rows})
+	return NewListResult(domains, ListResultMeta{Noun: "platform domain(s)", Headers: headers, Rows: rows, Total: total})
 }

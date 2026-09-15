@@ -176,7 +176,7 @@ type QuotaAdminService interface {
 	RequireAuthenticated() error
 
 	// Plan operations
-	ListPlans(ctx context.Context) ([]*admin.QuotaPlan, int, error)
+	ListPlans(ctx context.Context, params *admin.GetApiQuotaPlansParams) ([]*admin.QuotaPlan, int, error)
 	CreatePlan(ctx context.Context, plan *admin.QuotaPlan) (*admin.QuotaPlan, error)
 	GetPlan(ctx context.Context, planID string) (*admin.QuotaPlan, error)
 	UpdatePlan(ctx context.Context, planID string, plan *admin.QuotaPlan) (*admin.QuotaPlan, error)
@@ -184,7 +184,7 @@ type QuotaAdminService interface {
 	SetDefaultPlan(ctx context.Context, planID string) error
 
 	// Allowance operations
-	ListAllowances(ctx context.Context) ([]*admin.QuotaAllowance, int, error)
+	ListAllowances(ctx context.Context, params *admin.GetApiQuotaAllowancesParams) ([]*admin.QuotaAllowance, int, error)
 	CreateAllowance(ctx context.Context, userID int, source, allowanceType string, upload, download, storage int, expiryDate time.Time) (*admin.QuotaAllowance, error)
 	UpdateAllowance(ctx context.Context, grantID string, userID int, source, allowanceType string, upload, download, storage int, expiryDate time.Time) (*admin.QuotaAllowance, error)
 	DeleteAllowance(ctx context.Context, grantID string) error
@@ -195,7 +195,7 @@ type QuotaAdminService interface {
 	Cleanup(ctx context.Context, retentionDays int) (int, error)
 
 	// User config operations
-	ListUserConfigs(ctx context.Context) ([]*admin.UserQuotaConfig, int, error)
+	ListUserConfigs(ctx context.Context, params *admin.GetApiQuotaUserConfigsParams) ([]*admin.UserQuotaConfig, int, error)
 	UpdateUserConfig(ctx context.Context, userID int, config *admin.UserQuotaConfigUpdate) (*admin.UserQuotaConfig, error)
 	ResetUserPlan(ctx context.Context, userID int) error
 }
@@ -217,28 +217,28 @@ type BillingAdminService interface {
 	GetUserDeletedCredits(ctx context.Context, userID string, params *admin.GetApiBillingUsersUserIdDeletedCreditsParams) ([]*admin.CreditItem, int, error)
 
 	// Price line operations
-	ListPriceLines(ctx context.Context) ([]*admin.PriceLine, int, error)
+	ListPriceLines(ctx context.Context, params *admin.GetApiBillingPriceLinesParams) ([]*admin.PriceLine, int, error)
 	CreatePriceLine(ctx context.Context, req *admin.PriceLineCreateRequest) (*admin.PriceLine, error)
 	GetPriceLine(ctx context.Context, priceLineID string) (*admin.PriceLineDetailResponse, error)
 	UpdatePriceLine(ctx context.Context, priceLineID string, req *admin.PriceLineUpdateRequest) (*admin.PriceLine, error)
 	DeletePriceLine(ctx context.Context, priceLineID string) error
 
 	// Pricing plan operations
-	ListPricingPlans(ctx context.Context) ([]*admin.PricingPlanItem, int, error)
+	ListPricingPlans(ctx context.Context, params *admin.GetApiBillingPricingPlansParams) ([]*admin.PricingPlanItem, int, error)
 	GetPricingPlan(ctx context.Context, planID string) (*admin.PricingPlan, error)
 	CreatePricingPlan(ctx context.Context, req *admin.PricingPlanCreateRequest) (*admin.PricingPlan, error)
 	UpdatePricingPlan(ctx context.Context, planID string, req *admin.PricingPlanUpdateRequest) (*admin.PricingPlan, error)
 	DeletePricingPlan(ctx context.Context, planID string) error
 
 	// Pricing plan period operations
-	ListPricingPlanPeriods(ctx context.Context) ([]*admin.PricingPlanPeriod, int, error)
+	ListPricingPlanPeriods(ctx context.Context, params *admin.GetApiBillingPricingPlanPeriodsParams) ([]*admin.PricingPlanPeriod, int, error)
 	CreatePricingPlanPeriod(ctx context.Context, req *admin.PricingPlanPeriodCreateRequest) (*admin.PricingPlanPeriod, error)
 	GetPricingPlanPeriod(ctx context.Context, periodID string) (*admin.PricingPlanPeriod, error)
 	UpdatePricingPlanPeriod(ctx context.Context, periodID string, req *admin.PricingPlanPeriodUpdateRequest) (*admin.PricingPlanPeriod, error)
 	DeletePricingPlanPeriod(ctx context.Context, periodID string) error
 
 	// Subscriber operations
-	ListSubscribers(ctx context.Context) ([]*admin.Subscriber, int, error)
+	ListSubscribers(ctx context.Context, params *admin.GetApiBillingSubscribersParams) ([]*admin.Subscriber, int, error)
 	GetSubscriber(ctx context.Context, subscriberID string) (*admin.Subscriber, error)
 	ListGatewaySubscribers(ctx context.Context, gatewayID string) ([]*admin.Subscriber, int, error)
 	GetUserSubscribers(ctx context.Context, userID string) ([]*admin.Subscriber, int, error)
@@ -314,9 +314,9 @@ func (s *quotaAdminService) getService(ctx context.Context) (*admin.QuotaService
 }
 
 // ListPlans lists all quota plans.
-func (s *quotaAdminService) ListPlans(ctx context.Context) ([]*admin.QuotaPlan, int, error) {
+func (s *quotaAdminService) ListPlans(ctx context.Context, params *admin.GetApiQuotaPlansParams) ([]*admin.QuotaPlan, int, error) {
 	return with3(s, ctx, func(svc *admin.QuotaService) ([]*admin.QuotaPlan, int, error) {
-		return svc.ListPlans(ctx)
+		return svc.ListPlans(ctx, params)
 	})
 }
 
@@ -356,9 +356,9 @@ func (s *quotaAdminService) SetDefaultPlan(ctx context.Context, planID string) e
 }
 
 // ListAllowances lists all quota allowances.
-func (s *quotaAdminService) ListAllowances(ctx context.Context) ([]*admin.QuotaAllowance, int, error) {
+func (s *quotaAdminService) ListAllowances(ctx context.Context, params *admin.GetApiQuotaAllowancesParams) ([]*admin.QuotaAllowance, int, error) {
 	return with3(s, ctx, func(svc *admin.QuotaService) ([]*admin.QuotaAllowance, int, error) {
-		return svc.ListAllowances(ctx)
+		return svc.ListAllowances(ctx, params)
 	})
 }
 
@@ -411,9 +411,9 @@ func (s *quotaAdminService) Cleanup(ctx context.Context, retentionDays int) (int
 }
 
 // ListUserConfigs lists all user quota configurations with pagination.
-func (s *quotaAdminService) ListUserConfigs(ctx context.Context) ([]*admin.UserQuotaConfig, int, error) {
+func (s *quotaAdminService) ListUserConfigs(ctx context.Context, params *admin.GetApiQuotaUserConfigsParams) ([]*admin.UserQuotaConfig, int, error) {
 	return with3(s, ctx, func(svc *admin.QuotaService) ([]*admin.UserQuotaConfig, int, error) {
-		return svc.ListUserConfigs(ctx)
+		return svc.ListUserConfigs(ctx, params)
 	})
 }
 
@@ -515,9 +515,9 @@ func (s *billingAdminService) GetUserDeletedCredits(ctx context.Context, userID 
 }
 
 // ListPriceLines lists all price lines.
-func (s *billingAdminService) ListPriceLines(ctx context.Context) ([]*admin.PriceLine, int, error) {
+func (s *billingAdminService) ListPriceLines(ctx context.Context, params *admin.GetApiBillingPriceLinesParams) ([]*admin.PriceLine, int, error) {
 	return with3(s, ctx, func(svc *admin.BillingService) ([]*admin.PriceLine, int, error) {
-		return svc.ListPriceLines(ctx)
+		return svc.ListPriceLines(ctx, params)
 	})
 }
 
@@ -550,9 +550,9 @@ func (s *billingAdminService) DeletePriceLine(ctx context.Context, priceLineID s
 }
 
 // ListPricingPlans lists all pricing plans.
-func (s *billingAdminService) ListPricingPlans(ctx context.Context) ([]*admin.PricingPlanItem, int, error) {
+func (s *billingAdminService) ListPricingPlans(ctx context.Context, params *admin.GetApiBillingPricingPlansParams) ([]*admin.PricingPlanItem, int, error) {
 	return with3(s, ctx, func(svc *admin.BillingService) ([]*admin.PricingPlanItem, int, error) {
-		return svc.ListPricingPlans(ctx)
+		return svc.ListPricingPlans(ctx, params)
 	})
 }
 
@@ -585,9 +585,9 @@ func (s *billingAdminService) DeletePricingPlan(ctx context.Context, planID stri
 }
 
 // ListPricingPlanPeriods lists all pricing plan periods.
-func (s *billingAdminService) ListPricingPlanPeriods(ctx context.Context) ([]*admin.PricingPlanPeriod, int, error) {
+func (s *billingAdminService) ListPricingPlanPeriods(ctx context.Context, params *admin.GetApiBillingPricingPlanPeriodsParams) ([]*admin.PricingPlanPeriod, int, error) {
 	return with3(s, ctx, func(svc *admin.BillingService) ([]*admin.PricingPlanPeriod, int, error) {
-		return svc.ListPricingPlanPeriods(ctx)
+		return svc.ListPricingPlanPeriods(ctx, params)
 	})
 }
 
@@ -620,9 +620,9 @@ func (s *billingAdminService) DeletePricingPlanPeriod(ctx context.Context, perio
 }
 
 // ListSubscribers lists all subscribers across all gateways.
-func (s *billingAdminService) ListSubscribers(ctx context.Context) ([]*admin.Subscriber, int, error) {
+func (s *billingAdminService) ListSubscribers(ctx context.Context, params *admin.GetApiBillingSubscribersParams) ([]*admin.Subscriber, int, error) {
 	return with3(s, ctx, func(svc *admin.BillingService) ([]*admin.Subscriber, int, error) {
-		return svc.ListSubscribers(ctx)
+		return svc.ListSubscribers(ctx, params)
 	})
 }
 

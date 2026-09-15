@@ -120,7 +120,13 @@ func adminBillingCreditsList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			params := &admin.GetApiBillingCreditsParams{}
+			// Page server-side via _start/_end so page 2+ is not silently
+			// missed by client-side slicing, while preserving the total.
+			page := opmesh.ParseListPage(input, 10)
+			params := &admin.GetApiBillingCreditsParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			}
 			if v := opmesh.StrArg(input, "user-id", ""); v != "" {
 				params.FiltersUserIdEq = &v
 			}
@@ -130,12 +136,11 @@ func adminBillingCreditsList(d AdminDeps) opmesh.Operation {
 			if v := opmesh.StrArg(input, "type", ""); v != "" {
 				params.TypeEq = &v
 			}
-			credits, _, err := svc.ListCredits(ctx, params)
+			credits, total, err := svc.ListCredits(ctx, params)
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return billingCreditsListResult(slicePage(credits, page.Start, page.Limit)), nil
+			return billingCreditsListResult(credits, total), nil
 		}),
 	})
 }
@@ -425,12 +430,16 @@ func adminBillingPriceLinesList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			lines, _, err := svc.ListPriceLines(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			lines, total, err := svc.ListPriceLines(ctx, &admin.GetApiBillingPriceLinesParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return billingPriceLinesListResult(slicePage(lines, page.Start, page.Limit)), nil
+			return billingPriceLinesListResult(lines, total), nil
 		}),
 	})
 }
@@ -738,12 +747,16 @@ func adminBillingPricingPlansList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			plans, _, err := svc.ListPricingPlans(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			plans, total, err := svc.ListPricingPlans(ctx, &admin.GetApiBillingPricingPlansParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return billingPricingPlansListResult(slicePage(plans, page.Start, page.Limit)), nil
+			return billingPricingPlansListResult(plans, total), nil
 		}),
 	})
 }
@@ -1012,12 +1025,16 @@ func adminBillingPricingPlanPeriodsList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			periods, _, err := svc.ListPricingPlanPeriods(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			periods, total, err := svc.ListPricingPlanPeriods(ctx, &admin.GetApiBillingPricingPlanPeriodsParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return billingPricingPlanPeriodsListResult(slicePage(periods, page.Start, page.Limit)), nil
+			return billingPricingPlanPeriodsListResult(periods, total), nil
 		}),
 	})
 }
@@ -1218,12 +1235,16 @@ func adminBillingSubscribersList(d AdminDeps) opmesh.Operation {
 			if err := svc.RequireAuthenticated(); err != nil {
 				return nil, err
 			}
-			subs, _, err := svc.ListSubscribers(ctx)
+			// Page server-side via _start/_end; preserve the total.
+			page := opmesh.ParseListPage(input, 10)
+			subs, total, err := svc.ListSubscribers(ctx, &admin.GetApiBillingSubscribersParams{
+				UnderscoreStart: intPtr(page.Start),
+				UnderscoreEnd:   intPtr(page.Start + page.Limit),
+			})
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			return billingSubscribersListResult(slicePage(subs, page.Start, page.Limit)), nil
+			return billingSubscribersListResult(subs, total), nil
 		}),
 	})
 }
@@ -1543,19 +1564,19 @@ func adminBillingOverview(d AdminDeps) opmesh.Operation {
 				return nil, err
 			}
 			out := &BillingOverviewResult{}
-			if plans, total, err := quotaSvc.ListPlans(ctx); err == nil {
+			if plans, total, err := quotaSvc.ListPlans(ctx, nil); err == nil {
 				_ = plans
 				out.QuotaPlans = total
 			}
-			if lines, total, err := billingSvc.ListPriceLines(ctx); err == nil {
+			if lines, total, err := billingSvc.ListPriceLines(ctx, nil); err == nil {
 				_ = lines
 				out.PriceLines = total
 			}
-			if plans, total, err := billingSvc.ListPricingPlans(ctx); err == nil {
+			if plans, total, err := billingSvc.ListPricingPlans(ctx, nil); err == nil {
 				_ = plans
 				out.PricingPlans = total
 			}
-			if periods, total, err := billingSvc.ListPricingPlanPeriods(ctx); err == nil {
+			if periods, total, err := billingSvc.ListPricingPlanPeriods(ctx, nil); err == nil {
 				_ = periods
 				out.Periods = total
 			}

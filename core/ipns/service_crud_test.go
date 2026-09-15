@@ -33,6 +33,14 @@ func (m *mockIPNSSDKService) ListKeys(ctx context.Context, opts ...ipfs.ListKeyO
 	return nil, nil
 }
 
+func (m *mockIPNSSDKService) ListKeysPage(ctx context.Context, _ ...ipfs.IPNSKeyPagingOption) (*ipfs.IPNSKeyPage, error) {
+	// No core test drives the pinner ListKeysPage wrapper, so this mock only
+	// needs to satisfy the SDK interface. The SDK's page Data element type is
+	// internal (not re-exported), so we return an empty page rather than
+	// fabricate items; the wrapper merely forwards the call.
+	return &ipfs.IPNSKeyPage{}, nil
+}
+
 func (m *mockIPNSSDKService) GetKey(ctx context.Context, id string) (*ipfs.IPNSKeyResponse, error) {
 	if m.getKeyFunc != nil {
 		return m.getKeyFunc(ctx, id)

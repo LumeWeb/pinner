@@ -258,8 +258,17 @@ type mockDNSServiceForOps struct {
 	updateRecordFunc func(ctx context.Context, id, name, recordType string, record ipfs.RecordRequest) (*ipfs.RecordResponse, error)
 	createRecordFunc func(ctx context.Context, id string, record ipfs.RecordRequest) (*ipfs.RecordResponse, error)
 	// listRecordsFunc optionally overrides the records returned by ListRecords,
-	// letting tests exercise the delete-by-id resolution path.
+	// letting tests exercise the delete-by-id resolution path. The paged
+	// ListRecordsPage falls back to it (with the whole set as total) unless
+	// listRecordsPageFunc is set.
 	listRecordsFunc func(ctx context.Context, id string) ([]ipfs.RecordResponse, error)
+	// listRecordsPageFunc optionally provides server-side paging semantics for
+	// ListRecordsPage (start/limit window + total), used by the pagination
+	// regression tests.
+	listRecordsPageFunc func(ctx context.Context, id string, opts opmesh.ListOptions[struct{}]) ([]ipfs.RecordResponse, int, error)
+	// listZonesPageFunc optionally provides server-side paging semantics for
+	// ListZonesPage, used by the domain-resolution pagination regression test.
+	listZonesPageFunc func(ctx context.Context, opts opmesh.ListOptions[struct{}]) ([]ipfs.ZoneListResponse, int, error)
 	// deleteRecordFunc optionally captures the content selector forwarded to
 	// DeleteRecord for content-scoped delete tests.
 	deleteRecordFunc func(ctx context.Context, id, name, recordType string, content ...string) error
@@ -276,6 +285,12 @@ func (m *mockDNSServiceForOps) CreateZone(ctx context.Context, d string, ns []st
 }
 func (m *mockDNSServiceForOps) ListZones(ctx context.Context) ([]ipfs.ZoneListResponse, error) {
 	return nil, nil
+}
+func (m *mockDNSServiceForOps) ListZonesPage(ctx context.Context, opts opmesh.ListOptions[struct{}]) ([]ipfs.ZoneListResponse, int, error) {
+	if m.listZonesPageFunc != nil {
+		return m.listZonesPageFunc(ctx, opts)
+	}
+	return nil, 0, nil
 }
 func (m *mockDNSServiceForOps) GetZone(ctx context.Context, id string) (*ipfs.ZoneResponse, error) {
 	return nil, nil
@@ -295,6 +310,19 @@ func (m *mockDNSServiceForOps) ListRecords(ctx context.Context, id string) ([]ip
 		return m.listRecordsFunc(ctx, id)
 	}
 	return nil, nil
+}
+func (m *mockDNSServiceForOps) ListRecordsPage(ctx context.Context, id string, opts opmesh.ListOptions[struct{}]) ([]ipfs.RecordResponse, int, error) {
+	if m.listRecordsPageFunc != nil {
+		return m.listRecordsPageFunc(ctx, id, opts)
+	}
+	if m.listRecordsFunc != nil {
+		records, err := m.listRecordsFunc(ctx, id)
+		if err != nil {
+			return nil, 0, err
+		}
+		return records, len(records), nil
+	}
+	return nil, 0, nil
 }
 func (m *mockDNSServiceForOps) GetRecord(ctx context.Context, id, name, recordType string) (*ipfs.RecordResponse, error) {
 	if m.getRecordType != nil {

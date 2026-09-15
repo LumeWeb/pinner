@@ -74,13 +74,23 @@ func adminUsersList(d AdminDeps) opmesh.Operation {
 			if v := opmesh.BoolArgPtr(input, "verified"); v != nil {
 				params.Verified = v
 			}
+			// Server-side paging: map the page/page-size cursor onto the
+			// admin API's queryutil `_start`/`_end` window instead of
+			// fetching the whole table and slicing client-side. Fetching
+			// then slicing made every page return the first N rows (the
+			// backend always defaulted to _start=0,_end=10). Passing the
+			// window on to ListUsers lets the backend return the correct
+			// slice directly.
+			page := opmesh.ParseListPage(input, 10)
+			start := page.Start
+			end := page.Start + page.Limit
+			params.UnderscoreStart = &start
+			params.UnderscoreEnd = &end
 			users, total, err := svc.ListUsers(ctx, params)
 			if err != nil {
 				return nil, err
 			}
-			page := opmesh.ParseList(input)
-			paged := slicePage(users, page.Start, page.Limit)
-			return adminUsersListResult(paged, total), nil
+			return adminUsersListResult(users, total), nil
 		}),
 	})
 }

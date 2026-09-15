@@ -20,11 +20,12 @@ import (
 // operations. All methods default to an "unimplemented" error so a test must
 // opt into the behavior it exercises, surfacing unexpected calls.
 type mockENSIPNSService struct {
-	requireAuth func() error
-	createKey   func(ctx context.Context, name string, key *string) (*ipfs.IPNSKeyResponse, error)
-	listKeys    func(ctx context.Context) ([]ipfs.IPNSKeyResponse, error)
-	publish     func(ctx context.Context, cid, keyName string, ttl *string) (*ipfs.IPNSPublishResponse, error)
-	deleteKey   func(ctx context.Context, id string) error
+	requireAuth  func() error
+	createKey    func(ctx context.Context, name string, key *string) (*ipfs.IPNSKeyResponse, error)
+	listKeys     func(ctx context.Context) ([]ipfs.IPNSKeyResponse, error)
+	listKeysPage func(ctx context.Context) (*ipfs.IPNSKeyPage, error)
+	publish      func(ctx context.Context, cid, keyName string, ttl *string) (*ipfs.IPNSPublishResponse, error)
+	deleteKey    func(ctx context.Context, id string) error
 }
 
 func (m *mockENSIPNSService) SetAuthToken(string) {}
@@ -39,6 +40,13 @@ func (m *mockENSIPNSService) ListKeys(ctx context.Context, _ ...ipfs.ListKeyOpti
 		return nil, errors.New("unexpected ListKeys")
 	}
 	return m.listKeys(ctx)
+}
+
+func (m *mockENSIPNSService) ListKeysPage(ctx context.Context, _ ...ipfs.IPNSKeyPagingOption) (*ipfs.IPNSKeyPage, error) {
+	if m.listKeysPage == nil {
+		return nil, errors.New("unexpected ListKeysPage")
+	}
+	return m.listKeysPage(ctx)
 }
 func (m *mockENSIPNSService) CreateKey(ctx context.Context, name string, key *string) (*ipfs.IPNSKeyResponse, error) {
 	if m.createKey == nil {

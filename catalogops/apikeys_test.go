@@ -18,6 +18,7 @@ type fakeAPIKeysService struct {
 	apikeys.Service
 
 	createFn func(ctx context.Context, name string) (*portalsdk.APIKey, error)
+	listFn   func(ctx context.Context, search string, start, limit int) ([]*portalsdk.APIKey, int, error)
 }
 
 func (f *fakeAPIKeysService) CreateAPIKey(ctx context.Context, name string) (*portalsdk.APIKey, error) {
@@ -25,6 +26,13 @@ func (f *fakeAPIKeysService) CreateAPIKey(ctx context.Context, name string) (*po
 		return f.createFn(ctx, name)
 	}
 	return portalsdk.NewAPIKey(name, "sdk-test-value"), nil
+}
+
+func (f *fakeAPIKeysService) ListAPIKeys(ctx context.Context, search string, start, limit int) ([]*portalsdk.APIKey, int, error) {
+	if f.listFn != nil {
+		return f.listFn(ctx, search, start, limit)
+	}
+	return nil, 0, nil
 }
 
 // recordingKeyDrop is a fake APIKeyDrop coordinator pinning the one-time OOB
@@ -110,4 +118,36 @@ func TestAPIKeysCreateRequiresName(t *testing.T) {
 	_, err := op.Handler().Execute(context.Background(), map[string]any{})
 	require.Error(t, err)
 	require.Equal(t, "api_keys_create: key name is required", err.Error())
+}
+
+// TestAPIKeysListPagingArgs asserts the list op forwards page/page-size to the
+// service as the server-side start/limit cursor (end = start+limit) instead of
+// fetching every key and slicing client-side, and that the backend's already
+// paged rows pass through untouched.
+func TestAPIKeysListPagingArgs(t *testing.T) {
+	var gotStart, gotLimit int
+	second := portalsdk.NewAPIKey("second", "sdk-test-value")
+	svc := &fakeAPIKeysService{
+		listFn: func(_ context.Context, _ string, start, limit int) ([]*portalsdk.APIKey, int, error) {
+			gotStart, gotLimit = start, limit
+			return []*portalsdk.APIKey{second}, 2, nil
+		},
+	}
+	op := apiKeysList(apiKeysCreateDeps(svc, nil))
+	res, err := op.Handler().Execute(context.Background(), map[string]any{
+		"page":      2,
+		"page-size": 1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, gotStart, "page=2 page-size=1 should request start=1")
+	require.Equal(t, 1, gotLimit, "page=2 page-size=1 should request limit=1")
+
+	got, ok := res.(ListResult)
+	require.True(t, ok, "result type = %T, want ListResult", res)
+	require.Equal(t, 1, got.ListCount())
+	require.Equal(t, 2, got.ListTotal())
+	items, ok := got.ListItems().([]*portalsdk.APIKey)
+	require.True(t, ok)
+	require.Len(t, items, 1)
+	require.Equal(t, "second", items[0].Name)
 }

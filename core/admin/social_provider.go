@@ -38,7 +38,7 @@ type SocialProviderAdminService interface {
 
 	// ListSocialProviders lists all configured social login providers. The
 	// client secret is never returned by the API.
-	ListSocialProviders(ctx context.Context) ([]*admin.SocialProvider, int, error)
+	ListSocialProviders(ctx context.Context, params *admin.GetApiSocialProvidersParams) ([]*admin.SocialProvider, int, error)
 
 	// CreateSocialProvider creates a new social login provider configuration.
 	CreateSocialProvider(ctx context.Context, req *admin.SocialProviderRequest) (*admin.SocialProvider, error)
@@ -97,9 +97,9 @@ func (s *socialProviderAdminService) getService(ctx context.Context) (*admin.Soc
 }
 
 // ListSocialProviders lists all configured social login providers.
-func (s *socialProviderAdminService) ListSocialProviders(ctx context.Context) ([]*admin.SocialProvider, int, error) {
+func (s *socialProviderAdminService) ListSocialProviders(ctx context.Context, params *admin.GetApiSocialProvidersParams) ([]*admin.SocialProvider, int, error) {
 	return with3(s, ctx, func(svc *admin.SocialProviderService) ([]*admin.SocialProvider, int, error) {
-		return svc.ListSocialProviders(ctx)
+		return svc.ListSocialProviders(ctx, params)
 	})
 }
 

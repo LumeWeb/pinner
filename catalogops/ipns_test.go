@@ -1,7 +1,13 @@
 package catalogops
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	ipfs "go.lumeweb.com/ipfs-sdk"
 
 	"go.lumeweb.com/pinner/core/config"
 	configmocks "go.lumeweb.com/pinner/core/config/mocks"
@@ -53,4 +59,99 @@ func TestIPNSServiceNilConfigError(t *testing.T) {
 	if _, err := d.service(map[string]any{}); err == nil {
 		t.Fatal("service: expected error for nil config manager, got nil")
 	}
+}
+
+// fakeIPNSListKeysService fakes ipns.Service for the list handler, returning a
+// pre-filtered (server-side name-filtered) set from ListKeys so tests can drive
+// the search branch's client-side paging.
+type fakeIPNSListKeysService struct {
+	ipns.Service
+	keys []ipfs.IPNSKeyResponse
+}
+
+func (s *fakeIPNSListKeysService) RequireAuthenticated() error { return nil }
+
+func (s *fakeIPNSListKeysService) ListKeys(context.Context, ...ipfs.ListKeyOption) ([]ipfs.IPNSKeyResponse, error) {
+	return s.keys, nil
+}
+
+// TestIPNSKeysListSearchPaging guards the regression where the search branch
+// of ipns_keys_list dropped the page/page-size cursor and returned every
+// filtered key regardless of the requested window. With a search given it must
+// page the full filtered set client-side (slicePage) while preserving the full
+// filtered total, so page 2+ reports the right rows and an accurate count.
+//
+// It also guards the follow-up regression where the search branch used
+// ParseListPage(input, 10): the client-side slicePage therefore truncated an
+// un-paginated search to the default 10-item window, silently dropping filtered
+// keys beyond the first page. The search branch must use ParseList (not
+// ParseListPage) so that an omitted --page-size leaves Limit at 0 and returns
+// every filtered key, while an explicit --page-size still slices with an
+// accurate full total.
+func TestIPNSKeysListSearchPaging(t *testing.T) {
+	// 15 filtered keys: more than the default server-side 10-item window so an
+	// unintended ParseListPage(input, 10) truncation is observable.
+	keys := make([]ipfs.IPNSKeyResponse, 15)
+	for i := range keys {
+		keys[i] = ipfs.IPNSKeyResponse{
+			Id:       i + 1,
+			Name:     fmt.Sprintf("key-%d", i+1),
+			IpnsName: fmt.Sprintf("k51qzi5uqu5dg%04d", i),
+			PeerId:   "12D3KooWFakePeerId",
+			Created:  time.Now(),
+		}
+	}
+	svc := &fakeIPNSListKeysService{keys: keys}
+	op := ipnsKeysList(IPNSDeps{
+		CfgMgr: func() config.Manager { return configmocks.NewMockManager(t) },
+		ServiceFactory: func(config.Manager, bool, ...ipns.Option) ipns.Service {
+			return svc
+		},
+	})
+
+	// Page 2 of page-size 2 over 15 filtered keys -> rows key-3,key-4; total 15.
+	res, err := op.Handler().Execute(context.Background(), map[string]any{
+		"search": "key", "page": 2, "page-size": 2,
+	})
+	require.NoError(t, err)
+
+	got, ok := res.(ListResult)
+	require.True(t, ok, "result type = %T, want ListResult", res)
+	require.Equal(t, 2, got.ListCount(), "page 2 of size 2 should yield 2 rows")
+	require.Equal(t, 15, got.ListTotal(), "full filtered total must be preserved")
+
+	items, ok := got.ListItems().([]ipfs.IPNSKeyResponse)
+	require.True(t, ok, "items type = %T, want []ipfs.IPNSKeyResponse", got.ListItems())
+	require.Len(t, items, 2)
+	require.Equal(t, "key-3", items[0].Name)
+	require.Equal(t, "key-4", items[1].Name)
+
+	// Explicit page-size still slices against the full filtered total: page 1
+	// of size 10 over 15 keys -> 10 rows, total 15.
+	res, err = op.Handler().Execute(context.Background(), map[string]any{
+		"search": "key", "page": 1, "page-size": 10,
+	})
+	require.NoError(t, err)
+	got, ok = res.(ListResult)
+	require.True(t, ok)
+	require.Equal(t, 10, got.ListCount())
+	require.Equal(t, 15, got.ListTotal())
+
+	// No page-size returns every filtered key: all 15 rows, total 15. Under the
+	// old ParseListPage(input, 10) this truncated to 10 rows and dropped the
+	// tail of the filter set.
+	res, err = op.Handler().Execute(context.Background(), map[string]any{
+		"search": "key",
+	})
+	require.NoError(t, err)
+	got, ok = res.(ListResult)
+	require.True(t, ok)
+	require.Equal(t, 15, got.ListCount(), "un-paginated search must return all filtered keys")
+	require.Equal(t, 15, got.ListTotal())
+
+	items, ok = got.ListItems().([]ipfs.IPNSKeyResponse)
+	require.True(t, ok)
+	require.Len(t, items, 15)
+	require.Equal(t, "key-1", items[0].Name)
+	require.Equal(t, "key-15", items[len(items)-1].Name)
 }
