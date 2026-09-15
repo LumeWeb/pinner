@@ -107,9 +107,12 @@ func ipnsKeysList(d IPNSDeps) opmesh.Operation {
 				// server-side name filter) and pages it client-side, since
 				// ListKeysPage exposes no name filter. Preserve the full
 				// filtered total so the caller's page cursor stays accurate
-				// regardless of the requested window.
+				// regardless of the requested window. ParseList (not
+				// ParseListPage) leaves an omitted --page-size at Limit 0, so
+				// slicePage returns every filtered key by default instead of
+				// silently truncating to the server-side 10-item window.
 				total := len(keys)
-				page := opmesh.ParseListPage(input, 10)
+				page := opmesh.ParseList(input)
 				items := slicePage(keys, page.Start, page.Limit)
 				rows := make([][]string, 0, len(items))
 				for _, k := range items {
